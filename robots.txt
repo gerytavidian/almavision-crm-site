@@ -1,0 +1,4 @@
+# Ne sert vraiment qu'avec un domaine propre : les robots ne lisent robots.txt qu'à la racine du domaine,
+# pas dans <compte>.github.io/<dépôt>/. La page porte aussi <meta name="robots" content="noindex,nofollow">.
+User-agent: *
+Disallow: /
