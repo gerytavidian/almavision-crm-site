@@ -714,7 +714,29 @@ window.__pret = (async () => {
       setTimeout(fermer, 1500);
     };
   };
-  window.claude = {use: async n => n === "db" ? db : n === "user" ? user : n === "downloads" ? downloads : null};
+  // Claude (recherche en langage naturel) : la base met la question en file (ia_demander, clé API dans Vault côté
+  // Supabase, jamais dans la page) et la page vient chercher la réponse chaque seconde (ia_reponse)
+  const echec = (code, message) => Object.assign(new Error(message), {code});
+  const sample = async (input, opts = {}) => {
+    const consigne = typeof input === "string" ? input : input.filter(t => t.role === "user").map(t => typeof t.content === "string" ? t.content : "").join("\n\n");
+    const {data: n, error} = await sb.rpc("ia_demander", {consigne});
+    if (error) throw echec(error.hint === "rate_limited" ? "rate_limited" : error.code === "42501" ? "not_granted" : "unavailable", error.message);
+    for (const debut = Date.now(); Date.now() - debut < 150000; ) {
+      if (opts.signal && opts.signal.aborted) throw echec("cancelled", "annulé");
+      await new Promise(ok => setTimeout(ok, 1000));
+      const {data: r, error: e2} = await sb.rpc("ia_reponse", {num: n});
+      if (e2) throw echec("unavailable", e2.message);
+      if (r.etat === "ok") return {text: r.texte, truncated: !!r.tronque};
+      if (r.etat === "erreur") throw echec(r.code || "unavailable", r.message);
+    }
+    throw echec("unavailable", "Claude n'a pas répondu à temps");
+  };
+  sample.json = async (input, opts) => {
+    const {text} = await sample(input, opts);
+    const t = text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, ""), a = t.indexOf("{"), b = t.lastIndexOf("}");
+    return JSON.parse(a >= 0 && b > a ? t.slice(a, b + 1) : t);
+  };
+  window.claude = {use: async n => n === "db" ? db : n === "user" ? user : n === "downloads" ? downloads : n === "sample" ? sample : null};
   window.__site = {prenom, deconnexion: () => deconnecter(), changerMdp};
 })();
 </script>
@@ -726,7 +748,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202610201621`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202610201726`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
