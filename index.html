@@ -63,6 +63,11 @@ main{max-width:1240px;margin:0 auto;padding-inline:20px;padding-block:22px 60px}
 .ex{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:rgba(255,255,255,.6)}
 .ex button{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#fff;border-radius:999px;padding:4px 12px;cursor:pointer;font-size:12.5px}
 .ex button:hover{background:rgba(255,255,255,.16);border-color:var(--mint)}
+.recents{margin-top:6px}
+.recents button{display:inline-flex;gap:6px;align-items:baseline;max-width:100%;min-width:0;white-space:nowrap}
+.recents button b{flex:none;font-weight:600;color:var(--mint)}
+.recents button .rq{min-width:0;max-width:42ch;overflow:hidden;text-overflow:ellipsis}
+.recents button i{flex:none;font-style:normal;font-size:11.5px;color:rgba(255,255,255,.55)}
 .filters{display:grid;gap:10px}
 .fbar{display:flex;gap:8px;align-items:center}
 .ftog{display:inline-flex;align-items:center;gap:6px;font-weight:600}
@@ -396,6 +401,7 @@ textarea.note{width:100%;min-height:70px;border:1px solid var(--line);border-rad
     <button class="btn primary" type="submit" id="go">Rechercher</button>
   </form>
   <div class="ex" id="ex"><span>Exemples :</span></div>
+  <div class="ex recents" id="recents" hidden></div>
   <div class="ai-note" id="ai-note" hidden></div>
   <div class="hf" id="fz-c"><div class="filters" id="filters"></div><div class="understood" id="chips" hidden></div></div>
   <div class="hf" id="fz-p" hidden><div class="filters" id="pfilters"></div><div class="understood" id="pchips" hidden></div></div>
@@ -736,6 +742,10 @@ window.__pret = (async () => {
     const t = text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, ""), a = t.indexOf("{"), b = t.lastIndexOf("}");
     return JSON.parse(a >= 0 && b > a ? t.slice(a, b + 1) : t);
   };
+  user.profiles = async ids => {
+    const {data} = await sb.from("membre").select("user_id,prenom").in("user_id", ids);
+    return Object.fromEntries((data || []).map(r => [r.user_id, {name: r.prenom}]));
+  };
   window.claude = {use: async n => n === "db" ? db : n === "user" ? user : n === "downloads" ? downloads : n === "sample" ? sample : null};
   window.__site = {prenom, deconnexion: () => deconnecter(), changerMdp};
 })();
@@ -748,7 +758,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202610201726`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202610201755`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -1082,7 +1092,87 @@ async function connect(){
   db.collection("suivi_lots").onSnapshot(s => { suiviLots = lireDocs(s, propreLot); fusionnerSuivi();
     if (!enLot) renderAll(); }, () => setSync("Connexion perdue : rechargez"));
   db.collection("taches").onSnapshot(s => { taches = lireDocs(s, propreTache); renderAll(); }, () => setSync("Connexion perdue : rechargez"));
+  db.collection("recherches").onSnapshot(recevoirRech, () => {});
 }
+
+/* ---------------- dernières recherches de l'équipe ----------------
+   Collection partagée « recherches » : un document par personne (identifiant du compte), {liste: [{q, le, mode}]} avec
+   ses 10 dernières recherches. La page affiche les 10 plus récentes de toute l'équipe ; un clic relance la recherche. */
+const NB_RECENTS = 10, MAX_Q = 300;
+let recherches = {}, nomsRech = {}, rechPret = false, rechAttente = [], rechFile = Promise.resolve(), rechNoms = false;
+const dateOk = le => Number.isFinite(Date.parse(le));
+function propreRecherche(d){
+  if (!estObjet(d) || !Array.isArray(d.liste)) return null;
+  const futur = Date.now() + 5 * 60000;   // une date dans le futur (horloge fausse ou saisie forcée) est ramenée à maintenant
+  return {liste: d.liste.filter(estObjet).map(x => ({q: texte(x.q).slice(0, MAX_Q), le: texte(x.le), mode: x.mode === "projets" ? "projets" : "recherche"}))
+    .filter(x => x.q && dateOk(x.le)).map(x => Date.parse(x.le) > futur ? {...x, le: new Date().toISOString()} : x)};
+}
+// liste de la personne : ses recherches les plus récentes d'abord, sans doublon (même texte, même onglet)
+function fusionRech(...listes){
+  const vu = new Set(), r = [];
+  for (const x of listes.flat().sort((a, b) => Date.parse(b.le) - Date.parse(a.le))) {
+    const c = x.mode + "|" + x.q; if (vu.has(c)) continue; vu.add(c); r.push(x);
+  }
+  return r.slice(0, NB_RECENTS);
+}
+function noterRecherche(q, m){
+  if (!db || canWrite === false || !myId || !q) return;
+  const x = {q: q.slice(0, MAX_Q), le: new Date().toISOString(), mode: m};
+  // tant que la première lecture n'est pas arrivée, la recherche attend (sinon l'historique déjà enregistré serait écrasé)
+  if (!rechPret) { rechAttente.push(x); return; }
+  enregistrerRech([x]);
+}
+function enregistrerRech(nouvelles){
+  const liste = fusionRech(nouvelles, (recherches[myId] || {}).liste || []);
+  recherches[myId] = {liste};
+  // écritures de ce document l'une après l'autre (jamais une ancienne liste après une nouvelle), un seul essai, sans
+  // message en cas d'échec : l'historique n'est qu'une aide
+  rechFile = rechFile.then(() => db.collection("recherches").doc(myId).set({liste: (recherches[myId] || {liste}).liste})).catch(() => {});
+  renderRecents();
+}
+function recevoirRech(s){
+  const lus = lireDocs(s, propreRecherche);
+  // sa propre liste : celle reçue fusionnée avec ce qui a été noté ici et pas encore relu (deux onglets, écriture en cours)
+  if (myId && recherches[myId]) lus[myId] = {liste: fusionRech(recherches[myId].liste, (lus[myId] || {}).liste || [])};
+  recherches = lus;
+  if (!rechPret) { rechPret = true; if (rechAttente.length) { const a = rechAttente; rechAttente = []; enregistrerRech(a); return; } }
+  renderRecents();
+}
+function ilYa(le){
+  const min = Math.floor((Date.now() - Date.parse(le)) / 60000);
+  if (!Number.isFinite(min)) return "";
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  if (min < 24 * 60) return `il y a ${Math.floor(min / 60)} h`;
+  return frDate(le);
+}
+// prénoms des auteurs, cherchés à part ; un échec n'est pas mis en mémoire (nouvel essai au rendu suivant)
+async function chercherNoms(ids){
+  if (rechNoms || !user || !user.profiles) return;
+  rechNoms = true;
+  try { const ps = await user.profiles(ids) || {}; for (const id of ids) nomsRech[id] = (ps[id] && ps[id].name || "").trim().split(/\s+/)[0] || "Un collègue"; }
+  catch {} finally { rechNoms = false; }
+  renderRecents();
+}
+let rechTout = [];
+function renderRecents(){
+  const el = $("recents");
+  rechTout = Object.entries(recherches).flatMap(([id, d]) => d.liste.map(x => ({...x, id})))
+    .sort((a, b) => Date.parse(b.le) - Date.parse(a.le)).slice(0, NB_RECENTS);
+  if (!rechTout.length) { el.hidden = true; el.innerHTML = ""; return; }
+  const manque = [...new Set(rechTout.map(x => x.id))].filter(id => id !== myId && !(id in nomsRech));
+  if (manque.length) chercherNoms(manque);
+  const qui = id => id === myId ? "Vous" : nomsRech[id] || "";
+  el.innerHTML = `<span>Dernières recherches de l'équipe :</span>` + rechTout.map((x, i) => {
+    const onglet = x.mode === "projets" ? "Recherche Projets" : "Recherche Corpo", n = qui(x.id);
+    return `<button type="button" data-rech="${i}" title="${esc(`${n ? n + " · " : ""}${onglet} · ${ilYa(x.le)} : ${x.q}`)}" aria-label="${esc(`Relancer la recherche${n ? " de " + n : ""} : ${x.q}, ${ilYa(x.le)}, ${onglet}`)}">${
+      n ? `<b>${esc(n)}</b>` : ""}<span class="rq">${esc(x.q)}</span><i>${esc(ilYa(x.le))}${x.mode === "projets" ? " · projets" : ""}</i></button>`; }).join("");
+  el.hidden = false;
+}
+$("recents").onclick = e => { const b = e.target.closest("button[data-rech]"); if (!b) return; const x = rechTout[+b.dataset.rech]; if (!x) return;
+  if ((mode() === "projets" ? "projets" : "recherche") !== x.mode) show(x.mode);
+  $("q").value = x.q; x.mode === "projets" ? psearch() : search(); };
+setInterval(() => { if (!$("recents").hidden) renderRecents(); }, 60000);   // « il y a … » tenu à jour
 
 /* ---------------- moteur de recherche ---------------- */
 const F0 = () => ({q:"", etape:"", segs:[], prs:[], sts:[], re:"", regs:[], deps:[], kw_min:null, kw_max:null, fc_min:null, fc_max:null, np_min:null, np_max:null, sc_min:null, sc_max:null,
@@ -1758,6 +1848,7 @@ function pfromAI(j){
 }
 async function psearch(){
   const q = $("q").value.trim();
+  noterRecherche(q, "projets");
   if (!q) { PF.q = ""; paiNote = ""; showNote(); prefresh(); return; }
   if (!phrase(q) || !sample) { PF = {...PF0(), sort: PF.sort, q}; paiNote = !sample && phrase(q) ? "La recherche en langage naturel n'est disponible que dans claude.ai ; recherche par mots." : ""; showNote(); prefresh(); return; }
   $("go").disabled = true; $("ai-note").hidden = false; $("ai-note").innerHTML = `<span class="spin"></span> Claude analyse votre demande…`;
@@ -1835,6 +1926,7 @@ function fromAI(j){
 function phrase(q){ return q.trim().split(/\s+/).length >= 3 && !/^\d{9}$/.test(q.trim()); }
 async function search(){
   const q = $("q").value.trim();
+  noterRecherche(q, "recherche");
   if (!q) { F.q = ""; aiNote = ""; refresh(); return; }
   if (!phrase(q) || !sample) {   // nom, SIREN, ville : recherche directe
     F = {...F0(), sort: F.sort, q}; aiNote = !sample && phrase(q) ? "La recherche en langage naturel n'est disponible que dans claude.ai ; recherche par mots." : "";
