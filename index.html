@@ -12,6 +12,7 @@
   --p1:#00352F; --p2:#4F8A7E; --p3:#C3D1D6; --p3-ink:#24413C;
   --ok:#1F7A5A; --warn:#C2541F; --bad:#B4462A; --focus:#64879A;
   --font:"DM Sans","Segoe UI",Arial,sans-serif; --mono:"DM Mono",Consolas,monospace;
+  --arx:#1D5DA8; --arx-dark:#123E73; --arx-weak:#E8F0FA; --arx-line:#B9CFEA;
   --r:10px; color-scheme:light;
 }
 *{box-sizing:border-box}
@@ -211,6 +212,25 @@ select.stp option{background:#fff;color:#0E2422;font-weight:500;text-decoration:
 .hex.P1{background:var(--p1);color:#fff}.hex.P2{background:var(--p2);color:#fff}
 .tag{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:5px;background:var(--soft2);color:var(--ink2);white-space:nowrap}
 .tag.warn{background:var(--coral-weak);color:var(--warn);font-weight:600}
+/* ARX (CRM des deals) : tout ce qui vient d'ARX est en bleu */
+.tag.arx{background:var(--arx);color:#fff;font-weight:700;letter-spacing:.03em;cursor:pointer;border:0}
+.tag.arx:hover{background:var(--arx-dark)}
+.arx-band{background:var(--arx-weak);border:1px solid var(--arx-line);border-left:4px solid var(--arx);border-radius:9px;padding:10px 13px;display:grid;gap:7px}
+.arx-band .ab-t{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--arx-dark);font-weight:700}
+.arx-band .ab-l{font-size:13.5px;color:var(--ink2)}
+.arx-band .ab-l b{color:var(--arx-dark)}
+.btn.arx{background:var(--arx);border-color:var(--arx);color:#fff}
+.btn.arx:hover{background:var(--arx-dark);border-color:var(--arx-dark)}
+.dh.arx{background:var(--arx-dark)}
+.dh.arx .btn.ghost{border-color:rgba(255,255,255,.4)}
+.arxf h3{color:var(--arx-dark)}
+.arxf details.sec > summary{color:var(--arx-dark)}
+.arxf .kv{display:grid;grid-template-columns:minmax(150px,34%) 1fr;gap:5px 14px;font-size:13.5px}
+.arxf .kv dt{color:var(--muted)}
+.arxf .kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.arxf .com{white-space:pre-wrap;font-size:13.5px;color:var(--ink2);background:var(--arx-weak);border-radius:8px;padding:8px 10px;margin-top:4px;max-height:260px;overflow:auto}
+.arxf table.sub th{color:var(--arx-dark)}
+.st-arx{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--arx);color:#fff}
 .tag.new{background:var(--accent-weak);color:var(--accent)}
 .st{font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink2);white-space:nowrap}
 .st.a_contacter,.st.a_qualifier,.st.non_traite{border-color:var(--focus);color:var(--focus)}
@@ -758,7 +778,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202610201755`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202610211153`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -789,7 +809,9 @@ const AO_ANS = [...new Set(LEADS.flatMap(l => l.aos.map(a => a[2]).filter(Boolea
 const BYK = new Map(LEADS.map(l => [l.k, l]));
 for (const l of LEADS) for (const a of l.ka || []) BYK.set(a, l);   // fiches fusionnées : anciennes clés -> fiche
 const MEMBRES = DATA.membres;
-const SEG = {asset:"Asset (propriétaire)", corpo_dev:"Développeur", epc:"EPC", om:"O&M", bureau_etude:"Bureau d'études", industriel:"Industriel", autre:"Autre"};
+const SEG = {asset:"Asset (propriétaire)", corpo_dev:"Développeur", epc:"EPC", om:"O&M", bureau_etude:"Bureau d'études", industriel:"Industriel", autre:"Autre", arx:"Ajoutée depuis ARX"};
+// ARX : CRM des deals d'Almavision (export « ALL Structures ») ; chaque fiche Corpo liste ses structures ARX dans l.ax
+const ARX = DATA.arx || {};
 const ST = {non_traite:"Non traité", a_qualifier:"À qualifier", a_contacter:"À contacter", contacte:"Contacté", en_discussion:"En discussion", interesse:"Intéressé",
             client:"Client", pas_interesse:"Pas intéressé", pas_de_reponse:"Pas de réponse", stand_by:"Stand By", hors_scope:"Hors Scope"};
 // anciens statuts (Excel, saisies d'avant octobre 2026) ramenés aux nouveaux
@@ -883,6 +905,7 @@ for (const l of LEADS) {
   l.regn = l.regs.map(i => REGIONS[i]);
   l.np = (l.nc || 0) + ((l.pd && l.pd.n) || 0);
   l._txt = fold([l.s, l.sn, l.gr, l.dv, l.di, l.ville, l.deps.join(" "), l.regn.join(" "), l.no, l.aos.map(aoTxt).join(" ")].join(" "));
+  if (l.ax) l._txt += " " + fold(["arx", ...l.ax.map(i => ARX[i]).filter(Boolean).flatMap(a => [a.nom, a.prospection_vendeur, ...(a.referents || []), ...(a.metier || [])])].join(" "));
 }
 
 /* ---------------- suivi partagé : statut, responsable, note ; tâches ---------------- */
@@ -1387,7 +1410,7 @@ function ligneLead(l){
     const nt = Object.values(taches).filter(t => (t.k === l.k || (l.ka || []).includes(t.k)) && !t.fait).length;
     return `<div class="row ${openK === l.k ? "sel" : ""} ${SEL.k.ids.has(l.k) ? "coche" : ""}" data-k="${esc(l.k)}" role="button" tabindex="0">
     <div class="stc">${caseSel("k", l.k, l.s)}${menuStatut(l.st, "k", l.k)}</div>
-    <div><div class="t">${esc(l.s)}${HOMONYMES.has(fold(l.s)) && l.sn ? ` <span class="saved" style="font-weight:500">· SIREN ${esc(l.sn)}</span>` : ""}</div><div class="s">${esc([(l.segs || [l.seg]).filter(x => x !== "asset" || (l.segs || []).length > 1).map(x => SEG[x] || x).join(" + ") || null, l.dv && l.dv !== l.s ? l.dv : l.gr, l.ville || l.deps.slice(0, 3).join(", ")].filter(Boolean).join(" · "))}</div>
+    <div><div class="t">${esc(l.s)}${HOMONYMES.has(fold(l.s)) && l.sn ? ` <span class="saved" style="font-weight:500">· SIREN ${esc(l.sn)}</span>` : ""}${badgeArx(l)}</div><div class="s">${esc([(l.segs || [l.seg]).filter(x => x !== "asset" || (l.segs || []).length > 1).map(x => SEG[x] || x).join(" + ") || null, l.dv && l.dv !== l.s ? l.dv : l.gr, l.ville || l.deps.slice(0, 3).join(", ")].filter(Boolean).join(" · "))}</div>
       ${F.q && projetTrouve(l, F.q) ? `<div class="s" style="color:var(--accent);font-weight:600">Projet : ${esc(projetTrouve(l, F.q))}</div>` : ""}
       <div class="prov">${(() => { const e = srcEntreprise(l), p = srcProjets(l), c = srcContacts(l);
         return [e.length ? `<b>Entreprise</b> ${esc(e.join(", "))}` : "", p.length ? `<b>Projets</b> ${esc(p.join(", "))}` : "", c.length ? `<b>Contacts</b> ${esc(c.join(", "))}` : ""].filter(Boolean).join(" · "); })()}</div></div>
@@ -1398,6 +1421,74 @@ function ligneLead(l){
     <div class="k">${l.te ? `<span class="tel">${esc(l.te)}</span>` : l.em ? `<span class="tel">email</span>` : `<span style="color:var(--muted)">à trouver</span>`}</div>
     <div>${postit(l)}</div>
     <div style="text-align:right">${nt ? `<span class="tag">${nt} à faire</span> ` : ""}<button class="btn small" data-add="${esc(l.k)}" type="button">+ À faire</button></div></div>`; }
+
+/* ---------------- ARX : badge, bandeau dans la fiche Prospection, fiche ARX ---------------- */
+function badgeArx(l){
+  if (!l.ax || !l.ax.length) return "";
+  const a = ARX[l.ax[0]] || {};
+  return ` <button type="button" class="tag arx" data-arx="${esc(l.ax[0])}" title="Ouvrir la fiche ARX${a.prospection_vendeur ? " · " + esc(a.prospection_vendeur) : ""}">ARX</button>`;
+}
+// clic sur le badge : la fiche ARX s'ouvre, pas la fiche de la ligne
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-arx]"); if (!b) return;
+  e.preventDefault(); e.stopPropagation(); openArx(b.dataset.arx);
+}, true);
+const jour = d => d ? frDate(d) : "";
+function bandeauArx(l){
+  if (!l.ax || !l.ax.length) return "";
+  return `<div class="arx-band">${l.ax.map(i => { const a = ARX[i]; if (!a) return "";
+    const der = a.derniere_activite || {}, pro = a.prochaine_activite || {};
+    return `<div><div class="ab-t"><span class="st-arx">ARX</span><span>${esc(a.nom)}</span>${a.prospection_vendeur ? `<span class="tag">${esc(a.prospection_vendeur)}</span>` : ""}${(a.side || []).length ? `<span class="tag">${esc(a.side.join(" / "))}</span>` : ""}
+      <button type="button" class="btn small arx" data-arx="${esc(i)}" style="margin-left:auto">Ouvrir la fiche ARX</button></div>
+      <div class="ab-l">${[(a.referents || []).length ? `Référent${a.referents.length > 1 ? "s" : ""} : <b>${esc(a.referents.join(", "))}</b>` : "",
+        a.relation ? `relation : ${esc(a.relation)}` : "", a.nb_mandats ? `<b>${a.nb_mandats} mandat${a.nb_mandats > 1 ? "s" : ""}</b>` : "",
+        a.nb_opportunites ? `<b>${a.nb_opportunites} opportunité${a.nb_opportunites > 1 ? "s" : ""}</b>` : ""].filter(Boolean).join(" · ")}</div>
+      ${der.date ? `<div class="ab-l">Dernière activité le ${jour(der.date)}${der.type ? ` (${esc(der.type)})` : ""} : ${esc(der.titre || "")}</div>` : ""}
+      ${pro.date ? `<div class="ab-l">Prochaine activité le <b>${jour(pro.date)}</b>${pro.type ? ` (${esc(pro.type)})` : ""} : ${esc(pro.titre || "")}</div>` : ""}</div>`; }).join("")}</div>`;
+}
+let openA = null;
+const TECHNO = {sol: "PV au sol", agri: "Agrivoltaïsme", toiture: "Toiture", ombriere: "Ombrière", bess: "Stockage (BESS)"};
+const AUTRES_T = {eolien: "Éolien", metha_injection: "Méthanisation (injection)", metha_cogeneration: "Méthanisation (cogénération)", hydro: "Hydroélectricité"};
+function openArx(id){
+  const a = ARX[id]; if (!a) return toast("Fiche ARX introuvable.");
+  openA = id; openK = null; openP = null;
+  const d = $("drawer"), l = BYK.get(a.fiche);
+  const kv = rows => `<dl class="kv">${rows.filter(r => r[1] !== undefined && r[1] !== null && r[1] !== "" && !(Array.isArray(r[1]) && !r[1].length))
+    .map(([k, v, brut]) => `<dt>${esc(k)}</dt><dd>${brut ? v : esc(Array.isArray(v) ? v.join(", ") : String(v))}</dd>`).join("")}</dl>`;
+  const act = (t, x) => x && (x.date || x.titre) ? `<div><h4 style="margin:10px 0 2px;color:var(--arx-dark)">${t}${x.date ? ` · ${jour(x.date)}` : ""}${x.type ? ` · ${esc(x.type)}` : ""}</h4>
+    ${x.titre ? `<div style="font-weight:600;font-size:13.5px">${esc(x.titre)}</div>` : ""}${x.commentaire ? `<div class="com">${esc(x.commentaire)}</div>` : ""}</div>` : "";
+  const cr = Object.entries(a.criteres || {});
+  const site = a.site ? (/^https?:/.test(a.site) ? a.site : "https://" + a.site) : null;
+  d.hidden = false; d.classList.remove("wide");
+  d.innerHTML = `<div class="dh arx"><div class="top"><span class="hex" style="background:#fff;color:var(--arx-dark)">ARX</span><div><h2>${esc(a.nom)}</h2>
+    <div class="meta">${[a.categorie, (a.metier || []).join(", "), [a.ville, a.pays].filter(Boolean).join(", ")].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join("")}</div></div>
+    <button class="x" id="close" aria-label="Fermer la fiche">×</button></div>
+    <div class="acts">${l ? `<button class="btn primary small" id="to-prosp" type="button">← Fiche Prospection : ${esc(l.s)}</button>` : ""}
+      ${a.prospection_vendeur ? `<span class="tag" style="background:#fff;color:var(--arx-dark);font-weight:700">Prospection vendeur : ${esc(a.prospection_vendeur)}</span>` : ""}
+      ${site ? `<a class="btn small ghost" href="${esc(site)}" target="_blank" rel="noopener" style="text-decoration:none">Site web</a>` : ""}</div></div>
+  <div class="db arxf">
+    <div><h3>Suivi dans ARX</h3>${kv([["Prospection vendeur", a.prospection_vendeur], ["Référents", a.referents], ["Degré de relation", a.relation],
+      ["Sens (achat / vente)", a.side], ["Tiers", a.tiers], ["Activités enregistrées", a.nb_activites || 0], ["Mandats", a.nb_mandats || 0],
+      ["Opportunités", a.nb_opportunites || 0], ["Créée dans ARX le", jour(a.cree_le)], ["Dernière modification", jour(a.modifie_le)]])}</div>
+    <div><h3>Activités</h3>${act("Dernière activité terminée", a.derniere_activite) || ""}${act("Prochaine activité", a.prochaine_activite) || ""}
+      ${!(a.derniere_activite && a.derniere_activite.date) && !(a.prochaine_activite && a.prochaine_activite.date) ? `<p class="saved" style="margin:0">Aucune activité dans l'export ARX.</p>` : ""}</div>
+    ${a.description_alma ? `<div><h3>Description Alma</h3><div class="com">${esc(a.description_alma)}</div></div>` : ""}
+    ${cr.length || (a.autres_technos || []).length || (a.geo_cible || []).length ? `<div><h3>Critères d'investissement</h3>
+      ${cr.length ? `<div style="overflow-x:auto"><table class="sub"><thead><tr><th>Technologie</th><th class="num">Min</th><th class="num">Max</th><th>Maturité</th><th>Commentaire</th></tr></thead><tbody>
+      ${cr.map(([t, c]) => `<tr><td><b>${esc(TECHNO[t] || t)}</b></td><td class="num">${c.min ?? ""}</td><td class="num">${c.max ?? ""}</td><td>${esc((c.maturite || []).join(", "))}</td><td style="white-space:pre-wrap">${esc(c.commentaire || "")}</td></tr>`).join("")}</tbody></table></div>
+      <p class="saved" style="margin:4px 0 0">Puissances telles que saisies dans ARX.</p>` : ""}
+      ${kv([["Autres technologies", (a.autres_technos || []).map(t => AUTRES_T[t] || t)], ["Zones cibles", a.geo_cible]])}</div>` : ""}
+    <div><h3>La société</h3>${kv([["Description", a.description], ["Mots-clés", a.mots_cles], ["Compétences", a.competences], ["Secteur", a.secteur],
+      ["Nom légal", a.nom_legal], ["Identifiant national", a.identifiant], ["Adresse", [a.adresse, [a.code_postal, a.ville].filter(Boolean).join(" "), a.pays].filter(Boolean).join(", ")],
+      ["Chiffre d'affaires (ARX)", a.ca != null ? `${fmt(a.ca)}${a.ca_annee ? ` (${a.ca_annee})` : ""}` : null],
+      ["Site internet", site ? `<a href="${esc(site)}" target="_blank" rel="noopener">${esc(a.site)}</a>` : null, true]])}</div>
+    <div><h3>Lien avec la base de prospection</h3>${kv([["Fiche Prospection", l ? `<a data-open="${esc(l.k)}" style="color:var(--accent);cursor:pointer;font-weight:600">${esc(l.s)}</a>` : "–", true],
+      ["Rattachement", a.rattachement], ["Identifiant ARX", a.id]])}</div>
+  </div>`;
+  replier(d.querySelector(".db"));
+  $("close").onclick = () => { openA = null; closeLead(); };
+  if ($("to-prosp")) $("to-prosp").onclick = () => { openA = null; openLead(l.k); };
+}
 
 /* ---------------- note de l'équipe en post-it, modifiable depuis la ligne ---------------- */
 let noteEdit = null, noteBrouillon = "";
@@ -1685,7 +1776,7 @@ function openProjet(i){
     <button class="x" id="close" aria-label="Fermer la fiche">×</button></div>
     <div class="acts"><select id="pe-st" aria-label="Statut du projet" ${ro ? "disabled" : ""}>${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${pst(p) === k ? "selected" : ""}>${v}</option>`).join("")}</select>
       <select id="pe-re" aria-label="Responsable du projet" ${ro ? "disabled" : ""}><option value="">Responsable : personne</option>${MEMBRES.map(m => `<option value="${esc(m)}" ${pre(p) === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
-      ${l ? `<button class="btn primary small" id="to-soc">Fiche de la société : ${esc(l.s)}</button>` : ""}${l && l.te ? `<a class="btn small ghost" href="tel:${esc(l.te.replace(/\s/g, ""))}" style="text-decoration:none">Appeler ${esc(l.te)}</a>` : ""}${p.u ? `<a class="btn small ghost" href="${esc(p.u)}" target="_blank" rel="noopener" style="text-decoration:none">Lire l'avis (PDF)</a>` : ""}${lienCarte(p)}</div></div>
+      ${l ? `<button class="btn primary small" id="to-soc">Fiche de la société : ${esc(l.s)}</button>` : ""}${l && l.te ? `<a class="btn small ghost" href="tel:${esc(l.te.replace(/\s/g, ""))}" style="text-decoration:none">Appeler ${esc(l.te)}</a>` : ""}${p.u ? `<a class="btn small ghost" href="${esc(p.u)}" target="_blank" rel="noopener" style="text-decoration:none">Lire l'avis (PDF)</a>` : ""}${p.uc ? `<a class="btn small ghost" href="${esc(p.uc)}" target="_blank" rel="noopener" style="text-decoration:none" title="Copie gardée par Almavision, si le site officiel ne répond pas">Copie archivée</a>` : ""}${lienCarte(p)}</div></div>
   <div class="db">
     ${identite(p, l)}
     <div>
@@ -1768,7 +1859,7 @@ function identite(p, l){
   add("Téléphone", tel ? `<a class="tel" href="tel:${esc(tel.replace(/\s/g, ""))}">${esc(tel)}</a>` : "", telSrc);
   add("Propriétaire dans la base", l ? `<span class="owner" data-open="${esc(p.k)}">${esc(l.s)}</span>${l.dv && l.dv !== l.s ? ` <span class="saved">groupe ${esc(l.dv)}</span>` : ""}${l.dr ? ` <span class="saved">· ${esc(l.dr)}</span>` : ""}` : p.owner && !c ? esc(p.owner) : "",
     p.om ? "Identifié par " + PROP[p.om] : l ? "Rattachement par la société de projet" : "");
-  if (p.u) add("Avis environnemental", `<a href="${esc(p.u)}" target="_blank" rel="noopener">Lire le PDF</a>`, p.dsrc);
+  if (p.u) add("Avis environnemental", `<a href="${esc(p.u)}" target="_blank" rel="noopener">Lire le PDF</a>${p.uc ? ` · <a href="${esc(p.uc)}" target="_blank" rel="noopener" title="Copie gardée par Almavision, si le site officiel ne répond pas">copie archivée</a>` : ""}`, p.dsrc);
   const autres = sl.map(x => x[1]).filter(x => x !== sCre && x !== sOdre);
   return `<div class="ident"><h3>Ce que l'on sait sur ce projet <span class="saved" style="text-transform:none;letter-spacing:0;font-weight:400">· survolez une ligne pour voir sa source</span></h3><div class="idt">${rows.join("")}</div>
     ${autres.length ? `<p class="saved" style="margin:8px 0 0">Autres sources : ${esc(autres.join(" ; "))}</p>` : ""}</div>`;
@@ -1805,7 +1896,7 @@ async function exporterProjets(){
     "Adresse holding": p.cand ? p.cand.hold.map(h => h[2] || "").filter(Boolean).join(" ; ") : "",
     "Dirigeant / contact": p.cand ? p.cand.dir || p.cand.hold.map(h => h[5]).filter(Boolean)[0] || "" : "",
     "Téléphone": p.cand ? p.cand.tel || p.cand.hold.map(h => h[6]).filter(Boolean)[0] || "" : "",
-    "Propriétaire identifié par": PROP[p.om] || "", "Sources du projet": pSources(p).join(" ; "), "Avis (PDF)": p.u || ""}));
+    "Propriétaire identifié par": PROP[p.om] || "", "Sources du projet": pSources(p).join(" ; "), "Avis (PDF)": p.u || "", "Copie de l'avis": p.uc || ""}));
   const wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(rows);
   ws["!cols"] = [8,6,50,22,24,12,18,8,22,10,12,10,20,30,30,8,8,30,11,40,8,24,40,40,36,16,30,60,40].map(w => ({wch: w}));
   XLSX.utils.book_append_sheet(wb, ws, "Projets");
@@ -1982,7 +2073,7 @@ async function exporter(){
 
 /* ---------------- fiche ---------------- */
 let openK = null;
-function openLead(k){ openP = null; openK = k; renderDrawer(); document.querySelectorAll(".row").forEach(r => r.classList.toggle("sel", r.dataset.k === k)); }
+function openLead(k){ openA = null; openP = null; openK = k; renderDrawer(); document.querySelectorAll(".row").forEach(r => r.classList.toggle("sel", r.dataset.k === k)); }
 function closeLead(){ openK = null; openP = null; $("drawer").hidden = true; document.querySelectorAll(".row.sel").forEach(r => r.classList.remove("sel")); }
 function tachesDe(k){ return Object.entries(taches).filter(([, t]) => t.k === k).sort((a, b) => (a[1].fait - b[1].fait) || (a[1].ech || "9").localeCompare(b[1].ech || "9")); }
 // Fiche société : chaque bloc devient repliable (titre cliquable), sauf « Projets de la société » et « Note de l'équipe ».
@@ -2042,6 +2133,7 @@ function renderDrawer(){
       <select id="e-st" aria-label="Statut" ${ro ? "disabled" : ""}>${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${l.st === k ? "selected" : ""}>${v}</option>`).join("")}</select>
       <select id="e-re" aria-label="Responsable" ${ro ? "disabled" : ""}><option value="">Responsable : personne</option>${MEMBRES.map(m => `<option value="${esc(m)}" ${l.re === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select></div></div>
   <div class="db">
+    ${bandeauArx(l)}
     ${identiteSoc(l)}
     <div>
       <div><h3>À faire</h3>
