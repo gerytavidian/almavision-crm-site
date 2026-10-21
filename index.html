@@ -778,7 +778,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202610211153`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202610211232`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -1480,6 +1480,7 @@ function openArx(id){
       ${kv([["Autres technologies", (a.autres_technos || []).map(t => AUTRES_T[t] || t)], ["Zones cibles", a.geo_cible]])}</div>` : ""}
     <div><h3>La société</h3>${kv([["Description", a.description], ["Mots-clés", a.mots_cles], ["Compétences", a.competences], ["Secteur", a.secteur],
       ["Nom légal", a.nom_legal], ["Identifiant national", a.identifiant], ["Adresse", [a.adresse, [a.code_postal, a.ville].filter(Boolean).join(" "), a.pays].filter(Boolean).join(", ")],
+      ["Bureaux", a.villes], ["Pays", a.pays_liste],
       ["Chiffre d'affaires (ARX)", a.ca != null ? `${fmt(a.ca)}${a.ca_annee ? ` (${a.ca_annee})` : ""}` : null],
       ["Site internet", site ? `<a href="${esc(site)}" target="_blank" rel="noopener">${esc(a.site)}</a>` : null, true]])}</div>
     <div><h3>Lien avec la base de prospection</h3>${kv([["Fiche Prospection", l ? `<a data-open="${esc(l.k)}" style="color:var(--accent);cursor:pointer;font-weight:600">${esc(l.s)}</a>` : "–", true],
