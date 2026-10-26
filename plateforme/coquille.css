@@ -1,0 +1,71 @@
+/* Coquille commune de la plateforme Almavision : jetons de la charte, écrans de connexion, en-tête et menu des modules.
+   Chargée par toutes les pages AVANT le CSS du module : sur la page Prospection, les règles du module (même valeurs)
+   passent après et gardent la main. Les classes propres à la coquille commencent par « cq- » ; « cnx » et « chargement »
+   sont reprises de l'application de prospection. */
+:root{
+  --page:#E9EEF2; --bg:#FFFFFF; --soft:#F3F6F8; --line:#DCE3E9; --ink:#0E2422; --ink2:#46595A; --muted:#7D8E91;
+  --accent:#00594F; --accent-ink:#FFFFFF; --accent-weak:#E2EEEB; --forest:#00352F; --forest2:#0B4740; --mint:#9FC4BB;
+  --coral:#E8613A; --focus:#64879A;
+  --font:"DM Sans","Segoe UI",Arial,sans-serif; --mono:"DM Mono",Consolas,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--ink);font:14.5px/1.5 var(--font);margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+[hidden]{display:none!important}
+.btn{border:1px solid var(--line);background:var(--bg);padding:8px 14px;border-radius:9px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07);background:var(--accent)}
+.btn.small{padding:4px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+
+/* attente et messages de la connexion */
+.chargement{position:fixed;inset:auto 0 0 0;margin:0 auto 24px;width:max-content;max-width:calc(100% - 32px);z-index:50;background:var(--forest);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;box-shadow:0 6px 24px rgba(0,40,35,.25)}
+.chargement .btn{margin-left:10px}
+
+/* écrans de connexion et de changement de mot de passe */
+.cnx{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:var(--forest);padding:16px}
+.cnx[hidden]{display:none}
+.cnx-box{width:min(380px,100%);background:var(--bg);border-radius:16px;padding:26px 24px;display:grid;gap:8px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.cnx-logo{font-weight:700;color:var(--forest);letter-spacing:.02em}.cnx-logo span{color:var(--accent)}
+.cnx h1{margin:4px 0 8px;font-size:22px;color:var(--ink)}
+.cnx label{font-size:13px;color:var(--ink2);margin-top:4px}
+.cnx input{height:40px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;font-size:15px}
+.cnx input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.cnx button{margin-top:10px;height:42px}
+.cnx-msg{color:var(--coral);font-size:13.5px;margin:4px 0 0;min-height:1em}
+.cnx-aide{color:var(--muted);font-size:12.5px;margin:0}
+.cnx.voile{background:rgba(0,40,35,.6)}
+.cnx label.cnx-case{display:flex;gap:8px;align-items:center;margin-top:8px;cursor:pointer}
+.cnx .cnx-case input{width:16px;height:16px;margin:0;padding:0;accent-color:var(--accent)}
+.cnx-btns{display:flex;gap:8px;justify-content:flex-end}.cnx-btns .btn{flex:1}
+
+/* menu des modules (en-tête de toutes les pages ; sur la Prospection, posé à côté du logo) */
+.cq-modules{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.cq-modules a{color:#fff;text-decoration:none;font-size:13px;font-weight:500;padding:5px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06)}
+.cq-modules a:hover{background:rgba(255,255,255,.14)}
+.cq-modules a[aria-current="page"]{background:#fff;color:var(--forest);border-color:#fff}
+
+/* en-tête des pages de la plateforme (accueil et modules sans en-tête propre) */
+.cq-entete{position:sticky;top:0;z-index:20;background:var(--forest);color:#fff}
+.cq-barre{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:12px 20px;flex-wrap:wrap}
+.cq-marque{display:flex;align-items:center;gap:10px;font-weight:700;color:#fff;letter-spacing:.01em;text-decoration:none}
+.cq-marque small{display:block;font-weight:500;font-size:10.5px;color:var(--mint);letter-spacing:.2em}
+.cq-compte{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:13px;color:var(--mint)}
+.cq-compte .btn{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff}
+.cq-compte .btn:hover{background:rgba(255,255,255,.18)}
+.cq-page{max-width:1240px;margin:0 auto;padding:28px 20px 60px}
+.cq-page h1{font-size:26px;margin:0 0 6px;color:var(--forest)}
+.cq-page .cq-intro{color:var(--ink2);margin:0 0 22px;max-width:70ch}
+.cq-carte{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+
+/* accueil : une tuile par module accessible */
+.cq-tuiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.cq-tuile{display:grid;gap:8px;align-content:start;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:20px 22px;color:inherit;text-decoration:none;min-height:150px}
+.cq-tuile:hover{border-color:var(--accent);box-shadow:0 6px 20px rgba(0,53,47,.08)}
+.cq-tuile b{font-size:18px;color:var(--forest)}
+.cq-tuile span{color:var(--ink2)}
+.cq-tuile em{font-style:normal;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--accent);background:var(--accent-weak);border-radius:999px;padding:2px 10px;justify-self:start}
+@media (max-width:640px){.cq-barre{padding:10px 14px}.cq-page{padding:20px 14px 48px}.cq-compte{margin-left:0}}

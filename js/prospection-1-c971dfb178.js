@@ -1,0 +1,1590 @@
+
+(async () => {
+if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) document.getElementById("chargement").textContent = "Connexion impossible : " + e.message + ". Rechargez la page."; return; } }
+// les données sont publiées à côté de la page (data-base.json, data-leads.json, data-projets.json)
+let DATA;
+try {
+  const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
+    fetch(`${f}?v=202610261822`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+  const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
+  DATA = {...base, leads, projets};
+} catch (e) {
+  document.getElementById("chargement").textContent = "La base n'a pas pu être chargée. Rechargez la page ; si le problème continue, prévenez Claude. (" + e.message + ")";
+  return;
+}
+document.getElementById("chargement").hidden = true;
+const REGIONS = DATA.regions || [];
+const LEADS = DATA.leads.map(l => ({o: "lead", seg: "asset", st: "non_traite", deps: [], regs: [], ce: [], ct: [], pe: [], ap: [], tys: [], aos: [], src: "", se: [], sp: [], sl: [], ...l}));
+const SL = DATA.sources || [];
+// libellé court d'une source : le fichier Excel, ou la base publique
+const COURT = t => t.startsWith("Excel") ? t.split(" · ")[0] : t.startsWith("Registre") ? "Registre ODRE" : t.startsWith("API") ? "API Entreprises"
+  : t.startsWith("Répertoire Sirene") ? "Sirene" : t.startsWith("Fichier foncier") ? "Foncier DGFiP" : t.startsWith("Avis") ? "MRAe" : t.startsWith("Site web") ? "Site web" : t;
+const srcLong = e => SL[e[0]] + (e.length > 1 && e[1] ? (e[1] === 1 ? (e[2] ? ` · ligne ${e[2]}` : "") : ` · ${fmt(e[1])} lignes${e[2] ? ` (dès la ligne ${e[2]})` : ""}`) : "");
+const courts = arr => [...new Set(arr.map(COURT))];
+const srcEntreprise = l => courts([...l.se.map(e => SL[e[0]]), ...l.sl]);
+const srcProjets = l => courts(l.sp.map(e => SL[e[0]]));
+const srcContacts = l => courts(l.ct.map(c => c[2]));
+// ordre d'intérêt de l'équipe (onglet Summary de l'Excel CRE) : P1 puis P2 ; les autres AO ensuite
+const AO_ORDRE = ["BAT100-500-2025","CRE4-BAT","PPE2-SOL","PPE2-BAT","CRE4-SOL","PPE2-NEUTRE","NEUTRE-2017","FESSENHEIM","PV250-2014",
+  "BAT100-2015","PV250-2013","BAT100-2013","PV250-2011","BAT100-2011","PPE2-INNOV","INNOV-2017","PPE2-AUTO","AUTO-2017","AUTO-2016"];
+const AO_PRIO = {"PPE2-INNOV":"P2","INNOV-2017":"P2","PPE2-AUTO":"P2","AUTO-2017":"P2","AUTO-2016":"P2"};
+const rangAO = a => { const i = AO_ORDRE.indexOf(a); return i < 0 ? 99 : i; };
+const AO_FAM = [...new Set([...LEADS.flatMap(l => l.aos.map(a => a[0])), ...(DATA.projets || []).map(p => p.ao && p.ao[0]).filter(Boolean)])]
+  .filter(a => a !== "AUTRE").sort((x, y) => rangAO(x) - rangAO(y) || x.localeCompare(y));
+const aoOpt = a => [a, `${rangAO(a) < 99 ? rangAO(a) + 1 + ". " : ""}[${AO_PRIO[a] || "P1"}] ${a}${AONOM[a] ? " · " + AONOM[a] : ""}`];
+const AO_ANS = [...new Set(LEADS.flatMap(l => l.aos.map(a => a[2]).filter(Boolean)))].sort();
+const BYK = new Map(LEADS.map(l => [l.k, l]));
+for (const l of LEADS) for (const a of l.ka || []) BYK.set(a, l);   // fiches fusionnées : anciennes clés -> fiche
+const MEMBRES = DATA.membres;
+const SEG = {asset:"Asset (propriétaire)", corpo_dev:"Développeur", epc:"EPC", om:"O&M", bureau_etude:"Bureau d'études", industriel:"Industriel", autre:"Autre", arx:"Ajoutée depuis ARX"};
+// ARX : CRM des deals d'Almavision (export « ALL Structures ») ; chaque fiche Corpo liste ses structures ARX dans l.ax
+const ARX = DATA.arx || {};
+const ST = {non_traite:"Non traité", a_qualifier:"À qualifier", a_contacter:"À contacter", contacte:"Contacté", en_discussion:"En discussion", interesse:"Intéressé",
+            client:"Client", pas_interesse:"Pas intéressé", pas_de_reponse:"Pas de réponse", stand_by:"Stand By", hors_scope:"Hors Scope"};
+// anciens statuts (Excel, saisies d'avant octobre 2026) ramenés aux nouveaux
+const ST_ANCIENS = {nouveau:"non_traite", en_attente:"stand_by", transmis_arx:"client", pas_de_sujet:"pas_interesse", hors_sujet:"hors_scope", perdu:"pas_interesse"};
+const aCle = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const normSt = st => aCle(ST_ANCIENS, st) ? ST_ANCIENS[st] : aCle(ST, st) ? st : "non_traite";
+const CLOS = new Set(["client","pas_interesse","hors_scope"]);
+const TYPES = {batiment:"Toiture", toiture:"Toiture (avis MRAe)", sol:"Au sol", agrivoltaique:"Agrivoltaïque", ombriere:"Ombrière", serre:"Serre", flottant:"Flottant", sol_ou_batiment:"Sol ou toiture", innovant:"Innovant"};
+const ROLES = ["Producteur (IPP)","Fonds / investisseur","Indépendant","Agricole ou familial","Industriel","Développeur","À qualifier"];
+const PRANK = {P1:1, P2:2, P3:3};
+const RAISONS = {acheteur: ["n", "Grand groupe, IPP ou fonds d'infrastructure : plutôt acheteur que vendeur, peu pertinent pour Almavision."],
+  foa: ["w", "Contrat d'obligation d'achat de 20 ans qui se termine : moment où le propriétaire décide de vendre, rénover ou garder."],
+  fc: ["w", "Contrat d'achat qui se termine d'ici 2031."],
+  a_vendre: ["w", "Projets autorisés mais pas construits (lauréat CRE ou sans suite depuis l'avis environnemental) : projets à vendre."],
+  laureat: ["", "Lauréat CRE récent (2023 ou après) pas encore dans le registre des installations : peut-être en construction."],
+  pipeline: ["", "Développe des projets (avis environnementaux) : pipeline à céder ou à financer."],
+  taille: ["", "Portefeuille de taille utile pour une opération (1 à 150 MW)."],
+  independant: ["", "Société indépendante, sans grand groupe derrière."],
+  joignable: ["", "Téléphone ou email connu."],
+  public: ["n", "Collectivité ou SEM : vend rarement ses actifs."]};
+const SRC = {R:"Registre national des installations (ODRE)", S:"Extraction S21 (data.gouv)", C:"Lauréats des appels d'offres CRE", G:"Global Solar Power Tracker", X:"Excel de l'équipe"};
+const SRC_COURT = {R:"Registre", S:"S21", C:"CRE", G:"GSPT", X:"Excel"};
+const PROP = {s:"Sirene : société d'électricité établie dans la commune", f:"Fichier foncier des personnes morales (DGFiP)", a:"API Recherche d'entreprises (nom de l'installation)", c:"Liste des lauréats CRE", g:"Global Solar Power Tracker", x:"Excel de l'équipe"};
+const AONOM = {"CRE4-SOL":"CRE 4 au sol", "CRE4-BAT":"CRE 4 bâtiment", "PPE2-SOL":"PPE2 au sol", "PPE2-BAT":"PPE2 bâtiment", "PPE2-NEUTRE":"PPE2 neutre", "PPE2-INNOV":"PPE2 innovation",
+  "INNOV-2017":"Innovation 2017", "NEUTRE-2017":"Neutre 2017", "FESSENHEIM":"Fessenheim", "BAT100-2011":"Bâtiment 100-250 kW 2011", "BAT100-2013":"Bâtiment 100-250 kW 2013",
+  "BAT100-2015":"Bâtiment 100-250 kW 2015", "BAT100-500-2025":"Bâtiment 100-500 kW 2025", "PV250-2011":"Plus de 250 kW 2011", "PV250-2013":"CRE 2 (2013)", "PV250-2014":"CRE 3 (2014)"};
+const aoTxt = a => `${a[0]}${a[1] ? " " + a[1] : ""}${a[2] ? " · " + a[2] : ""}`;
+const aoHtml = a => `<span class="ao" title="${esc((AONOM[a[0]] || a[0]) + (a[1] ? ", période " + a[1] : "") + (a[2] ? ", lauréats désignés en " + a[2] : ""))}">${esc(a[0])}${a[1] ? " " + esc(a[1]) : ""}${a[2] ? ` <small>${esc(a[2])}</small>` : ""}</span>`;
+const srcHtml = codes => codes ? `<span class="src">${[...codes].map(c => `<b class="${esc(c)}" title="Trouvée dans : ${esc(SRC[c])}">${esc(SRC_COURT[c])}</b>`).join("")}</span>` : "";
+const TODAY = new Date().toISOString().slice(0, 10);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fold = s => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const fmt = n => n == null ? "" : Number(n).toLocaleString("fr-FR");
+const mw = kw => kw == null ? "" : kw >= 1000 ? (kw / 1000).toLocaleString("fr-FR", {maximumFractionDigits: 1}) + " MW" : fmt(Math.round(kw)) + " kW";
+const frDate = d => d ? new Date(d.length > 10 ? d : d + "T12:00").toLocaleDateString("fr-FR", {day:"numeric", month:"short", year:"numeric"}) : "";
+const store = {get(k){try{return localStorage.getItem(k)}catch{return null}}, set(k,v){try{localStorage.setItem(k,v)}catch{}}};
+function toast(m){ const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 3400); }
+const isTel = c => c[0] === "telephone" || c[0] === "mobile";
+// Projets sans société dans la base : une fiche entreprise est créée dans la page (une par propriétaire ou porteur
+// nommé, sinon une par projet), pour pouvoir les qualifier et les suivre dans Prospection comme les autres.
+{
+  const virt = new Map(), parNom = new Map(), parMots = new Map();
+  // mots distinctifs d'un nom de société (« EDF Renouvelables France », « EDF Energies renouvelables » -> « edf »)
+  const GENER = new Set("sas sasu sarl sa eurl sci snc sca scea earl gaec sem spl societe ste groupe group holding france fr energie energies energy solaire solaires solar photovoltaique photovoltaiques pv renouvelable renouvelables renewables nouvelles developpement services de du des la le les d l et en sur".split(" "));
+  const ligneCe = p => [p.n || null, p.kw || null, p.com || p.dep || null, p.ms || null, p.fc || null, null, p.src || null, p.om || null,
+    (p.sl || []).map(e => e.length > 2 && e[1] === 1 && e[2] ? [e[0], e[2]] : [e[0]]), p.i, p.t === "L" ? 2 : null];
+  const mots = n => fold(n).replace(/\(.*?\)/g, " ").split(/[^a-z0-9]+/).filter(m => m.length > 1 && !GENER.has(m)).sort().join(" ");
+  for (const l of LEADS) { const f = fold(l.s).replace(/[^a-z0-9]+/g, "-"); parNom.set(f, parNom.has(f) ? null : l);
+    const m = mots(l.s); if (m.length >= 3) parMots.set(m, parMots.has(m) ? null : l); }
+  for (const p of DATA.projets || []) {
+    if (p.k) continue;
+    const nom = p.own || p.por || "";
+    if (p.t === "O" && !nom) continue;   // toiture OpenStreetMap sans nom ni exploitant : pas de fiche société vide
+    const m = nom ? mots(nom) : "";
+    const reel = nom ? (parNom.get(fold(nom).replace(/[^a-z0-9]+/g, "-")) || (m.length >= 3 ? parMots.get(m) : null)) : null;
+    const ancienne = "v:" + (nom ? fold(nom).replace(/[^a-z0-9]+/g, "-") : p.i);   // clé d'avant ce regroupement
+    if (reel) { p.k = reel.k; if (!BYK.has(ancienne)) { (reel.ka = reel.ka || []).push(ancienne); BYK.set(ancienne, reel); }
+      // le projet entre dans le portefeuille de la société (puissance comptée dans la tuile, ligne dans sa fiche)
+      if (!reel.ce.some(c => c[9] === p.i)) { reel.ce.push(ligneCe(p)); reel.kw = (reel.kw || 0) + (p.kw || 0); reel.nc = (reel.nc || 0) + 1; }
+      continue; }
+    // variantes d'un même nom (mêmes mots distinctifs) : une seule fiche
+    const k = "v:" + (nom ? (m.length >= 3 ? m.replace(/ /g, "-") : fold(nom).replace(/[^a-z0-9]+/g, "-")) : p.i);
+    const aliasAncien = ancienne !== k ? ancienne : null;
+    let l = virt.get(k);
+    if (!l) {
+      l = {o: "projet", k, s: nom || `Propriétaire à identifier · ${p.n || "projet"}`, seg: p.t === "D" ? "corpo_dev" : "asset",
+           st: "non_traite", pr: p.pr, sc: p.sc || 0, rs: [], deps: [], regs: [], ce: [], ct: [], pe: [], ap: [], tys: [], aos: [],
+           src: "", se: [], sp: [], sl: [nom ? "un projet dont le propriétaire n'est pas encore dans la base" : "un projet au propriétaire inconnu"],
+           kw: 0, nc: 0};
+      virt.set(k, l); LEADS.push(l); BYK.set(k, l);
+    }
+    p.k = k;
+    if (aliasAncien && !BYK.has(aliasAncien)) { (l.ka = l.ka || []).push(aliasAncien); BYK.set(aliasAncien, l); }
+    l.kw += p.kw || 0; l.nc += 1;
+    if ((p.sc || 0) > l.sc) { l.sc = p.sc; l.pr = p.pr; }
+    if (p.dep && !l.deps.includes(p.dep)) l.deps.push(p.dep);
+    if (p.reg != null && !l.regs.includes(p.reg)) l.regs.push(p.reg);
+    if (p.ty && !l.tys.includes(p.ty)) l.tys.push(p.ty);
+    if (p.fc && (!l.fc || p.fc < l.fc)) l.fc = p.fc;
+    if (!l.ville && p.com) l.ville = p.com;
+    for (const c of (p.src || "")) if (!l.src.includes(c)) l.src += c;
+    for (const e of p.sl || []) { const x = l.sp.find(y => y[0] === e[0]); x ? x[1]++ : l.sp.push([e[0], 1]); }
+    l.ce.push(ligneCe(p));
+  }
+}
+for (const l of LEADS) {
+  if (!l.di && l.pe.length) l.di = l.pe.filter(p => p[2]).map(p => p[1] ? `${p[0]} (${p[1]})` : p[0]).join("; ");
+  if (!l.te) { const t = l.ct.find(isTel); if (t) l.te = t[1]; }
+  if (!l.em) { const e = l.ct.find(c => c[0] === "email"); if (e) l.em = e[1]; }
+  l.regn = l.regs.map(i => REGIONS[i]);
+  l.np = (l.nc || 0) + ((l.pd && l.pd.n) || 0);
+  l._txt = fold([l.s, l.sn, l.gr, l.dv, l.di, l.ville, l.deps.join(" "), l.regn.join(" "), l.no, l.aos.map(aoTxt).join(" ")].join(" "));
+  if (l.me && l.me.length) l._txt += " " + fold("methaniseur methanisation biogaz " + l.me.join(" "));
+  if (l.ax) l._txt += " " + fold(["arx", ...l.ax.map(i => ARX[i]).filter(Boolean).flatMap(a => [a.nom, a.prospection_vendeur, ...(a.referents || []), ...(a.metier || [])])].join(" "));
+}
+
+/* ---------------- suivi partagé : statut, responsable, note ; tâches ---------------- */
+let suivi = {}, taches = {}, db = null, user = null, myId = null, canWrite = null;
+// clé de suivi d'un projet : la sienne, ou celle d'une fiche regroupée avec lui si c'est là que l'équipe a écrit
+const pkey = p => { const k = "p:" + p.i; if (suivi[k] || !p.al) return k; const a = p.al.find(x => suivi["p:" + x[0]]); return a ? "p:" + a[0] : k; };
+// Le suivi se fait par société (décision du 26/10/2026) : un projet prend le statut et le responsable de sa société
+// de tête de groupe ; un projet sans société connue ne peut pas entrer en prospection.
+const groupeDe = p => (p && p.k && BYK.get(p.k)) || null;
+const pst = p => { const l = groupeDe(p); return l ? eff(l).st : "non_traite"; };
+const pre = p => { const l = groupeDe(p); return l ? (eff(l).re || "") : ""; };
+// changer le statut depuis un projet : c'est la société qui est mise à jour, et on le dit
+function statutProjet(p, st, sel){
+  const l = groupeDe(p);
+  if (!l) { toast("Société propriétaire inconnue : ce projet ne peut pas entrer en prospection. Identifiez d'abord sa société."); if (sel) sel.value = "non_traite"; return; }
+  garderK.add(l.k); if (p) garderP.add(p.i);
+  saveSuivi(l.k, {st});
+  toast(st === "non_traite" ? `${l.s} retirée de la prospection (le suivi se fait par société).`
+    : `${l.s} ajoutée à la prospection en « ${ST[st]} » : le suivi se fait par société (tête du groupe), pas par projet.`);
+}
+const pids = p => [p.i, ...(p.al || []).map(x => x[0])];
+const eff = l => { const s = suivi[l.k] || (l.ka || []).map(a => suivi[a]).find(Boolean) || {}; return {...l, st: normSt(s.st ?? l.st), re: s.re !== undefined ? s.re : l.re, note: s.note || "", maj: s.maj}; };
+function setSync(t){ $("sync").textContent = t; }
+const queues = {};
+function write(col, id, body, del){
+  if (!db) { toast("Le suivi partagé n'est pas disponible ici : rien n'a été enregistré."); return Promise.resolve(); }
+  if (canWrite === false) { toast("Vous pouvez consulter mais pas modifier."); return Promise.resolve(); }
+  const ref = db.collection(col).doc(id);
+  return queues[col + id] = (queues[col + id] || Promise.resolve()).then(() => del ? ref.delete() : ref.set(body)).then(
+    () => setSync("Enregistré"),
+    e => { if (e && e.code === "invalid_argument") { canWrite = false; toast("Modification refusée : accès en lecture seule."); }
+           else toast("Enregistrement impossible pour le moment. Réessayez."); });
+}
+// Une ligne dont on vient de changer le statut reste à sa place : les filtres de statut (statuts clos masqués,
+// « Suivi », « Statut ») ne s'y appliquent plus jusqu'à la prochaine recherche ou au prochain changement de filtre.
+const garderK = new Set(), garderP = new Set();
+// statut modifiable depuis la ligne (société : clé du lead ; projet : « p: » + identifiant du projet)
+function menuStatut(st, type, id){
+  const g = type === "p" ? groupeDe(PBY.get(id)) : null, sansG = type === "p" && !g;
+  const ro = canWrite === false || !db || sansG;
+  const titre = sansG ? "Société propriétaire inconnue : pas de prospection possible" : ro ? "Statut (consultation seule)"
+    : g ? `Statut de ${g.s} (société de tête du groupe)` : "Changer le statut";
+  return `<select class="stp ${esc(st)}" data-stt="${esc(type)}" data-id="${esc(id)}" aria-label="${esc(titre)}" title="${esc(titre)}" ${ro ? "disabled" : ""}>${
+    Object.entries(ST).map(([k, v]) => `<option value="${k}" ${k === st ? "selected" : ""}>${v}</option>`).join("")}</select>`;
+}
+document.addEventListener("change", e => {
+  const m = e.target.closest && e.target.closest("select[data-stt]"); if (!m) return;
+  if (m.dataset.stt === "p") return statutProjet(PBY.get(m.dataset.id), m.value, m);
+  garderK.add(m.dataset.id);
+  saveSuivi(m.dataset.id, {st: m.value});
+});
+/* ---------------- sélection multiple : cocher des lignes (Maj+clic pour une plage) et changer leur statut d'un coup ---------------- */
+// k : sociétés (Recherche Corpo), p : projets (Recherche Projets). Pour chacune : identifiants cochés, dernière case cliquée.
+const SEL = {k: {ids: new Set(), der: null, x: "", tout: () => current.map(l => l.k), vus: () => current.slice(0, shown).map(l => l.k), garder: garderK, cle: id => id},
+             p: {ids: new Set(), der: null, x: "p", tout: () => pcur.map(p => p.i), vus: () => pcur.slice(0, pshown).map(p => p.i), garder: garderP, cle: id => pkey(PBY.get(id))}};
+function caseSel(t, id, nom){
+  const ro = canWrite === false || !db;
+  return `<input type="checkbox" data-sel="${esc(t)}" data-id="${esc(id)}" ${SEL[t].ids.has(id) ? "checked" : ""} ${ro ? "disabled" : ""} aria-label="Sélectionner ${esc(nom)}" title="Sélectionner (Maj+clic : toute la plage)">`;
+}
+function viderSel(t){ SEL[t].ids.clear(); SEL[t].der = null; majSel(t); }
+function majSel(t){
+  const go_ = $((SEL[t].x) + "bulk-go");
+  if (go_ && !go_.disabled) { go_.textContent = "Appliquer"; delete go_.dataset.conf; }
+  const S = SEL[t], x = S.x, n = S.ids.size, bar = $(x + "bulk"); if (!bar) return;
+  bar.hidden = !n;
+  const tous = $(x ? "pselall" : "selall"), vus = S.vus();
+  if (tous) { const c = vus.filter(id => S.ids.has(id)).length; tous.checked = !!vus.length && c === vus.length; tous.indeterminate = c > 0 && c < vus.length;
+              tous.disabled = canWrite === false || !db; }
+  if (!n) return;
+  const total = S.tout().length, mot = t === "k" ? ["société", "sociétés"] : ["projet", "projets"];
+  $(x + "bulk-n").textContent = `${fmt(n)} ${mot[n > 1 ? 1 : 0]} ${n > 1 ? "sélectionnés" : "sélectionné"}`.replace("sociétés sélectionnés", "sociétés sélectionnées").replace("société sélectionné", "société sélectionnée");
+  const b = $(x + "bulk-all"); b.hidden = n >= total; b.textContent = `Sélectionner les ${fmt(total)} résultats`;
+  const sel = $(x + "bulk-st");
+  if (!sel.options.length) sel.innerHTML = Object.entries(ST).map(([k, v]) => `<option value="${k}" ${k === "a_qualifier" ? "selected" : ""}>${v}</option>`).join("");
+}
+function cocher(t, id, on, plage){
+  const S = SEL[t];
+  if (plage && S.der !== null) {
+    const vus = S.vus(), a = vus.indexOf(S.der), b = vus.indexOf(id);
+    if (a >= 0 && b >= 0) vus.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(i => on ? S.ids.add(i) : S.ids.delete(i));
+  }
+  on ? S.ids.add(id) : S.ids.delete(id); S.der = id;
+  document.querySelectorAll(`input[data-sel="${t}"]`).forEach(c => { c.checked = S.ids.has(c.dataset.id); c.closest(".row").classList.toggle("coche", c.checked); });
+  majSel(t); if (typeof majSelR === "function" && !$("v-prospection").hidden) majSelR();
+}
+// Changement de statut groupé. La base partagée limite le nombre d'écritures par personne : un statut par document
+// (une écriture par fiche) ne passait que pour une vingtaine de fiches. Un envoi groupé est donc enregistré en un seul
+// document de la collection « suivi_lots » : {le, st, par, cles: [clés de suivi]} (1 500 fiches au plus par document).
+// fusionnerSuivi() combine ces lots avec les documents « suivi » fiche par fiche : pour chaque fiche, le changement le
+// plus récent l'emporte (un statut changé ensuite depuis la ligne ou la fiche passe donc devant le lot).
+const PAR_DOC = 1500, MAX_LOT = 40000, CONFIRMER_DES = 100;
+let suiviDocs = {}, suiviLots = {}, enLot = null;   // enLot : {attente: {clé: suivi}} pendant un envoi
+// Documents partagés : un document mal formé (pas un objet, champ d'un autre type) est ignoré ou ramené à du texte,
+// pour qu'une saisie abîmée ne casse pas la page.
+const estObjet = x => x !== null && typeof x === "object" && !Array.isArray(x);
+const cleOk = k => typeof k === "string" && k !== "" && k !== "__proto__";
+const texte = x => String(x ?? "");
+function propreSuivi(d){
+  if (!estObjet(d)) return null;
+  const r = {...d};
+  for (const c of ["st", "re", "note"]) if (r[c] != null) r[c] = String(r[c]);   // null (« personne ») est gardé
+  if (r.maj !== undefined) { if (estObjet(r.maj)) r.maj = {...r.maj, le: texte(r.maj.le)}; else delete r.maj; }
+  return r;
+}
+function propreLot(d){
+  if (!estObjet(d) || !Array.isArray(d.cles) || d.st == null || !d.le) return null;
+  return {...d, le: texte(d.le), st: texte(d.st), cles: d.cles.filter(cleOk)};
+}
+function propreTache(d){
+  if (!estObjet(d)) return null;
+  const r = {...d};
+  for (const c of ["t", "k", "s", "p", "pn", "resp", "ech", "fait_le", "le", "par", "fait_par"]) if (r[c] != null) r[c] = String(r[c]);
+  r.fait = !!r.fait;
+  return r;
+}
+// lecture d'une collection : {identifiant: document propre}, les documents illisibles sont laissés de côté
+function lireDocs(s, propre){
+  const m = {};
+  for (const d of (s && Array.isArray(s.docs) ? s.docs : [])) {
+    if (!d || !cleOk(d.id)) continue;
+    let v = null; try { v = propre(d.data()); } catch {}
+    if (v) m[d.id] = v;
+  }
+  return m;
+}
+function fusionnerSuivi(){
+  const m = {...suiviDocs};
+  const lots = Object.values(suiviLots).filter(x => estObjet(x) && Array.isArray(x.cles)).sort((a, b) => texte(a.le).localeCompare(texte(b.le)));
+  for (const lot of lots) {
+    const le = texte(lot.le), st = texte(lot.st);
+    for (const k of lot.cles) {
+      if (!cleOk(k)) continue;
+      const cur = estObjet(m[k]) ? m[k] : null;
+      if (!cur || texte(cur.maj && cur.maj.le) < le) m[k] = {...(cur || {}), st, maj: {le, lot: true}};
+    }
+  }
+  if (enLot) Object.assign(m, enLot.attente);
+  suivi = m;
+}
+async function ecrireUne(col, id, body){
+  for (let essai = 0; essai < 6; essai++) {
+    try { await db.collection(col).doc(id).set(body); return true; }
+    catch (e) {
+      const c = e && e.code;
+      if (c === "resource_exhausted" || c === "unavailable") { await new Promise(r => setTimeout(r, 800 * (essai + 1) + Math.random() * 500)); continue; }
+      if (c === "invalid_argument") canWrite = false;
+      return false;
+    }
+  }
+  return false;
+}
+// fiches : [[type, id], ...] (type « k » société, « p » projet) ; go : le bouton qui lance l'envoi ; apres : quand c'est fini
+async function appliquerFiches(fiches, st, go, apres){
+  // le suivi se fait par société : chaque projet coché devient sa société de tête (une seule fois)
+  const nbP = fiches.filter(f => f[0] === "p").length;
+  if (nbP) {
+    const vus = new Set(), conv = []; let sans = 0;
+    for (const [t, id] of fiches) {
+      const k = t === "p" ? (groupeDe(PBY.get(id)) || {}).k : (BYK.get(id) || {}).k || id;
+      if (!k) { sans++; continue; }
+      if (!vus.has(k)) { vus.add(k); conv.push(["k", k]); }
+    }
+    if (!go.dataset.conf) toast(`${fmt(nbP)} projet${nbP > 1 ? "s" : ""} : le statut s'applique à leur société de tête (${fmt(conv.length)} société${conv.length > 1 ? "s" : ""} en tout)${sans ? `, ${fmt(sans)} sans société connue ignoré${sans > 1 ? "s" : ""}` : ""}.`);
+    fiches = conv;
+  }
+  if (!fiches.length || go.disabled) return;
+  if (!db || canWrite === false) { toast("Le suivi partagé n'est pas disponible ici : rien n'a été enregistré."); return; }
+  if (fiches.length > MAX_LOT) { toast(`${fmt(fiches.length)} fiches sélectionnées : ${fmt(MAX_LOT)} au plus par envoi. Affinez la recherche.`); return; }
+  // confirmation dans la barre (les fenêtres de confirmation du navigateur sont bloquées dans claude.ai)
+  const signe = fiches.length + "|" + st;
+  if (fiches.length > CONFIRMER_DES && go.dataset.conf !== signe) {
+    go.dataset.conf = signe; go.textContent = `Confirmer : ${fmt(fiches.length)} fiches en « ${ST[st]} »`; return;
+  }
+  delete go.dataset.conf;
+  go.disabled = true; go.textContent = "Enregistrement…";
+  const le = new Date().toISOString(), cles = [];
+  enLot = {attente: {}};
+  for (const [t, id] of fiches) {
+    const k = SEL[t].cle(id);
+    // une fiche fusionnée garde son suivi sous l'ancienne clé si c'est là qu'il a été saisi
+    const ref = t === "k" && !suivi[k] ? ((BYK.get(id) || {}).ka || []).find(a => suivi[a]) : null;
+    const cle = ref || k;
+    enLot.attente[cle] = {...(suivi[cle] || {}), st, maj: {le}};
+    SEL[t].garder.add(id); cles.push(cle);
+  }
+  fusionnerSuivi(); renderAll();
+  let ok = 0, ko = 0;
+  for (let i = 0; i < cles.length; i += PAR_DOC) {
+    const part = cles.slice(i, i + PAR_DOC);
+    const id = "lot-" + le.replace(/[^0-9]/g, "") + "-" + (i / PAR_DOC) + "-" + Math.random().toString(36).slice(2, 8);
+    const corps = {le, st, par: myId || null, cles: part};
+    if (await ecrireUne("suivi_lots", id, corps)) { ok += part.length; suiviLots[id] = corps; } else ko += part.length;
+    go.textContent = `Enregistrement… ${fmt(ok + ko)}/${fmt(cles.length)}`;
+  }
+  enLot = null; fusionnerSuivi();
+  go.disabled = false; go.textContent = "Appliquer";
+  setSync(ko ? "Enregistrement incomplet" : "Enregistré");
+  toast(ko ? `${fmt(ok)} fiche${ok > 1 ? "s" : ""} enregistrée${ok > 1 ? "s" : ""}, ${fmt(ko)} en échec : la base est occupée, réessayez dans un moment.`
+           : `${fmt(ok)} fiche${ok > 1 ? "s" : ""} passée${ok > 1 ? "s" : ""} en « ${ST[st]} »`);
+  if (apres) apres();
+  renderAll();
+}
+function appliquerSel(t){
+  const S = SEL[t], x = S.x;
+  return appliquerFiches([...S.ids].map(id => [t, id]), $(x + "bulk-st").value, $(x + "bulk-go"), () => viderSel(t));
+}
+document.addEventListener("click", e => {
+  const c = e.target.closest && e.target.closest("input[data-sel]"); if (!c) return;
+  e.stopPropagation(); cocher(c.dataset.sel, c.dataset.id, c.checked, e.shiftKey);
+}, true);
+for (const t of ["k", "p"]) {
+  const x = SEL[t].x;
+  $(x ? "pselall" : "selall").onchange = e => { const S = SEL[t]; S.vus().forEach(id => e.target.checked ? S.ids.add(id) : S.ids.delete(id)); S.der = null;
+    t === "k" ? renderList() : renderProjets(); };
+  $(x + "bulk-all").onclick = () => { SEL[t].tout().forEach(id => SEL[t].ids.add(id)); t === "k" ? renderList() : renderProjets(); };
+  $(x + "bulk-x").onclick = () => { viderSel(t); t === "k" ? renderList() : renderProjets(); };
+  $(x + "bulk-go").onclick = () => appliquerSel(t);
+}
+function saveSuivi(k, patch){ const next = {...(suivi[k] || {}), ...patch, maj: {le: new Date().toISOString()}};
+  if (next.maj) delete next.maj.lot;
+  suiviDocs[k] = next; suivi[k] = next; write("suivi", k, next); renderAll(); }
+async function connect(){
+  const C = window.claude;
+  if (!C || !C.use) { setSync("Consultation seule (hors claude.ai)"); renderTodo(); return; }
+  [db, user] = await Promise.all([C.use("db"), C.use("user")]);
+  if (user) { try { myId = await user.id(); canWrite = await user.can("data.write"); } catch {} }
+  if (!db) { setSync("Consultation seule"); renderTodo(); return; }
+  setSync(canWrite === false ? "Lecture seule" : "Suivi partagé connecté");
+  if (window.__site && !$("deco")) { const b = document.createElement("button"); b.id = "deco"; b.className = "btn small deco"; b.type = "button";
+    b.textContent = `${window.__site.prenom} · Se déconnecter`; b.onclick = window.__site.deconnexion; $("sync").after(b);
+    const c = document.createElement("button"); c.id = "chmdp"; c.className = "btn small deco"; c.type = "button";
+    c.textContent = "Changer mon mot de passe"; c.onclick = window.__site.changerMdp; b.after(c); }
+  db.collection("suivi").onSnapshot(s => { suiviDocs = lireDocs(s, propreSuivi); fusionnerSuivi();
+    if (!enLot) renderAll(); }, () => setSync("Connexion perdue : rechargez"));
+  db.collection("suivi_lots").onSnapshot(s => { suiviLots = lireDocs(s, propreLot); fusionnerSuivi();
+    if (!enLot) renderAll(); }, () => setSync("Connexion perdue : rechargez"));
+  db.collection("taches").onSnapshot(s => { taches = lireDocs(s, propreTache); renderAll(); }, () => setSync("Connexion perdue : rechargez"));
+  db.collection("recherches").onSnapshot(recevoirRech, () => {});
+}
+
+/* ---------------- dernières recherches de l'équipe ----------------
+   Collection partagée « recherches » : un document par personne (identifiant du compte), {liste: [{q, le, mode}]} avec
+   ses 10 dernières recherches. La page affiche les 10 plus récentes de toute l'équipe ; un clic relance la recherche. */
+const NB_RECENTS = 10, MAX_Q = 300;
+let recherches = {}, nomsRech = {}, rechPret = false, rechAttente = [], rechFile = Promise.resolve(), rechNoms = false;
+const dateOk = le => Number.isFinite(Date.parse(le));
+function propreRecherche(d){
+  if (!estObjet(d) || !Array.isArray(d.liste)) return null;
+  const futur = Date.now() + 5 * 60000;   // une date dans le futur (horloge fausse ou saisie forcée) est ramenée à maintenant
+  return {liste: d.liste.filter(estObjet).map(x => ({q: texte(x.q).slice(0, MAX_Q), le: texte(x.le), mode: x.mode === "projets" ? "projets" : "recherche"}))
+    .filter(x => x.q && dateOk(x.le)).map(x => Date.parse(x.le) > futur ? {...x, le: new Date().toISOString()} : x)};
+}
+// liste de la personne : ses recherches les plus récentes d'abord, sans doublon (même texte, même onglet)
+function fusionRech(...listes){
+  const vu = new Set(), r = [];
+  for (const x of listes.flat().sort((a, b) => Date.parse(b.le) - Date.parse(a.le))) {
+    const c = x.mode + "|" + x.q; if (vu.has(c)) continue; vu.add(c); r.push(x);
+  }
+  return r.slice(0, NB_RECENTS);
+}
+function noterRecherche(q, m){
+  if (!db || canWrite === false || !myId || !q) return;
+  const x = {q: q.slice(0, MAX_Q), le: new Date().toISOString(), mode: m};
+  // tant que la première lecture n'est pas arrivée, la recherche attend (sinon l'historique déjà enregistré serait écrasé)
+  if (!rechPret) { rechAttente.push(x); return; }
+  enregistrerRech([x]);
+}
+function enregistrerRech(nouvelles){
+  const liste = fusionRech(nouvelles, (recherches[myId] || {}).liste || []);
+  recherches[myId] = {liste};
+  // écritures de ce document l'une après l'autre (jamais une ancienne liste après une nouvelle), un seul essai, sans
+  // message en cas d'échec : l'historique n'est qu'une aide
+  rechFile = rechFile.then(() => db.collection("recherches").doc(myId).set({liste: (recherches[myId] || {liste}).liste})).catch(() => {});
+  renderRecents();
+}
+function recevoirRech(s){
+  const lus = lireDocs(s, propreRecherche);
+  // sa propre liste : celle reçue fusionnée avec ce qui a été noté ici et pas encore relu (deux onglets, écriture en cours)
+  if (myId && recherches[myId]) lus[myId] = {liste: fusionRech(recherches[myId].liste, (lus[myId] || {}).liste || [])};
+  recherches = lus;
+  if (!rechPret) { rechPret = true; if (rechAttente.length) { const a = rechAttente; rechAttente = []; enregistrerRech(a); return; } }
+  renderRecents();
+}
+function ilYa(le){
+  const min = Math.floor((Date.now() - Date.parse(le)) / 60000);
+  if (!Number.isFinite(min)) return "";
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  if (min < 24 * 60) return `il y a ${Math.floor(min / 60)} h`;
+  return frDate(le);
+}
+// prénoms des auteurs, cherchés à part ; un échec n'est pas mis en mémoire (nouvel essai au rendu suivant)
+async function chercherNoms(ids){
+  if (rechNoms || !user || !user.profiles) return;
+  rechNoms = true;
+  try { const ps = await user.profiles(ids) || {}; for (const id of ids) nomsRech[id] = (ps[id] && ps[id].name || "").trim().split(/\s+/)[0] || "Un collègue"; }
+  catch {} finally { rechNoms = false; }
+  renderRecents();
+}
+let rechTout = [];
+function renderRecents(){
+  const el = $("recents");
+  rechTout = Object.entries(recherches).flatMap(([id, d]) => d.liste.map(x => ({...x, id})))
+    .sort((a, b) => Date.parse(b.le) - Date.parse(a.le)).slice(0, NB_RECENTS);
+  if (!rechTout.length) { el.hidden = true; el.innerHTML = ""; return; }
+  const manque = [...new Set(rechTout.map(x => x.id))].filter(id => id !== myId && !(id in nomsRech));
+  if (manque.length) chercherNoms(manque);
+  const qui = id => id === myId ? "Vous" : nomsRech[id] || "";
+  el.innerHTML = `<span>Dernières recherches de l'équipe :</span>` + rechTout.map((x, i) => {
+    const onglet = x.mode === "projets" ? "Recherche Projets" : "Recherche Corpo", n = qui(x.id);
+    return `<button type="button" data-rech="${i}" title="${esc(`${n ? n + " · " : ""}${onglet} · ${ilYa(x.le)} : ${x.q}`)}" aria-label="${esc(`Relancer la recherche${n ? " de " + n : ""} : ${x.q}, ${ilYa(x.le)}, ${onglet}`)}">${
+      n ? `<b>${esc(n)}</b>` : ""}<span class="rq">${esc(x.q)}</span><i>${esc(ilYa(x.le))}${x.mode === "projets" ? " · projets" : ""}</i></button>`; }).join("");
+  el.hidden = false;
+}
+$("recents").onclick = e => { const b = e.target.closest("button[data-rech]"); if (!b) return; const x = rechTout[+b.dataset.rech]; if (!x) return;
+  if ((mode() === "projets" ? "projets" : "recherche") !== x.mode) show(x.mode);
+  $("q").value = x.q; x.mode === "projets" ? psearch() : search(); };
+setInterval(() => { if (!$("recents").hidden) renderRecents(); }, 60000);   // « il y a … » tenu à jour
+
+/* ---------------- moteur de recherche ---------------- */
+const F0 = () => ({q:"", etape:"", segs:[], prs:[], sts:[], re:"", regs:[], deps:[], kw_min:null, kw_max:null, fc_min:null, fc_max:null, np_min:null, np_max:null, sc_min:null, sc_max:null,
+  roles:[], tys:[], tel:false, pdv:false, cre:false, foa:false, orig:"", clos:false,
+  aos:[], ao_min:null, ao_max:null, srcs:[], sort:"score"});
+let F = F0(), shown = 100, current = [], aiNote = "";
+function match(l, f){
+  if (f.q && !fold(f.q).split(/\s+/).filter(Boolean).every(w => l._txt.includes(w))) return false;
+  if (f.segs.length && !(l.segs || [l.seg]).some(x => f.segs.includes(x))) return false;
+  if (f.prs.length && !f.prs.includes(l.pr)) return false;
+  const fixe = garderK.has(l.k);
+  if (!fixe && f.etape === "nontraite" && l.st !== "non_traite") return false;
+  if (!fixe && f.etape === "qualifier" && l.st !== "a_qualifier") return false;
+  if (!fixe && f.etape === "prospection" && l.st === "non_traite") return false;
+  if (!fixe && f.sts.length && !f.sts.includes(l.st)) return false;
+  if (!fixe && !f.clos && !f.sts.length && f.etape !== "prospection" && CLOS.has(l.st)) return false;
+  if (f.re === "aucun" ? !!l.re : (f.re && l.re !== f.re)) return false;
+  if (f.regs.length && !l.regn.some(r => f.regs.some(x => fold(r).includes(fold(x))))) return false;
+  if (f.deps.length && !l.deps.some(d => f.deps.includes(d))) return false;
+  if (f.kw_min != null && (l.kw || 0) < f.kw_min) return false;
+  if (f.kw_max != null && (l.kw || 0) > f.kw_max) return false;
+  if (f.fc_max != null && !(l.fc && l.fc <= f.fc_max)) return false;
+  if (f.fc_min != null && !(l.fc && l.fc >= f.fc_min)) return false;
+  if (f.np_min != null && (l.np || 0) < f.np_min) return false;
+  if (f.np_max != null && (l.np || 0) > f.np_max) return false;
+  if (f.sc_min != null && (l.sc || 0) < f.sc_min) return false;
+  if (f.sc_max != null && (l.sc || 0) > f.sc_max) return false;
+  if (f.roles.length && !f.roles.includes(l.dr)) return false;
+  if (f.tys.length && !l.tys.some(t => f.tys.includes(t))) return false;
+  if (f.tel && !(l.te || l.em)) return false;
+  if (f.pdv && !l.pd) return false;
+  if (f.cre && !(l.cre && l.cre.nr)) return false;
+  if (f.foa && !l.foa) return false;
+  if (f.orig && l.o !== f.orig) return false;
+  if (f.aos.length && !l.aos.some(a => f.aos.includes(a[0]))) return false;
+  if ((f.ao_min != null || f.ao_max != null) && !l.aos.some(a => a[2] && (f.ao_min == null || a[2] >= f.ao_min) && (f.ao_max == null || a[2] <= f.ao_max))) return false;
+  if (f.srcs.length && !f.srcs.every(c => l.src.includes(c))) return false;
+  return true;
+}
+const SENS_DEFAUT = {score: -1, kw: -1, fc: 1, nom: 1, dt: -1, np: -1};
+function trier(arr, cle, sens){
+  return arr.sort((a, b) => { const x = cle(a), y = cle(b);
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    return (typeof x === "string" ? x.localeCompare(y, "fr") : x - y) * sens; });
+}
+const CLES_C = {score: l => l.sc ?? 0, kw: l => l.kw || null, fc: l => l.fc || null, nom: l => l.s, np: l => l.np || null};
+const SORTS = {
+  score: (a, b) => (PRANK[a.pr] || 4) - (PRANK[b.pr] || 4) || (b.sc || 0) - (a.sc || 0) || (b.kw || 0) - (a.kw || 0),
+  kw: (a, b) => (b.kw || 0) - (a.kw || 0), fc: (a, b) => (a.fc || 9999) - (b.fc || 9999), nom: (a, b) => a.s.localeCompare(b.s, "fr")};
+function query(f){ const r = LEADS.map(eff).filter(l => match(l, f));
+  return trier(r, CLES_C[f.sort] || CLES_C.score, f.dir || SENS_DEFAUT[f.sort] || -1); }
+
+/* ---------------- panneau de filtres par catégories (commun aux deux recherches) ----------------
+   Chaque critère chiffré a un minimum et un maximum ; les catégories se cochent comme des étiquettes. */
+const sel = (k, lab, opts) => `<select data-f="${k}" aria-label="${lab}"><option value="">${lab}</option>${opts.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join("")}</select>`;
+// texte du menu à cases : « Tous », la valeur cochée, ou « 3 sélectionnés »
+function resumeMulti(it, ch){
+  if (!ch.length) return "Tous";
+  if (ch.length === 1) return (it.opts.find(o => o[0] === ch[0]) || [0, ch[0]])[1];
+  return `${ch.length} sélectionnés`;
+}
+// un seul menu ouvert à la fois ; un clic ailleurs ou Échap le referme
+document.addEventListener("click", e => {
+  document.querySelectorAll("details.msel[open]").forEach(d => { if (!d.contains(e.target)) d.open = false; });
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll("details.msel[open]").forEach(d => { d.open = false; d.querySelector("summary").focus(); }); });
+document.addEventListener("toggle", e => {
+  if (e.target.matches && e.target.matches("details.msel") && e.target.open)
+    document.querySelectorAll("details.msel[open]").forEach(d => { if (d !== e.target) d.open = false; });
+}, true);
+function filtreUI(boxId, spec, getF, onChange, onReset){
+  const box = $(boxId), cle = "fp_" + boxId;
+  const actifs = () => { const F_ = getF(); let n = 0; for (const g of spec) for (const it of g.items) {
+    if (it.t === "range") n += (F_[it.k + "_min"] != null || F_[it.k + "_max"] != null) ? 1 : 0;
+    else if (it.t === "multi") n += F_[it.k].length ? 1 : 0; else if (it.t === "text") n += F_[it.k].length ? 1 : 0;
+    else n += F_[it.k] ? 1 : 0; } return n; };
+  function champ(it, F_){
+    if (it.t === "range") { const m = it.mult || 1, v = x => x == null ? "" : +(x / m).toFixed(3);
+      return `<div class="frange"><span class="fl" title="${esc(it.lab)}">${it.lab}${it.unit ? ` <small>(${it.unit})</small>` : ""}</span>
+        <span class="fr"><input type="number" inputmode="decimal" data-r="${it.k}" data-b="min" value="${v(F_[it.k + "_min"])}" placeholder="min" step="${it.step || "any"}" aria-label="${it.lab} minimum">
+        <span class="fsep">à</span><input type="number" inputmode="decimal" data-r="${it.k}" data-b="max" value="${v(F_[it.k + "_max"])}" placeholder="max" step="${it.step || "any"}" aria-label="${it.lab} maximum"></span></div>`; }
+    if (it.t === "multi") return `<div class="frange"><span class="fl" title="${esc(it.lab)}">${it.lab}</span>
+      <details class="msel" data-msel="${it.k}"><summary class="${F_[it.k].length ? "on" : ""}" aria-label="${esc(it.lab)}">${esc(resumeMulti(it, F_[it.k]))}</summary>
+      <div class="msel-pop" role="group" aria-label="${esc(it.lab)}">${it.opts.map(([v, t]) =>
+        `<label><input type="checkbox" data-mc="${it.k}" value="${esc(v)}" ${F_[it.k].includes(v) ? "checked" : ""}><span>${esc(t)}</span></label>`).join("")}
+        <button type="button" class="msel-x" data-mx="${it.k}" ${F_[it.k].length ? "" : "hidden"}>Tout décocher</button></div></details></div>`;
+    if (it.t === "text") return `<div class="frange"><span class="fl" title="${esc(it.lab)}">${it.lab}</span><input type="text" data-tx="${it.k}" value="${esc(F_[it.k].join(", "))}" placeholder="${esc(it.ph || "")}" aria-label="${it.lab}"></div>`;
+    if (it.t === "select") return `<div class="frange"><span class="fl" title="${esc(it.lab)}">${it.lab}</span><select data-s="${it.k}" aria-label="${it.lab}"><option value="">Tous</option>${it.opts.map(([v, t]) => `<option value="${esc(v)}" ${F_[it.k] === v ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></div>`;
+    return `<div class="frange"><span class="fl" title="${esc(it.lab)}">${it.lab}</span><select data-c="${it.k}" aria-label="${it.lab}" class="${F_[it.k] ? "on" : ""}"><option value="">Tous</option><option value="1" ${F_[it.k] ? "selected" : ""}>Oui</option></select></div>`;
+  }
+  function peindre(){
+    const F_ = getF(), ouvert = store.get(cle) !== "0", n = actifs();
+    box.innerHTML = `<div class="fbar"><button type="button" class="btn ftog" aria-expanded="${ouvert}"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Filtres${n ? ` <span class="badge">${n}</span>` : ""}</button>
+      ${n ? `<button type="button" class="btn small freset">Tout effacer</button>` : ""}</div>
+      <div class="fpanel" ${ouvert ? "" : "hidden"}>${spec.map(g => `<div class="fgroup" role="group" aria-label="${g.g}"><div class="fglab">${g.g}</div><div class="fitems">${g.items.map(it => champ(it, F_)).join("")}</div></div>`).join("")}</div>`;
+  }
+  let t;
+  box.addEventListener("click", e => {
+    const tog = e.target.closest(".ftog"); if (tog) { const o = tog.getAttribute("aria-expanded") !== "true"; store.set(cle, o ? "1" : "0"); peindre(); return; }
+    if (e.target.closest(".freset")) { onReset(); return; }
+    const mx = e.target.closest("button[data-mx]");
+    if (mx) { getF()[mx.dataset.mx] = []; onChange(true); return; }
+    const b = e.target.closest("button[data-m]"); if (!b) return;
+    const F_ = getF(), k = b.dataset.m, v = b.dataset.v;
+    F_[k] = F_[k].includes(v) ? F_[k].filter(x => x !== v) : [...F_[k], v];
+    b.setAttribute("aria-pressed", F_[k].includes(v)); onChange(false);
+  });
+  box.addEventListener("input", e => { const el = e.target, F_ = getF();
+    if (el.dataset.r) { const it = spec.flatMap(g => g.items).find(x => x.k === el.dataset.r), m = it.mult || 1;
+      F_[el.dataset.r + "_" + el.dataset.b] = el.value === "" ? null : +el.value * m; }
+    else if (el.dataset.tx) F_[el.dataset.tx] = el.value.split(/[\s,;]+/).filter(Boolean).map(d => d.toUpperCase().padStart(2, "0"));
+    else return;
+    clearTimeout(t); t = setTimeout(() => onChange(false), 300); });
+  box.addEventListener("change", e => { const el = e.target, F_ = getF();
+    if (el.dataset.c) { F_[el.dataset.c] = el.value === "1"; el.classList.toggle("on", !!F_[el.dataset.c]); onChange(false); }
+    if (el.dataset.mc) {   // case cochée : le menu reste ouvert, la liste se met à jour
+      const k = el.dataset.mc, it = spec.flatMap(g => g.items).find(x => x.k === k);
+      F_[k] = el.checked ? [...new Set([...F_[k], el.value])] : F_[k].filter(x => x !== el.value);
+      const d = el.closest("details.msel"), sm = d.querySelector("summary");
+      sm.textContent = resumeMulti(it, F_[k]); sm.classList.toggle("on", F_[k].length > 0);
+      d.querySelector(".msel-x").hidden = !F_[k].length;
+      onChange(false); }
+    if (el.dataset.s) { F_[el.dataset.s] = el.value; el.classList.toggle("on", !!el.value); onChange(false); } });
+  return {peindre, actifs};
+}
+// étiquettes de la recherche en cours, tirées de la même description
+function chipsUI(boxId, spec, getF, extra, onChange){
+  const F_ = getF(), c = [...extra];
+  for (const g of spec) for (const it of g.items) {
+    if (it.t === "range") { const a = F_[it.k + "_min"], b = F_[it.k + "_max"], m = it.mult || 1, f_ = x => it.fmt ? it.fmt(x) : fmt(+(x / m).toFixed(2)) + (it.unit ? " " + it.unit : "");
+      if (a != null || b != null) c.push({lab: `${it.lab} : ${a != null && b != null ? f_(a) + " à " + f_(b) : a != null ? "≥ " + f_(a) : "≤ " + f_(b)}`, rm: () => { F_[it.k + "_min"] = null; F_[it.k + "_max"] = null; }}); }
+    else if (it.t === "multi") F_[it.k].forEach(v => c.push({lab: (it.opts.find(o => o[0] === v) || [v, v])[1], rm: () => F_[it.k] = F_[it.k].filter(x => x !== v)}));
+    else if (it.t === "text") { if (F_[it.k].length) c.push({lab: `${it.lab} : ${F_[it.k].join(", ")}`, rm: () => F_[it.k] = []}); }
+    else if (it.t === "select") { if (F_[it.k]) c.push({lab: `${it.lab} : ${(it.opts.find(o => o[0] === F_[it.k]) || [0, F_[it.k]])[1]}`, rm: () => F_[it.k] = ""}); }
+    else if (F_[it.k]) c.push({lab: it.lab, rm: () => F_[it.k] = false});
+  }
+  const el = $(boxId); el.hidden = !c.length;
+  el.innerHTML = `<span class="lab">Recherche :</span>` + c.map((x, i) => `<span class="chip">${esc(x.lab)}<button type="button" data-i="${i}" aria-label="Retirer ${esc(x.lab)}">×</button></span>`).join("");
+  el.onclick = e => { const b = e.target.closest("button[data-i]"); if (!b) return; c[+b.dataset.i].rm(); onChange(true); };
+}
+const an = x => String(Math.round(x));
+const SPEC_C = () => [
+  {g: "Cible", items: [{t: "select", k: "etape", lab: "Suivi", opts: [["nontraite","Non traité"],["qualifier","À qualifier"],["prospection","Dans Prospection (tout sauf Non traité)"]]},
+    {t: "multi", k: "segs", lab: "Type de cible", opts: Object.entries(SEG)}, {t: "multi", k: "roles", lab: "Type de propriétaire", opts: ROLES.map(r => [r, r])}]},
+  {g: "Portefeuille", items: [{t: "range", k: "kw", lab: "Puissance", unit: "MW", mult: 1000},
+    {t: "range", k: "np", lab: "Nombre de projets (centrales + en développement)", step: 1, fmt: x => fmt(x) + " projets"},
+    {t: "multi", k: "tys", lab: "Installation", opts: Object.entries(TYPES)}]},
+  {g: "Contrats et appels d'offres", items: [{t: "multi", k: "aos", lab: "Appel d'offres (ordre d'intérêt)", opts: AO_FAM.map(aoOpt)},
+    {t: "range", k: "ao", lab: "Année de l'AO", unit: "année", step: 1, fmt: an}, {t: "range", k: "fc", lab: "Fin de contrat", unit: "année", step: 1, fmt: an},
+    {t: "bool", k: "foa", lab: "Fin d'obligation d'achat (contrats 2006-2011)"}, {t: "bool", k: "cre", lab: "A des lauréats non retrouvés au registre"}]},
+  {g: "Suivi, contact et sources", items: [{t: "multi", k: "sts", lab: "Statut", opts: Object.entries(ST)},
+    {t: "bool", k: "tel", lab: "Joignable (téléphone ou email)"}, {t: "bool", k: "pdv", lab: "A des projets en développement"},
+    {t: "multi", k: "srcs", lab: "Trouvée dans", opts: Object.entries(SRC_COURT)}, {t: "bool", k: "clos", lab: "Inclure les leads clos"}]},
+];
+let FUI = null;
+function initFilters(){ FUI = filtreUI("filters", SPEC_C(), () => F, ext => { if (ext !== false) FUI.peindre(); aiNote = ""; showNote(); refresh(false); },
+  () => { F = {...F0(), sort: F.sort}; if (mode() === "corpo") $("q").value = ""; aiNote = ""; showNote(); refresh(); }); }
+const txtSens = (sort, d) => d > 0 ? (sort === "nom" ? "A → Z ↑" : "Croissant ↑") : (sort === "nom" ? "Z → A ↓" : "Décroissant ↓");
+function syncControls(){ $("sort").value = F.sort; $("clear").hidden = !F.q && !aiNote;
+  $("dir").textContent = txtSens(F.sort, F.dir || SENS_DEFAUT[F.sort] || -1); }
+function chips(){ chipsUI("chips", SPEC_C(), () => F, F.q ? [{lab: `« ${F.q} »`, rm: () => F.q = ""}] : [], () => { aiNote = ""; showNote(); refresh(); }); }
+function refresh(repeindre = true){ shown = 100; garderK.clear(); viderSel("k"); if (FUI) { if (repeindre) FUI.peindre(); else majCompteur(FUI, "filters"); }
+  syncControls(); chips(); renderList(); if (!$("v-carte").hidden) renderMap(); }
+function majCompteur(ui, id){ const b = $(id).querySelector(".ftog"); if (!b) return; const n = ui.actifs(); b.querySelector(".badge")?.remove(); if (n) b.insertAdjacentHTML("beforeend", ` <span class="badge">${n}</span>`); }
+
+function signal(l){
+  const s = [];
+  if (l.foa) s.push(`<span class="tag warn">fin d'OA ${l.foa.fin}</span>`);
+  if (l.pd) s.push(`<span class="tag">${l.pd.n} projet${l.pd.n > 1 ? "s" : ""} en dév.</span>`);
+  if (l.cre && l.cre.nr) s.push(`<span class="tag">${l.cre.nr} lauréat${l.cre.nr > 1 ? "s" : ""} non retrouvé${l.cre.nr > 1 ? "s" : ""}</span>`);
+  if (l.o === "nouveau") s.push(`<span class="tag new">nouveau</span>`);
+  if (l.o === "projet") s.push(`<span class="tag">fiche créée depuis le projet</span>`);
+  return s.join(" ");
+}
+// Puissance des centrales de la base derrière une liste de sociétés : chaque centrale comptée une fois (une maison
+// mère et sa filiale, deux fiches d'un même portefeuille), sans les lauréats non retrouvés au registre (qui peuvent être
+// une centrale déjà comptée sous un autre nom). Les très gros portefeuilles (plus de 400 centrales) ne sont pas tous
+// dans la page : leur reste est ajouté tel quel.
+function mwCentrales(liste){
+  const vus = new Set(); let kw = 0;
+  for (const l of liste) {
+    let affichees = 0;
+    for (const c of l.ce || []) {
+      affichees += c[1] || 0;
+      // on compte le projet de la Recherche Projets auquel la ligne appartient (fiches regroupées : un lauréat, sa ligne
+      // du registre, un chantier GSPT sont un seul parc), seulement s'il est construit : même chiffre que l'onglet Projets
+      const p = c[9] && PBY.get(c[9]);
+      if (p) {
+        if (vus.has(p.i) || !(p.t === "S" || p.t === "C")) continue;
+        vus.add(p.i); kw += p.kw || 0; continue;
+      }
+      if (c[10] === 2 || (c[9] && String(c[9]).startsWith("d"))) continue;   // lauréat non retrouvé, projet en développement
+      if (c[9]) { if (vus.has(c[9])) continue; vus.add(c[9]); }
+      kw += c[1] || 0;
+    }
+    if ((l.nc || 0) > (l.ce || []).length) kw += Math.max(0, (l.kw || 0) - affichees);
+  }
+  return kw;
+}
+function renderList(){
+  current = query(F);
+  $("s-n").textContent = fmt(current.length);
+  // une même société peut ressortir sous deux leads (segments différents) : sa puissance n'est comptée qu'une fois
+  $("s-mw").textContent = fmt(Math.round(mwCentrales(current) / 1000));
+  $("s-tel").textContent = fmt(current.filter(l => l.te || l.em).length);
+  $("s-p1").textContent = fmt(current.filter(l => l.pr === "P1").length);
+  if (!current.length) { $("list").innerHTML = `<div class="empty">Aucune cible ne correspond. Retirez un critère ou reformulez votre recherche.</div>`; $("more").hidden = true; return; }
+  $("list").innerHTML = current.slice(0, shown).map(ligneLead).join("");
+  $("more").hidden = current.length <= shown; majSel("k");
+}
+function ligneLead(l){
+    const nt = Object.values(taches).filter(t => (t.k === l.k || (l.ka || []).includes(t.k)) && !t.fait).length;
+    return `<div class="row ${openK === l.k ? "sel" : ""} ${SEL.k.ids.has(l.k) ? "coche" : ""}" data-k="${esc(l.k)}" role="button" tabindex="0">
+    <div class="stc">${caseSel("k", l.k, l.s)}${menuStatut(l.st, "k", l.k)}</div>
+    <div><div class="t">${esc(l.s)}${HOMONYMES.has(fold(l.s)) && l.sn ? ` <span class="saved" style="font-weight:500">· SIREN ${esc(l.sn)}</span>` : ""}${badgeArx(l)}</div><div class="s">${esc([(l.segs || [l.seg]).filter(x => x !== "asset" || (l.segs || []).length > 1).map(x => SEG[x] || x).join(" + ") || null, l.dv && l.dv !== l.s ? l.dv : l.gr, l.ville || l.deps.slice(0, 3).join(", ")].filter(Boolean).join(" · "))}</div>
+      ${F.q && projetTrouve(l, F.q) ? `<div class="s" style="color:var(--accent);font-weight:600">Projet : ${esc(projetTrouve(l, F.q))}</div>` : ""}
+      <div class="prov">${(() => { const e = srcEntreprise(l), p = srcProjets(l), c = srcContacts(l);
+        return [e.length ? `<b>Entreprise</b> ${esc(e.join(", "))}` : "", p.length ? `<b>Projets</b> ${esc(p.join(", "))}` : "", c.length ? `<b>Contacts</b> ${esc(c.join(", "))}` : ""].filter(Boolean).join(" · "); })()}</div></div>
+    <div class="k"><b>${l.kw ? mw(l.kw) : "–"}</b> · ${fmt(l.np)} projet${l.np > 1 ? "s" : ""}${l.pd ? ` <span class="saved">(${fmt(l.nc)} centrale${l.nc > 1 ? "s" : ""} + ${l.pd.n} en dév.)</span>` : ""}<div>${signal(l)}</div>
+      ${l.aos.length ? `<div style="margin-top:3px">${l.aos.slice(0, 2).map(aoHtml).join(" ")}${l.aos.length > 2 ? ` <span class="tag">+${l.aos.length - 2} AO</span>` : ""}</div>` : ""}
+      </div>
+    <div class="k">${l.fc ? `<b>${l.fc}</b>` : "–"}</div>
+    <div class="k">${l.te ? `<span class="tel">${esc(l.te)}</span>` : l.em ? `<span class="tel">email</span>` : `<span style="color:var(--muted)">à trouver</span>`}</div>
+    <div>${postit(l)}</div>
+    <div style="text-align:right">${nt ? `<span class="tag">${nt} à faire</span> ` : ""}<button class="btn small" data-add="${esc(l.k)}" type="button">+ À faire</button></div></div>`; }
+
+/* ---------------- ARX : badge, bandeau dans la fiche Prospection, fiche ARX ---------------- */
+function badgeArx(l){
+  if (!l.ax || !l.ax.length) return "";
+  const a = ARX[l.ax[0]] || {};
+  return ` <button type="button" class="tag arx" data-arx="${esc(l.ax[0])}" title="Ouvrir la fiche ARX${a.prospection_vendeur ? " · " + esc(a.prospection_vendeur) : ""}">ARX</button>`;
+}
+// clic sur le badge : la fiche ARX s'ouvre, pas la fiche de la ligne
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-arx]"); if (!b) return;
+  e.preventDefault(); e.stopPropagation(); openArx(b.dataset.arx);
+}, true);
+const jour = d => d ? frDate(d) : "";
+function bandeauArx(l){
+  if (!l.ax || !l.ax.length) return "";
+  return `<div class="arx-band">${l.ax.map(i => { const a = ARX[i]; if (!a) return "";
+    const der = a.derniere_activite || {}, pro = a.prochaine_activite || {};
+    return `<div><div class="ab-t"><span class="st-arx">ARX</span><span>${esc(a.nom)}</span>${a.prospection_vendeur ? `<span class="tag">${esc(a.prospection_vendeur)}</span>` : ""}${(a.side || []).length ? `<span class="tag">${esc(a.side.join(" / "))}</span>` : ""}
+      <button type="button" class="btn small arx" data-arx="${esc(i)}" style="margin-left:auto">Ouvrir la fiche ARX</button></div>
+      <div class="ab-l">${[(a.referents || []).length ? `Référent${a.referents.length > 1 ? "s" : ""} : <b>${esc(a.referents.join(", "))}</b>` : "",
+        a.relation ? `relation : ${esc(a.relation)}` : "", a.nb_mandats ? `<b>${a.nb_mandats} mandat${a.nb_mandats > 1 ? "s" : ""}</b>` : "",
+        a.nb_opportunites ? `<b>${a.nb_opportunites} opportunité${a.nb_opportunites > 1 ? "s" : ""}</b>` : ""].filter(Boolean).join(" · ")}</div>
+      ${der.date ? `<div class="ab-l">Dernière activité le ${jour(der.date)}${der.type ? ` (${esc(der.type)})` : ""} : ${esc(der.titre || "")}</div>` : ""}
+      ${pro.date ? `<div class="ab-l">Prochaine activité le <b>${jour(pro.date)}</b>${pro.type ? ` (${esc(pro.type)})` : ""} : ${esc(pro.titre || "")}</div>` : ""}</div>`; }).join("")}</div>`;
+}
+let openA = null;
+const TECHNO = {sol: "PV au sol", agri: "Agrivoltaïsme", toiture: "Toiture", ombriere: "Ombrière", bess: "Stockage (BESS)"};
+const AUTRES_T = {eolien: "Éolien", metha_injection: "Méthanisation (injection)", metha_cogeneration: "Méthanisation (cogénération)", hydro: "Hydroélectricité"};
+function openArx(id){
+  const a = ARX[id]; if (!a) return toast("Fiche ARX introuvable.");
+  openA = id; openK = null; openP = null;
+  const d = $("drawer"), l = BYK.get(a.fiche);
+  const kv = rows => `<dl class="kv">${rows.filter(r => r[1] !== undefined && r[1] !== null && r[1] !== "" && !(Array.isArray(r[1]) && !r[1].length))
+    .map(([k, v, brut]) => `<dt>${esc(k)}</dt><dd>${brut ? v : esc(Array.isArray(v) ? v.join(", ") : String(v))}</dd>`).join("")}</dl>`;
+  const act = (t, x) => x && (x.date || x.titre) ? `<div><h4 style="margin:10px 0 2px;color:var(--arx-dark)">${t}${x.date ? ` · ${jour(x.date)}` : ""}${x.type ? ` · ${esc(x.type)}` : ""}</h4>
+    ${x.titre ? `<div style="font-weight:600;font-size:13.5px">${esc(x.titre)}</div>` : ""}${x.commentaire ? `<div class="com">${esc(x.commentaire)}</div>` : ""}</div>` : "";
+  const cr = Object.entries(a.criteres || {});
+  const site = a.site ? (/^https?:/.test(a.site) ? a.site : "https://" + a.site) : null;
+  d.hidden = false; d.classList.remove("wide");
+  d.innerHTML = `<div class="dh arx"><div class="top"><span class="hex" style="background:#fff;color:var(--arx-dark)">ARX</span><div><h2>${esc(a.nom)}</h2>
+    <div class="meta">${[a.categorie, (a.metier || []).join(", "), [a.ville, a.pays].filter(Boolean).join(", ")].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join("")}</div></div>
+    <button class="x" id="close" aria-label="Fermer la fiche">×</button></div>
+    <div class="acts">${l ? `<button class="btn primary small" id="to-prosp" type="button">← Fiche Prospection : ${esc(l.s)}</button>` : ""}
+      ${a.prospection_vendeur ? `<span class="tag" style="background:#fff;color:var(--arx-dark);font-weight:700">Prospection vendeur : ${esc(a.prospection_vendeur)}</span>` : ""}
+      ${site ? `<a class="btn small ghost" href="${esc(site)}" target="_blank" rel="noopener" style="text-decoration:none">Site web</a>` : ""}</div></div>
+  <div class="db arxf">
+    <div><h3>Suivi dans ARX</h3>${kv([["Prospection vendeur", a.prospection_vendeur], ["Référents", a.referents], ["Degré de relation", a.relation],
+      ["Sens (achat / vente)", a.side], ["Tiers", a.tiers], ["Activités enregistrées", a.nb_activites || 0], ["Mandats", a.nb_mandats || 0],
+      ["Opportunités", a.nb_opportunites || 0], ["Créée dans ARX le", jour(a.cree_le)], ["Dernière modification", jour(a.modifie_le)]])}</div>
+    <div><h3>Activités</h3>${act("Dernière activité terminée", a.derniere_activite) || ""}${act("Prochaine activité", a.prochaine_activite) || ""}
+      ${!(a.derniere_activite && a.derniere_activite.date) && !(a.prochaine_activite && a.prochaine_activite.date) ? `<p class="saved" style="margin:0">Aucune activité dans l'export ARX.</p>` : ""}</div>
+    ${a.description_alma ? `<div><h3>Description Alma</h3><div class="com">${esc(a.description_alma)}</div></div>` : ""}
+    ${cr.length || (a.autres_technos || []).length || (a.geo_cible || []).length ? `<div><h3>Critères d'investissement</h3>
+      ${cr.length ? `<div style="overflow-x:auto"><table class="sub"><thead><tr><th>Technologie</th><th class="num">Min</th><th class="num">Max</th><th>Maturité</th><th>Commentaire</th></tr></thead><tbody>
+      ${cr.map(([t, c]) => `<tr><td><b>${esc(TECHNO[t] || t)}</b></td><td class="num">${c.min ?? ""}</td><td class="num">${c.max ?? ""}</td><td>${esc((c.maturite || []).join(", "))}</td><td style="white-space:pre-wrap">${esc(c.commentaire || "")}</td></tr>`).join("")}</tbody></table></div>
+      <p class="saved" style="margin:4px 0 0">Puissances telles que saisies dans ARX.</p>` : ""}
+      ${kv([["Autres technologies", (a.autres_technos || []).map(t => AUTRES_T[t] || t)], ["Zones cibles", a.geo_cible]])}</div>` : ""}
+    <div><h3>La société</h3>${kv([["Description", a.description], ["Mots-clés", a.mots_cles], ["Compétences", a.competences], ["Secteur", a.secteur],
+      ["Nom légal", a.nom_legal], ["Identifiant national", a.identifiant], ["Adresse", [a.adresse, [a.code_postal, a.ville].filter(Boolean).join(" "), a.pays].filter(Boolean).join(", ")],
+      ["Bureaux", a.villes], ["Pays", a.pays_liste],
+      ["Chiffre d'affaires (ARX)", a.ca != null ? `${fmt(a.ca)}${a.ca_annee ? ` (${a.ca_annee})` : ""}` : null],
+      ["Site internet", site ? `<a href="${esc(site)}" target="_blank" rel="noopener">${esc(a.site)}</a>` : null, true]])}</div>
+    <div><h3>Lien avec la base de prospection</h3>${kv([["Fiche Prospection", l ? `<a data-open="${esc(l.k)}" style="color:var(--accent);cursor:pointer;font-weight:600">${esc(l.s)}</a>` : "–", true],
+      ["Rattachement", a.rattachement], ["Identifiant ARX", a.id]])}</div>
+  </div>`;
+  replier(d.querySelector(".db"));
+  $("close").onclick = () => { openA = null; closeLead(); };
+  if ($("to-prosp")) $("to-prosp").onclick = () => { openA = null; openLead(l.k); };
+}
+
+/* ---------------- note de l'équipe en post-it, modifiable depuis la ligne ---------------- */
+let noteEdit = null, noteBrouillon = "";
+function postit(l){
+  const ro = canWrite === false || !db;
+  if (noteEdit === l.k)
+    return `<textarea class="postit-edit" data-note-edit="${esc(l.k)}" aria-label="Note sur ${esc(l.s)}" placeholder="Ce qu'on sait, ce qui a été dit…">${esc(noteBrouillon)}</textarea>
+      <div class="postit-aide">Entrée : enregistrer · Maj+Entrée : à la ligne · Échap : annuler</div>`;
+  const t = (l.note || "").trim();
+  return `<button type="button" class="postit ${t ? "" : "vide"}" data-note="${esc(l.k)}" ${ro ? "disabled" : ""}
+    title="${ro ? "Consultation seule" : t ? "Modifier la note" : "Ajouter une note"}${l.maj && t ? " · mise à jour le " + frDate(l.maj.le) : ""}">${t ? esc(t) : "+ Note"}</button>`;
+}
+// post-it d'un projet : même composant, clé « p: » + identifiant du projet (le suivi peut être sous une fiche regroupée)
+function postitP(p){
+  const id = "p:" + p.i, s_ = suivi[pkey(p)] || {};
+  return postit({k: id, s: p.n || "ce projet", note: s_.note || "", maj: s_.maj});
+}
+function ouvrirNote(k){
+  if (k.startsWith("p:")) {
+    const p = PBY.get(k.slice(2)); if (!p) return;
+    noteEdit = k; noteBrouillon = (suivi[pkey(p)] || {}).note || "";
+    renderProjets();
+  } else {
+    const l = LEADS.find(x => x.k === k); if (!l) return;
+    noteEdit = k; noteBrouillon = eff(l).note || "";
+    renderList(); if (!$("v-prospection").hidden) renderProsp();
+  }
+  const t = document.querySelector(`textarea[data-note-edit="${CSS.escape(k)}"]`);
+  if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+}
+function fermerNote(enregistrer){
+  if (noteEdit === null) return;
+  const id = noteEdit, v = noteBrouillon.trim();
+  noteEdit = null;
+  const p = id.startsWith("p:") ? PBY.get(id.slice(2)) : null, k = p ? pkey(p) : id;
+  const avant = (suivi[k] || {}).note || "";
+  if (enregistrer && v !== avant.trim()) { p ? garderP.add(p.i) : garderK.add(k); saveSuivi(k, {note: v}); }
+  else if (p) renderProjets();
+  else { renderList(); if (!$("v-prospection").hidden) renderProsp(); }
+}
+document.addEventListener("input", e => { if (e.target.matches && e.target.matches("textarea[data-note-edit]")) noteBrouillon = e.target.value; });
+document.addEventListener("focusout", e => { if (e.target.matches && e.target.matches("textarea[data-note-edit]")) setTimeout(() => fermerNote(true), 0); });
+document.addEventListener("keydown", e => {
+  if (!(e.target.matches && e.target.matches("textarea[data-note-edit]"))) return;
+  if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); fermerNote(false); }
+  else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); noteBrouillon = e.target.value; fermerNote(true); }
+}, true);
+
+/* ---------------- Prospection : les fiches qualifiées, par statut ---------------- */
+const PR_ORDRE = ["a_qualifier", "en_discussion", "interesse", "contacte", "a_contacter", "pas_de_reponse", "stand_by", "client", "pas_interesse", "hors_scope"];
+let prSts = new Set(PR_ORDRE.filter(x => !["pas_interesse", "hors_scope"].includes(x)));
+function renderProsp(){
+  const re = $("pr-re").value, quoi = $("pr-quoi").value;
+  const socs = LEADS.map(eff).filter(l => l.st !== "non_traite");
+  const projs = [];   // le suivi se fait par société : les projets apparaissent dans la fiche de leur société
+  const nb = {}; socs.forEach(l => nb[l.st] = (nb[l.st] || 0) + 1); projs.forEach(p => nb[pst(p)] = (nb[pst(p)] || 0) + 1);
+  const actifs = socs.filter(l => !CLOS.has(l.st)).length + projs.filter(p => !CLOS.has(pst(p))).length;
+  $("nb-prosp").textContent = fmt(actifs); $("nb-prosp").hidden = !actifs;
+  if ($("v-prospection").hidden) return;
+  $("pr-st").innerHTML = PR_ORDRE.map(s => `<button type="button" data-prs="${s}" aria-pressed="${prSts.has(s)}">${esc(ST[s])} · ${fmt(nb[s] || 0)}</button>`).join("");
+  const okRe = r => !re || (re === "aucun" ? !r : r === re);
+  const grp = PR_ORDRE.filter(s => prSts.has(s)).map(s => {
+    const ls = quoi === "projets" ? [] : socs.filter(l => l.st === s && okRe(l.re))
+      .sort((a, b) => ((b.maj && b.maj.le) || "").localeCompare((a.maj && a.maj.le) || "") || (PRANK[a.pr] || 4) - (PRANK[b.pr] || 4) || (b.sc || 0) - (a.sc || 0));
+    const ps = quoi === "societes" ? [] : projs.filter(p => pst(p) === s && okRe(pre(p)))
+      .sort((a, b) => (((suivi[pkey(b)] || {}).maj || {}).le || "").localeCompare((((suivi[pkey(a)] || {}).maj || {}).le || "")) || (b.sc || 0) - (a.sc || 0));
+    if (!ls.length && !ps.length) return "";
+    const mwTot = Math.round((ls.reduce((a, l) => a + (l.kw || 0), 0) + ps.reduce((a, p) => a + (p.kw || 0), 0)) / 1000);
+    return `<div class="pgrp"><h2><span class="st ${s}">${esc(ST[s])}</span><span class="n">${ls.length ? `${fmt(ls.length)} société${ls.length > 1 ? "s" : ""}` : ""}${ls.length && ps.length ? " · " : ""}${ps.length ? `${fmt(ps.length)} projet${ps.length > 1 ? "s" : ""}` : ""} · ${fmt(mwTot)} MW</span></h2>
+      ${ls.length ? `<div class="head" aria-hidden="true"><span>Statut</span><span>Société</span><span>Portefeuille</span><span>Fin de contrat</span><span>Contact</span><span>Note</span><span></span></div>
+      <div class="list">${ls.slice(0, 300).map(ligneLead).join("")}</div>${ls.length > 300 ? `<p class="saved">300 premières sur ${fmt(ls.length)} : utilisez Recherche Corpo avec le filtre Statut pour le reste.</p>` : ""}` : ""}
+      ${ps.length ? `<div class="head phead" aria-hidden="true" style="margin-top:8px"><span>Statut</span><span>Projet</span><span>Puissance</span><span>Étape</span><span>Propriétaire</span><span>Note</span><span></span></div>
+      <div class="list">${ps.slice(0, 300).map(ligneProjet).join("")}</div>${ps.length > 300 ? `<p class="saved">300 premiers sur ${fmt(ps.length)} : utilisez Recherche Projets avec le filtre Statut pour le reste.</p>` : ""}` : ""}</div>`; }).join("");
+  prospFiches = PR_ORDRE.filter(s => prSts.has(s)).flatMap(s => [
+    ...(quoi === "projets" ? [] : socs.filter(l => l.st === s && okRe(l.re)).map(l => ["k", l.k])),
+    ...(quoi === "societes" ? [] : projs.filter(p => pst(p) === s && okRe(pre(p))).map(p => ["p", p.i]))]);
+  majSelR();
+  $("prosp").innerHTML = grp || `<div class="empty">Aucune fiche qualifiée pour ces critères. Changez le statut d'une société ou d'un projet depuis sa fiche pour la voir ici.</div>`;
+}
+$("pr-st").addEventListener("click", e => { const b = e.target.closest("button[data-prs]"); if (!b) return;
+  prSts.has(b.dataset.prs) ? prSts.delete(b.dataset.prs) : prSts.add(b.dataset.prs); renderProsp(); });
+$("pr-re").onchange = renderProsp; $("pr-quoi").onchange = renderProsp;
+// sélection dans Prospection : sociétés et projets ensemble
+let prospFiches = [];
+function majSelR(){
+  const n = SEL.k.ids.size + SEL.p.ids.size, bar = $("rbulk"), go = $("rbulk-go");
+  const tout = prospFiches.length && prospFiches.every(([t, id]) => SEL[t].ids.has(id));
+  $("pr-tout").textContent = tout ? "Tout désélectionner" : `Tout sélectionner (${fmt(prospFiches.length)} fiche${prospFiches.length > 1 ? "s" : ""})`;
+  $("pr-tout").hidden = !prospFiches.length || canWrite === false || !db;
+  bar.hidden = !n || $("v-prospection").hidden;
+  if (go && !go.disabled) { go.textContent = "Appliquer"; delete go.dataset.conf; }
+  if (!n) return;
+  $("rbulk-n").textContent = `${fmt(n)} fiche${n > 1 ? "s" : ""} sélectionnée${n > 1 ? "s" : ""}`;
+  const sel = $("rbulk-st");
+  if (!sel.options.length) sel.innerHTML = Object.entries(ST).map(([k, v]) => `<option value="${k}" ${k === "a_qualifier" ? "selected" : ""}>${v}</option>`).join("");
+}
+$("pr-tout").onclick = () => {
+  const tout = prospFiches.every(([t, id]) => SEL[t].ids.has(id));
+  for (const [t, id] of prospFiches) tout ? SEL[t].ids.delete(id) : SEL[t].ids.add(id);
+  renderProsp();
+};
+$("rbulk-x").onclick = () => { viderSel("k"); viderSel("p"); renderProsp(); };
+$("rbulk-go").onclick = () => appliquerFiches([...[...SEL.k.ids].map(id => ["k", id]), ...[...SEL.p.ids].map(id => ["p", id])],
+  $("rbulk-st").value, $("rbulk-go"), () => { viderSel("k"); viderSel("p"); });
+
+/* ---------------- Recherche Projets ---------------- */
+const TP = {S:"En service", C:"En construction ou en préparation", L:"Lauréat non retrouvé au registre", D:"En développement",
+            O:"Vu sur OpenStreetMap (non rattaché)"};
+const ETP = {I:"En instruction", X:"Sans suite connue (plus de 3 ans)", A:"Lauréat, pas encore construit", E:"Construit depuis"};
+const PRAISONS = {sans_suite: ["w", "Avis environnemental de plus de 3 ans, ni lauréat ni construit : projet bloqué ou à reprendre, à vendre."],
+  a_construire: ["w", "Lauréat d'un appel d'offres mais pas encore construit : projet prêt à construire, cessible."],
+  instruction: ["", "Projet en instruction (avis de moins de 3 ans) : pipeline de développement."],
+  construit: ["n", "Projet déjà construit et en service."],
+  chantier: ["w", "Parc en construction ou en préparation (Global Solar Power Tracker, onglet « Asset 2 » de l'Excel Asset) : projet prêt, souvent cessible avant la mise en service."],
+  laureat: ["w", "Lauréat récent (2023 ou après) pas encore dans le registre des installations : probablement en construction, peut-être à vendre."],
+  laureat_ancien: ["n", "Lauréat pas retrouvé dans le registre des installations. La liste CRE ne donne pas la commune et le registre masque souvent les noms : il est probablement construit sous un autre nom (ou abandonné)."],
+  foa: ["w", "Contrat d'obligation d'achat de 20 ans qui se termine : le propriétaire doit décider de vendre, rénover ou garder."],
+  fc: ["w", "Contrat d'achat qui se termine d'ici 2031."], taille: ["", "Taille utile pour une opération (1 à 50 MW)."],
+  joignable: ["", "Propriétaire joignable (téléphone ou email)."], acheteur: ["n", "Propriétaire grand groupe ou IPP : plutôt acheteur, peu pertinent."]};
+const OG = DATA.og || {};
+const GROUPES = DATA.groupes || {};
+// société citée dans la liste CRE : [nom, SIREN, adresse du siège, NAF, [holdings], dirigeants, téléphone]
+const og = id => { const o = OG[id]; return o ? {nom: o[0], sn: o[1], adr: o[2], naf: o[3], hold: (o[4] || []).map(h => OG[h]).filter(Boolean), dir: o[5], tel: o[6]} : null; };
+const PROJ = (DATA.projets || []).map(p => ({rs: [], ...p}));
+const PBY = new Map(PROJ.map(p => [p.i, p])), PK = new Map(), NB_OSM = PROJ.filter(p => p.t === "O").length;
+for (const p of PROJ) for (const a of p.al || []) PBY.set(a[0], p);   // anciennes fiches regroupées -> fiche gardée
+// chaque projet rattaché à une société figure dans son portefeuille (un projet regroupé peut avoir reçu sa société d'une
+// autre fiche du groupe : avis MRAe, lauréat) ; les portefeuilles tronqués à 400 lignes ont déjà leur reste compté à part
+for (const p of PROJ) {
+  const l = p.k && BYK.get(p.k); if (!l || (l.nc || 0) > (l.ce || []).length) continue;
+  if ((l.ce || []).some(c => c[9] && PBY.get(c[9]) === p)) continue;
+  (l.ce = l.ce || []).push([p.n || null, p.kw || null, p.com || p.dep || null, p.ms || null, p.fc || null, null, p.src || null, p.om || null,
+    (p.sl || []).map(e => e.length > 2 && e[1] === 1 && e[2] ? [e[0], e[2]] : [e[0]]), p.i, p.t === "L" ? 2 : null]);
+  l.nc = (l.nc || 0) + 1;
+}
+const AOT = DATA.aot || [];
+for (const l of LEADS) l._noms = [...new Set(l.ce.map(c => c[0]).filter(n => n && !/confidentiel/i.test(n)))];
+for (const p of PROJ) {
+  if (p.k) { if (!PK.has(p.k)) PK.set(p.k, []); PK.get(p.k).push(p);
+    const l = BYK.get(p.k); if (l && p.n && !l._noms.includes(p.n)) l._noms.push(p.n); }
+  p.owner = p.k && BYK.get(p.k) ? BYK.get(p.k).s : p.own || "";
+  p.regn = p.reg != null ? REGIONS[p.reg] : "";
+  const c_ = p.o ? og(p.o) : null;
+  p.cand = c_;
+  const osm_ = p.t === "O" || (p.pt && p.pt[2] === "o");
+  p._txt = fold([p.n, ...(p.al || []).map(a => a[2]), osm_ ? "openstreetmap open street map osm" : "", p.t === "O" ? "toiture" : "",
+    p.pt && p.pt[2] === "s" ? "satellite tzsam" : "", p.owner, p.por, p.com, p.dep, p.regn, p.ao ? aoTxt(p.ao) : "", p.lao, p.fa,
+    c_ ? [c_.nom, c_.sn, c_.dir, ...c_.hold.map(h => h[0] + " " + (h[1] || ""))].join(" ") : ""].join(" "));
+}
+const PF0 = () => ({q:"", ts:[], ets:[], prs:[], regs:[], deps:[], kw_min:null, kw_max:null, fc_min:null, fc_max:null, ms_min:null, ms_max:null, sc_min:null, sc_max:null,
+  aos:[], ao_min:null, ao_max:null, pers:[], srcs:[], tys:[], proprio:"", k:"", sts:[], re:"", etape:"", sort:"score"});
+const PERIODES = [...new Set((DATA.projets || []).map(p => p.ao && p.ao[1]).filter(Boolean))].sort((a, b) => (+a.slice(1) || 0) - (+b.slice(1) || 0));
+let PF = PF0(), pshown = 100, pcur = [], paiNote = "";
+// noms portés par plusieurs sociétés (SIREN différents) : la ligne affiche le SIREN pour les distinguer
+const HOMONYMES = (() => { const c = new Map(); for (const l of LEADS) { const f = fold(l.s); c.set(f, (c.get(f) || 0) + 1); }
+  return new Set([...c].filter(([, n]) => n > 1).map(([f]) => f)); })();
+for (const l of LEADS) { l._pn = l._noms.map(n => [n, fold(n)]); l._txt += " " + l._pn.map(x => x[1]).join(" "); }
+// projet du portefeuille qui contient tous les mots cherchés (affiché sous la société)
+const projetTrouve = (l, q) => { const w = fold(q).split(/\s+/).filter(Boolean); if (!w.length) return null;
+  if (w.every(x => fold([l.s, l.sn, l.gr, l.dv].join(" ")).includes(x))) return null;
+  const h = l._pn.find(([, f]) => w.every(x => f.includes(x))); return h ? h[0] : null; };
+function pmatch(p, f){
+  if (f.q && !fold(f.q).split(/\s+/).filter(Boolean).every(w => p._txt.includes(w))) return false;
+  if (f.k && p.k !== f.k) return false;
+  if (f.ts.length && !f.ts.includes(p.t)) return false;
+  if (f.ets.length && !f.ets.includes(p.et)) return false;
+  if (f.prs.length && !f.prs.includes(p.pr)) return false;
+  if (f.regs.length && !f.regs.some(x => fold(p.regn).includes(fold(x)))) return false;
+  if (f.deps.length && !f.deps.includes(p.dep)) return false;
+  if (f.kw_min != null && (p.kw || 0) < f.kw_min) return false;
+  if (f.kw_max != null && (p.kw || 0) > f.kw_max) return false;
+  if (f.fc_max != null && !(p.fc && p.fc <= f.fc_max)) return false;
+  if (f.aos.length && !(p.ao && f.aos.includes(p.ao[0]))) return false;
+  if (f.ao_min != null && !(p.ao && p.ao[2] && p.ao[2] >= f.ao_min)) return false;
+  if (f.ao_max != null && !(p.ao && p.ao[2] && p.ao[2] <= f.ao_max)) return false;
+  if (f.fc_min != null && !(p.fc && p.fc >= f.fc_min)) return false;
+  const an_ = p.ms || (p.dt ? +p.dt.slice(0, 4) : null);
+  if (f.ms_min != null && !(an_ && an_ >= f.ms_min)) return false;
+  if (f.ms_max != null && !(an_ && an_ <= f.ms_max)) return false;
+  if (f.sc_min != null && (p.sc || 0) < f.sc_min) return false;
+  if (f.sc_max != null && (p.sc || 0) > f.sc_max) return false;
+  if (f.pers && f.pers.length && !(p.ao && f.pers.includes(p.ao[1]))) return false;
+  if (f.srcs.length && !f.srcs.every(c => (p.src || "").includes(c) || (c === "M" && p.t === "D")
+      || (c === "O" && (p.t === "O" || (p.pt && p.pt[2] === "o"))))) return false;
+  if (f.tys.length && !f.tys.includes(p.ty)) return false;
+  const fixe = garderP.has(p.i);
+  if (!fixe && f.etape === "nontraite" && pst(p) !== "non_traite") return false;
+  if (!fixe && f.etape === "qualifier" && pst(p) !== "a_qualifier") return false;
+  if (!fixe && f.etape === "prospection" && pst(p) === "non_traite") return false;
+  if (!fixe && f.sts && f.sts.length && !f.sts.includes(pst(p))) return false;
+  if (f.re && (f.re === "aucun" ? !!pre(p) : pre(p) !== f.re)) return false;
+  if (f.proprio === "oui" && !p.owner) return false;
+  if (f.proprio === "non" && p.owner) return false;
+  if (f.proprio === "base" && !p.k) return false;
+  return true;
+}
+const PSORTS = {score: (a, b) => (b.sc || 0) - (a.sc || 0) || (b.kw || 0) - (a.kw || 0), kw: (a, b) => (b.kw || 0) - (a.kw || 0),
+  fc: (a, b) => (a.fc || 9999) - (b.fc || 9999), dt: (a, b) => String(b.dt || b.ms || "").localeCompare(String(a.dt || a.ms || "")), nom: (a, b) => (a.n || "").localeCompare(b.n || "", "fr")};
+const CLES_P = {score: p => p.sc ?? 0, kw: p => p.kw || null, fc: p => p.fc || null, nom: p => p.n || null, dt: p => p.dt || (p.ms ? String(p.ms) : null)};
+function pquery(f){ const r = PROJ.filter(p => pmatch(p, f));
+  return trier(r, CLES_P[f.sort] || CLES_P.score, f.dir || SENS_DEFAUT[f.sort] || -1); }
+const PSRC = {...SRC, M: "Avis environnementaux (MRAe et projets-environnement.gouv.fr)", O: "OpenStreetMap"};
+const SPEC_P = () => [
+  {g: "Projet", items: [{t: "select", k: "etape", lab: "Suivi", opts: [["nontraite","Non traité"],["qualifier","À qualifier"],["prospection","Dans Prospection (tout sauf Non traité)"]]}, {t: "multi", k: "ts", lab: "Type de projet", opts: Object.entries(TP)}, {t: "multi", k: "ets", lab: "Étape (projets en développement)", opts: Object.entries(ETP)},
+    {t: "multi", k: "tys", lab: "Installation", opts: [...new Set(PROJ.map(p => p.ty).filter(Boolean))].sort().map(t => [t, TYPES[t] || t])}]},
+  {g: "Puissance et dates", items: [{t: "range", k: "kw", lab: "Puissance", unit: "MW", mult: 1000},
+    {t: "range", k: "ms", lab: "Mise en service (ou date de l'avis)", unit: "année", step: 1, fmt: an},
+    {t: "range", k: "fc", lab: "Fin de contrat", unit: "année", step: 1, fmt: an}]},
+  {g: "Appels d'offres", items: [{t: "multi", k: "aos", lab: "Appel d'offres (ordre d'intérêt)", opts: AO_FAM.map(aoOpt)},
+    {t: "multi", k: "pers", lab: "Période (appel)", opts: PERIODES.map(x => [x, "Appel " + x])},
+    {t: "range", k: "ao", lab: "Année de désignation", unit: "année", step: 1, fmt: an}]},
+  {g: "Suivi", items: [{t: "multi", k: "sts", lab: "Statut du projet", opts: Object.entries(ST)}]},
+  {g: "Propriétaire et sources", items: [{t: "select", k: "proprio", lab: "Propriétaire", opts: [["base","Société dans la base"],["oui","Propriétaire connu"],["non","Propriétaire inconnu"]]},
+    {t: "multi", k: "srcs", lab: "Trouvé dans", opts: Object.entries({...SRC_COURT, M: "Avis MRAe", O: "OpenStreetMap"})}]},
+];
+let PUI = null;
+function initPFilters(){ PUI = filtreUI("pfilters", SPEC_P(), () => PF, ext => { if (ext !== false) PUI.peindre(); paiNote = ""; showNote(); prefresh(false); },
+  () => { PF = {...PF0(), sort: PF.sort}; if (mode() === "projets") $("q").value = ""; paiNote = ""; showNote(); prefresh(); }); }
+function psyncControls(){ $("psort").value = PF.sort; $("pdir").textContent = txtSens(PF.sort, PF.dir || SENS_DEFAUT[PF.sort] || -1); }
+function pchips(){ const ex = [];
+  if (PF.k) ex.push({lab: "Projets de " + (BYK.get(PF.k)?.s || "la société"), rm: () => PF.k = ""});
+  if (PF.q) ex.push({lab: `« ${PF.q} »`, rm: () => PF.q = ""});
+  chipsUI("pchips", SPEC_P(), () => PF, ex, () => { paiNote = ""; showNote(); prefresh(); }); }
+function prefresh(repeindre = true){ pshown = 100; garderP.clear(); viderSel("p"); if (PUI) { if (repeindre) PUI.peindre(); else majCompteur(PUI, "pfilters"); }
+  psyncControls(); pchips(); renderProjets(); if (!$("v-carte").hidden) renderMap(); }
+function pSources(p){
+  if (p.t === "D") return [p.dsrc, "lu par Claude"];
+  if (p.t === "O") return [p.dsrc];
+  return (p.sl || []).map(e => srcLong(e));
+}
+function renderProjets(){
+  pcur = pquery(PF);
+  $("p-n").textContent = fmt(pcur.length);
+  // construit : en service et chantiers ; à construire : lauréats non construits et projets en développement (un avis
+  // MRAe déjà construit est compté avec sa centrale, pas ici)
+  const construit = p => p.t === "S" || p.t === "C", aFaire = p => p.t === "L" || (p.t === "D" && p.et !== "E");
+  $("p-mw").textContent = fmt(Math.round(pcur.reduce((a, p) => a + (construit(p) ? p.kw || 0 : 0), 0) / 1000));
+  const nAf = pcur.filter(aFaire).length;
+  $("p-av").textContent = fmt(Math.round(pcur.reduce((a, p) => a + (aFaire(p) ? p.kw || 0 : 0), 0) / 1000));
+  $("p-av-l").textContent = `MW à construire (${fmt(nAf)} lauréat${nAf > 1 ? "s" : ""} et projets en développement)`;
+  $("p-p1").textContent = fmt(pcur.filter(p => p.pr === "P1").length);
+  if (!pcur.length) { $("plist").innerHTML = `<div class="empty">Aucun projet ne correspond. Retirez un critère ou reformulez votre recherche.</div>`; $("pmore").hidden = true; return; }
+  $("plist").innerHTML = pcur.slice(0, pshown).map(ligneProjet).join("");
+  $("pmore").hidden = pcur.length <= pshown; majSel("p");
+}
+function ligneProjet(p){
+    const ids = pids(p), nt = Object.values(taches).filter(t => !t.fait && ids.includes(t.p)).length, st = pst(p), re = pre(p);
+    return `<div class="row p ${openP === p.i ? "sel" : ""} ${SEL.p.ids.has(p.i) ? "coche" : ""}" data-p="${esc(p.i)}" role="button" tabindex="0">
+    <div class="stc">${caseSel("p", p.i, p.n || "Projet sans nom")}${menuStatut(st, "p", p.i)}</div>
+    <div><div class="t">${esc(p.n || "Projet sans nom")}</div><div class="s">${esc([p.com, p.dep ? "(" + p.dep + ")" : "", p.regn].filter(Boolean).join(" "))}</div><div class="prov">${esc([...new Set(pSources(p).map(COURT))].join(", "))}</div></div>
+    <div class="k"><b>${p.kw ? (p.kwe ? "≈ " : "") + mw(p.kw) : "–"}</b>${p.kwe ? `<div class="s" title="Puissance estimée d'après la surface de la toiture dessinée dans OpenStreetMap (0,15 kW par m²), souvent surestimée">estimés</div>` : ""}</div>
+    <div class="k"><span class="tp ${esc(p.t)}">${esc(TP[p.t])}</span><div style="margin-top:3px">${p.t === "D" ? esc(ETP[p.et] || "") + (p.dt ? ` · avis ${p.dt.slice(0, 4)}` : "") : p.ao ? aoHtml(p.ao) : ""}${p.fc ? ` <span class="tag ${p.fc <= 2031 ? "warn" : ""}">fin ${esc(p.fc)}</span>` : ""}${p.ms ? ` <span class="saved">MES ${p.ms}</span>` : ""}</div></div>
+    <div class="k">${p.k ? `<span class="owner" data-open="${esc(p.k)}">${esc(p.owner)}</span>` : p.owner ? esc(p.owner) : `<span style="color:var(--muted)">inconnu</span>`}${p.por && p.t === "D" && p.por !== p.owner ? `<div class="s">${esc(p.por)}</div>` : ""}
+      ${p.cand ? `<div class="s">Candidat : ${esc(p.cand.nom)}${p.cand.sn ? ` · SIREN ${esc(p.cand.sn)}` : ""}</div>` : ""}${p.fa ? `<div class="s">Groupe : ${esc(p.fa)}</div>` : ""}</div>
+    <div>${postitP(p)}</div>
+    <div style="text-align:right">${re ? `<span class="tag">${esc(re)}</span> ` : ""}${nt ? `<span class="tag">${nt} à faire</span> ` : ""}<button class="btn small" data-addp="${esc(p.i)}" type="button">+ À faire</button></div></div>`; }
+// Lien Google Maps : point précis (centre du parc vu par satellite, sinon emprise ou lieu-dit de l'avis MRAe) ;
+// sinon recherche de la commune (Google affiche son contour), sinon du département, pour chercher le parc à l'œil
+const DEPNOM = Object.fromEntries((DATA.deps || []).map(d => [d.c, d.n]));
+function lienCarte(p){
+  const btn = (q, label, quoi) => `<a class="btn small ghost" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}" target="_blank" rel="noopener"
+    style="text-decoration:none" title="${esc(quoi)}">${label}</a>`;
+  if (p.pt && p.t === "O") return btn(`${p.pt[0]},${p.pt[1]}`, "Google Maps", "Position : toiture solaire cartographiée sur OpenStreetMap");
+  if (p.pt) return btn(`${p.pt[0]},${p.pt[1]}`, "Google Maps", "Position : " + ({
+    o: "installation cartographiée sur OpenStreetMap (rattachée par son code EIC ou sa commune et sa puissance)",
+    "o?": "toiture cartographiée sur OpenStreetMap, seule de cette taille dans la commune (à vérifier)",
+    s: "centre du parc vu par satellite (TZ-SAM)", a: "emprise ou lieu-dit de l'avis MRAe"}[p.pt[2]] || "point connu"));
+  const dep = p.dep ? (DEPNOM[String(p.dep).padStart(2, "0")] || p.dep) : "";
+  const com = (p.com || "").replace(/\(.*?\)/g, "").split(/\s*[\/;]\s*/)[0].trim();
+  if (com) return btn([com, dep, "France"].filter(Boolean).join(", "), "Google Maps (commune)",
+    "Le parc n'est pas localisé précisément : Google Maps affiche le contour de la commune pour le chercher");
+  if (dep) return btn(`${dep}, France`, "Google Maps (département)", "Seul le département est connu");
+  return "";
+}
+let openP = null;
+function openProjet(i){
+  const p = PBY.get(i); if (!p) return; i = p.i; openP = i; openK = null;
+  document.querySelectorAll(".row.p").forEach(r => r.classList.toggle("sel", r.dataset.p === i));
+  const l = p.k ? eff(BYK.get(p.k)) : null, ro = canWrite === false || !db;
+  const why = (p.rs || []).filter(r => PRAISONS[r]).map(r => `<div><i class="${PRAISONS[r][0]}"></i><span>${PRAISONS[r][1]}</span></div>`).join("");
+  const ts = Object.entries(taches).filter(([, t]) => pids(p).includes(t.p) || (p.k && t.k === p.k)).sort((a, b) => (a[1].fait - b[1].fait) || (a[1].ech || "9").localeCompare(b[1].ech || "9"));
+  const d = $("drawer"); d.hidden = false; d.classList.add("wide");
+  d.innerHTML = `<div class="dh"><div class="top"><span class="hex ${esc(p.pr)}">${esc(p.pr)}</span><div><h2>${esc(p.n || "Projet")}</h2>
+    <div class="meta"><span class="tp ${esc(p.t)}">${esc(TP[p.t])}</span>${p.t === "D" && p.et ? `<span>${esc(ETP[p.et])}</span>` : ""}<span>${esc([p.com, p.dep ? "(" + p.dep + ")" : "", p.regn].filter(Boolean).join(" "))}</span>${p.kw ? `<span><b style="color:#fff">${mw(p.kw)}</b></span>` : ""}</div></div>
+    <button class="x" id="close" aria-label="Fermer la fiche">×</button></div>
+    <div class="acts">${l && pst(p) === "non_traite" && !ro ? `<button class="btn primary small" id="pe-ajout" type="button" title="Le suivi se fait par société : c'est ${esc(l.s)} qui entre en prospection">Ajouter ${esc(l.s)} à la prospection</button>` : ""}
+      <select id="pe-st" aria-label="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue"}" title="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue : pas de prospection possible"}" ${ro || !l ? "disabled" : ""}>${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${pst(p) === k ? "selected" : ""}>${v}</option>`).join("")}</select>
+      <select id="pe-re" aria-label="Responsable de la société" title="${l ? `Responsable de ${esc(l.s)}` : ""}" ${ro || !l ? "disabled" : ""}><option value="">Responsable : personne</option>${MEMBRES.map(m => `<option value="${esc(m)}" ${pre(p) === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
+      ${l ? `<button class="btn primary small" id="to-soc">Fiche de la société : ${esc(l.s)}</button>` : ""}${l && l.te ? `<a class="btn small ghost" href="tel:${esc(l.te.replace(/\s/g, ""))}" style="text-decoration:none">Appeler ${esc(l.te)}</a>` : ""}${p.u ? `<a class="btn small ghost" href="${esc(p.u)}" target="_blank" rel="noopener" style="text-decoration:none">Lire l'avis (PDF)</a>` : ""}${p.uc ? `<a class="btn small ghost" href="${esc(p.uc)}" target="_blank" rel="noopener" style="text-decoration:none" title="Copie gardée par Almavision, si le site officiel ne répond pas">Copie archivée</a>` : ""}${lienCarte(p)}</div></div>
+  <div class="db">
+    ${identite(p, l)}
+    <div>
+      <div><h3>À faire</h3>
+        <form class="newtask" id="pd-new" style="margin-bottom:6px"><input type="text" id="pd-t" placeholder="Ajouter une tâche${l ? " (visible aussi sur la société)" : ""}" aria-label="Nouvelle tâche" ${ro ? "disabled" : ""}><input type="date" id="pd-d" aria-label="Échéance" ${ro ? "disabled" : ""}><button class="btn primary small" ${ro ? "disabled" : ""}>Ajouter</button></form>
+        <div>${ts.map(([id, t]) => taskHtml(id, t, false)).join("") || `<p class="saved" style="margin:0">Aucune tâche.</p>`}</div></div>
+    </div>
+    <div class="note-equipe"><h3>Note de l'équipe</h3><textarea class="note" id="pe-note" placeholder="Ce qu'on sait, ce qui a été dit…" ${ro ? "disabled" : ""}>${esc((suivi[pkey(p)] || {}).note || "")}</textarea>
+      <p class="saved">${(suivi[pkey(p)] || {}).maj && (suivi[pkey(p)] || {}).note ? `Mis à jour le ${frDate(suivi[pkey(p)].maj.le)}` : "Même note que sur la ligne du projet, partagée avec l'équipe"}</p></div>
+    <details class="det"><summary>Pertinence pour Almavision</summary>
+      <div class="scorebar" style="margin-top:8px"><b style="font-size:20px;color:var(--forest)">${Number(p.sc) || 0}</b><span>/ 100</span><span class="b"><i style="width:${Number(p.sc) || 0}%"></i></span></div>
+      ${why ? `<div class="why" style="margin-top:10px">${why}</div>` : ""}</details>
+    ${p.al ? `<details class="det" open><summary>Même projet vu dans ${p.al.length + 1} sources : fiches regroupées</summary><ul class="srcs">
+      <li><b>${esc(TP[p.t])}</b> · ${esc(p.n || "")}${p.kw ? " · " + mw(p.kw) : ""} <span class="saved">(fiche gardée)</span></li>
+      ${p.al.map(a => `<li><b>${esc(TP[a[1]] || a[1])}</b> · ${esc(a[2] || "")}${a[3] ? " · " + mw(a[3]) : ""}</li>`).join("")}</ul>
+      <p class="saved" style="margin:6px 0 0">Regroupées parce que la base les relie (lauréat retrouvé au registre, avis suivi jusqu'à la centrale) ou parce qu'elles sont dans la même petite commune avec la même puissance.</p></details>` : ""}
+    ${l && l.se.length ? `<details class="det"><summary>Sources de la fiche société (détail)</summary><ul class="srcs">${l.se.map(e => `<li>${esc(srcLong(e))}</li>`).join("")}</ul></details>` : ""}
+  </div>`;
+  $("close").onclick = closeLead;
+  if ($("to-soc")) $("to-soc").onclick = () => openLead(p.k);
+  $("pe-st").onchange = e => statutProjet(p, e.target.value, e.target);
+  if ($("pe-ajout")) $("pe-ajout").onclick = () => statutProjet(p, "a_qualifier");
+  $("pe-re").onchange = e => { if (l) { saveSuivi(l.k, {re: e.target.value || null}); toast(`Responsable de ${l.s} mis à jour (suivi par société).`); } };
+  $("pe-note").onchange = e => { garderP.add(p.i); saveSuivi(pkey(p), {note: e.target.value.trim()}); };
+  $("pd-new").onsubmit = e => { e.preventDefault(); const t = $("pd-t").value.trim(); if (!t) return $("pd-t").focus();
+    addTask({k: p.k || null, s: l ? l.s : p.owner || null, p: p.i, pn: p.n, t, ech: $("pd-d").value || null, resp: l ? l.re || "" : ""}); $("pd-t").value = ""; };
+}
+// « Ce que l'on sait sur la société » : chaque information avec sa source à côté
+function identiteSoc(l){
+  const se = l.se.map(srcLong), api = se.find(x => x.startsWith("API")), xl = se.find(x => x.startsWith("Excel"));
+  const sp = [...new Set(l.sp.map(e => COURT(SL[e[0]])))].join(", ");
+  const rows = [];
+  const add = (lab, val, src) => { if (val) rows.push(`<div class="idr" tabindex="0"><div class="idl">${lab}</div><div class="idv">${val}${src ? `<span class="ids">${esc(src)}</span>` : ""}</div></div>`); };
+  add("Société", `<b>${esc(l.s)}</b>${l.sn ? ` · SIREN <span class="mono">${esc(l.sn)}</span> · <a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(l.sn)}" target="_blank" rel="noopener">Annuaire</a>` : ""}`, xl || se[0] || (l.sl[0] || ""));
+  add("Type de cible", esc(SEG[l.seg] || l.seg) + (l.o === "nouveau" ? ` <span class="tag new">nouveau propriétaire</span>` : ""), l.sl.length ? "Lead créé depuis " + l.sl.join(", ") : "Propriétaire identifié par la base");
+  add("Siège", l.ville && l.o !== "projet" ? esc(l.ville) : "", api || "Registre des entreprises");
+  add("Statut dans l'Excel", l.xs ? `${esc(ST[normSt(l.xs)] || l.xs)} <span class="saved">avant la remise à zéro du 12/10/2026</span>` : "", (l.sl || []).join(", ") || "Excel de l'équipe");
+  add("Chiffre d'affaires", l.ca ? fmt(Math.round(l.ca / 1000)) + " k€" : "", "API Recherche d'entreprises (comptes publiés)");
+  add("Groupe", l.dv ? `<b>${esc(l.dv)}</b>${l.dr ? ` · ${esc(l.dr)}` : ""}${l.dn ? ` · ${fmt(l.dn)} sociétés` : ""}` : l.gr ? esc(l.gr) : "", "Regroupement des sociétés par holding présidente (API Recherche d'entreprises, Excel CRE)");
+  add("Portefeuille", l.kw || l.np ? `<b>${l.kw ? mw(l.kw) : "–"}</b> · ${fmt(l.np)} projet${l.np > 1 ? "s" : ""} (${fmt(l.nc)} centrale${l.nc > 1 ? "s" : ""}${l.pd ? ` + ${l.pd.n} en développement` : ""})` : "", sp);
+  add("Projets en développement", l.pd ? `${l.pd.n} projet${l.pd.n > 1 ? "s" : ""}${l.pd.mw ? `, ${fmt(l.pd.mw)} MWc` : ""}${l.pd.ss ? ` · ${l.pd.ss} sans suite connue` : ""}${l.pd.la ? ` · ${l.pd.la} lauréat${l.pd.la > 1 ? "s" : ""} pas encore construit${l.pd.la > 1 ? "s" : ""}` : ""}` : "", "Avis de l'autorité environnementale (MRAe), lus par Claude");
+  add("Appels d'offres CRE", l.aos.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px">${l.aos.map(aoHtml).join("")}</div>` : "", "Excel CRE et listes officielles ; année : calendrier officiel (ministère)");
+  add("Fin de contrat", l.fc ? `<b>${l.fc}</b>${l.foa ? ` · ${l.foa.n} centrale${l.foa.n > 1 ? "s" : ""} en fin d'obligation d'achat en ${l.foa.fin}` : ""}` : "", "Contrats d'achat déduits (date de mise en service, cadre)");
+  add("Dirigeants", l.di ? esc(l.di) : "", api ? "API Recherche d'entreprises" : xl || "");
+  const tel = l.ct.find(c => isTel(c)), em = l.ct.find(c => c[0] === "email"), web = l.ct.find(c => c[0] === "site_web");
+  add("Téléphone", tel ? `<a class="tel" href="tel:${esc(tel[1].replace(/\s/g, ""))}">${esc(tel[1])}</a>${tel[4] ? ` <span class="saved">${esc(tel[4])}</span>` : ""}` : l.te ? esc(l.te) : "", tel ? tel[2] : "");
+  add("Email", em ? `<a href="mailto:${esc(em[1])}">${esc(em[1])}</a>` : l.em ? esc(l.em) : "", em ? em[2] : "");
+  add("Site web", web ? `<a href="${esc(/^https?:/.test(web[1]) ? web[1] : "https://" + web[1])}" target="_blank" rel="noopener">${esc(web[1])}</a>` : "", web ? web[2] : "");
+  return `<div class="ident"><h3>Ce que l'on sait sur la société <span class="saved" style="text-transform:none;letter-spacing:0;font-weight:400">· survolez une ligne pour voir sa source</span></h3><div class="idt">${rows.join("")}</div></div>`;
+}
+// « Ce que l'on sait sur ce projet » : chaque information avec sa source à côté
+function identite(p, l){
+  const sl = (p.sl || []).map(e => [SL[e[0]] || "", srcLong(e)]);
+  const sCre = (sl.find(x => x[0].startsWith("Excel CRE")) || [])[1];
+  const sOdre = (sl.find(x => x[0].startsWith("Registre national")) || [])[1];
+  const sPrin = p.t === "D" || p.t === "O" ? p.dsrc : (sl[0] || [])[1] || "";
+  const c = p.cand, rows = [];
+  const add = (lab, val, src) => { if (val) rows.push(`<div class="idr" tabindex="0"><div class="idl">${lab}</div><div class="idv">${val}${src ? `<span class="ids">${esc(src)}</span>` : ""}</div></div>`); };
+  add("Type", `<span class="tp ${esc(p.t)}">${esc(TP[p.t])}</span>${p.t === "D" && p.et ? ` ${esc(ETP[p.et])}` : ""}`, p.t === "L" ? "Liste CRE, puis recherche dans le registre national (non retrouvé)" : sPrin);
+  add("Puissance", p.kw ? (p.kwe ? `<b>≈ ${mw(p.kw)}</b> <span class="tag warn">estimation</span> <span class="saved">d'après la surface de la toiture (0,15 kW par m²) : souvent surestimée, OpenStreetMap trace parfois le contour du bâtiment entier</span>` : `<b>${mw(p.kw)}</b>`) : "", p.cre ? sCre : p.t === "D" ? p.dsrc + " (lu par Claude)" : sOdre || sPrin);
+  add("Surface de la toiture", p.m2 ? `${fmt(p.m2)} m² <span class="saved">(contour dessiné dans OpenStreetMap, parfois tout le bâtiment)</span>` : "", p.dsrc);
+  const lieu = [p.com, p.dep ? "(" + p.dep + ")" : "", p.regn].filter(Boolean).join(" ");
+  add("Localisation", lieu ? esc(lieu) : (p.cre ? `<span class="saved">non fournie par la liste CRE</span>` : ""),
+    lieu ? (p.pg ? "Liste officielle des lauréats (ministère) : " + p.pg.replace(/ \(liste officielle\)| liste officielle\)/, ")").replace("()", "") : sOdre ? "Registre national des installations (ODRE)" : p.t === "D" ? p.dsrc : p.cre ? "Excel CRE (onglets de suivi de l'équipe)" : sPrin) : "");
+  if (p.ao) { add("Appel d'offres", `${esc(AONOM[p.ao[0]] || p.ao[0])} <span class="ao">${esc(p.ao[0])}</span>`, sCre || sPrin);
+    add("Période (appel)", p.ao[1] ? `<b>${esc(p.ao[1])}</b>${p.ao[2] ? ` · lauréats désignés en <b>${p.ao[2]}</b>` : ""}` : "", p.ao[2] ? "Période : Excel CRE · année : calendrier officiel (ministère)" : sCre); }
+  else if (p.lao) add("Lauréat", `<span class="ao">${esc(p.lao)}</span>`, "Rapprochement avec la liste CRE");
+  add("Mise en service", p.ms ? `<b>${p.ms}</b>` : "", sOdre || "Registre national des installations (ODRE)");
+  add("Fin de contrat", p.fc ? `<b>${p.fc}</b>${p.fc <= 2031 ? ` <span class="tag warn">bientôt</span>` : ""}` : "", "Contrat d'achat déduit (date de mise en service et cadre : arrêté ou appel d'offres)");
+  if (p.t === "D") { add("Date de l'avis", p.dt ? frDate(p.dt) : "", p.dsrc);
+    add("Porteur cité", p.por ? esc(p.por) : "", p.dsrc + " (lu par Claude)"); add("Terrain", p.nt ? esc(p.nt) : "", p.dsrc + " (lu par Claude)");
+    add("Enjeux environnementaux", p.ne ? esc(p.ne) : "", p.dsrc + " (lu par Claude)"); }
+  if (c) { add("Candidat (société de projet)", `<b>${esc(c.nom)}</b>${c.sn ? ` · SIREN <span class="mono">${esc(c.sn)}</span> · <a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(c.sn)}" target="_blank" rel="noopener">Annuaire</a>` : ""}`, sCre);
+    add("Adresse du siège", c.adr ? esc(c.adr) : "", sCre); add("Activité (NAF)", c.naf ? esc(c.naf) : "", sCre); }
+  add("Groupe", p.fa ? `<b>${esc(p.fa)}</b>` : "", "Excel CRE (colonne Groupe ou Entreprise, saisie par l'équipe)");
+  if (c && c.hold.length) add("Holding présidente", c.hold.map(h => `${esc(h[0])}${h[1] ? ` · SIREN ${esc(h[1])}` : ""}${h[2] ? `<br><span class="saved">${esc(h[2])}</span>` : ""}`).join("<br>"), sCre);
+  const dir = c && (c.dir || c.hold.map(h => h[5]).filter(Boolean)[0]);
+  add("Dirigeant / contact", dir ? esc(dir) : "", sCre ? sCre + " ; API Recherche d'entreprises" : "API Recherche d'entreprises");
+  const tel = (c && (c.tel || c.hold.map(h => h[6]).filter(Boolean)[0])) || (l && l.te);
+  const telSrc = l && l.ct.find(x => isTel(x)) ? l.ct.find(x => isTel(x))[2] : "Contacts de la base";
+  add("Téléphone", tel ? `<a class="tel" href="tel:${esc(tel.replace(/\s/g, ""))}">${esc(tel)}</a>` : "", telSrc);
+  add("Propriétaire dans la base", l ? `<span class="owner" data-open="${esc(p.k)}">${esc(l.s)}</span>${l.dv && l.dv !== l.s ? ` <span class="saved">groupe ${esc(l.dv)}</span>` : ""}${l.dr ? ` <span class="saved">· ${esc(l.dr)}</span>` : ""}` : p.owner && !c ? esc(p.owner) : "",
+    p.om ? "Identifié par " + PROP[p.om] : l ? "Rattachement par la société de projet" : "");
+  if (p.u) add("Avis environnemental", `<a href="${esc(p.u)}" target="_blank" rel="noopener">Lire le PDF</a>${p.uc ? ` · <a href="${esc(p.uc)}" target="_blank" rel="noopener" title="Copie gardée par Almavision, si le site officiel ne répond pas">copie archivée</a>` : ""}`, p.dsrc);
+  const autres = sl.map(x => x[1]).filter(x => x !== sCre && x !== sOdre);
+  return `<div class="ident"><h3>Ce que l'on sait sur ce projet <span class="saved" style="text-transform:none;letter-spacing:0;font-weight:400">· survolez une ligne pour voir sa source</span></h3><div class="idt">${rows.join("")}</div>
+    ${autres.length ? `<p class="saved" style="margin:8px 0 0">Autres sources : ${esc(autres.join(" ; "))}</p>` : ""}</div>`;
+}
+function creBloc(p){
+  const c = p.cand, ligne = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
+  const hold = c ? c.hold.map(h => `${esc(h[0])}${h[1] ? ` · SIREN ${esc(h[1])}` : ""}${h[2] ? `<br><span class="saved">${esc(h[2])}</span>` : ""}`).join("<br>") : "";
+  const dir = c && (c.dir || c.hold.map(h => h[5]).filter(Boolean)[0]);
+  const tel = c && (c.tel || c.hold.map(h => h[6]).filter(Boolean)[0]);
+  const lieu = [p.com, p.dep ? "(" + p.dep + ")" : "", p.regn].filter(Boolean).join(" ");
+  return `<div><h3>Données de l'appel d'offres CRE</h3><dl class="kvx">
+    ${ligne("Appel d'offres", p.ao ? `${esc(AONOM[p.ao[0]] || p.ao[0])} <span class="ao">${esc(p.ao[0])}</span>` : "")}
+    ${ligne("Période (appel)", p.ao && p.ao[1] ? `<b>${esc(p.ao[1])}</b>${p.ao[2] ? ` · lauréats désignés en ${p.ao[2]}` : ""}` : "")}
+    ${ligne("Projet", esc(p.n))}${ligne("Puissance", p.kw ? mw(p.kw) : "")}
+    ${ligne("Localisation de l'actif", lieu ? esc(lieu) : `<span class="saved">non fournie par la liste CRE${c && c.adr ? " (siège du candidat ci-dessous)" : ""}</span>`)}
+    ${ligne("Candidat (société de projet)", c ? `<b>${esc(c.nom)}</b>${c.sn ? ` · SIREN <span class="mono">${esc(c.sn)}</span> · <a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(c.sn)}" target="_blank" rel="noopener">Annuaire</a>` : ""}` : "")}
+    ${ligne("Adresse du siège", c && c.adr ? esc(c.adr) : "")}${ligne("Activité (NAF)", c && c.naf ? esc(c.naf) : "")}
+    ${ligne("Groupe (Excel CRE)", p.fa ? esc(p.fa) : "")}
+    ${ligne("Holding présidente", hold)}
+    ${ligne("Dirigeant / contact", dir ? esc(dir) : "")}
+    ${ligne("Téléphone", tel ? `<a href="tel:${esc(tel.replace(/\s/g, ""))}" class="tel">${esc(tel)}</a>` : "")}
+  </dl></div>`;
+}
+async function exporterProjets(){
+  const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+  if (!dl) { toast("L'export n'est disponible que dans claude.ai."); return; }
+  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.xlsx) || "vendor/xlsx.full.min.js"; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
+  if (!window.XLSX) { toast("Export impossible pour le moment."); return; }
+  const rows = pcur.map(p => ({"Priorité": p.pr, "Score": p.sc, "Projet": p.n, "Type": TP[p.t], "Étape": ETP[p.et] || "", "Puissance (kW)": p.kw || "", "Commune": p.com || "", "Département": p.dep || "", "Région": p.regn || "",
+    "Mise en service": p.ms || "", "Date de l'avis": p.dt || "", "Fin de contrat": p.fc || "", "Appel d'offres": p.ao ? aoTxt(p.ao) : p.lao || "", "Propriétaire": p.owner || "", "Porteur cité": p.por || "",
+    "Période (appel)": p.ao ? p.ao[1] || "" : "", "Année AO": p.ao ? p.ao[2] || "" : "",
+    "Candidat": p.cand ? p.cand.nom : "", "SIREN candidat": p.cand ? p.cand.sn || "" : "", "Adresse du siège": p.cand ? p.cand.adr || "" : "", "NAF": p.cand ? p.cand.naf || "" : "",
+    "Groupe (Excel CRE)": p.fa || "", "Holding présidente": p.cand ? p.cand.hold.map(h => h[0] + (h[1] ? ` (${h[1]})` : "")).join(" ; ") : "",
+    "Adresse holding": p.cand ? p.cand.hold.map(h => h[2] || "").filter(Boolean).join(" ; ") : "",
+    "Dirigeant / contact": p.cand ? p.cand.dir || p.cand.hold.map(h => h[5]).filter(Boolean)[0] || "" : "",
+    "Téléphone": p.cand ? p.cand.tel || p.cand.hold.map(h => h[6]).filter(Boolean)[0] || "" : "",
+    "Propriétaire identifié par": PROP[p.om] || "", "Sources du projet": pSources(p).join(" ; "), "Avis (PDF)": p.u || "", "Copie de l'avis": p.uc || ""}));
+  const wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [8,6,50,22,24,12,18,8,22,10,12,10,20,30,30,8,8,30,11,40,8,24,40,40,36,16,30,60,40].map(w => ({wch: w}));
+  XLSX.utils.book_append_sheet(wb, ws, "Projets");
+  try { await dl.save({filename: `projets-${TODAY}.xlsx`, data: new Uint8Array(XLSX.write(wb, {type: "array", bookType: "xlsx"}))}); toast("Fichier enregistré."); }
+  catch (e) { if (e && e.code !== "declined") toast("Export impossible pour le moment."); }
+}
+function pconsigne(question){
+  return `Tu transformes une demande en filtres pour un moteur de recherche de PROJETS photovoltaïques en France (centrales en service, lauréats d'appels d'offres CRE (construits ou non), projets en développement connus par les avis environnementaux MRAe). Almavision cherche des projets et des centrales À VENDRE ; la priorité P1 > P2 > P3 mesure cette pertinence. Nous sommes le ${new Date().toLocaleDateString("fr-FR")}.
+Réponds UNIQUEMENT par un objet JSON avec ces clés (omets celles qui ne servent pas) :
+- "texte": mots à chercher dans le nom du projet, du propriétaire, du candidat CRE, du groupe, de la holding, un SIREN, la commune (noms propres uniquement)
+- "types": parmi ["S","L","D","C","O"] (O = toiture solaire vue sur OpenStreetMap, sans centrale correspondante dans la base, puissance estimée ; C = parc en construction ou en préparation ; S = centrale en service, L = lauréat CRE pas retrouvé dans le registre des installations (récent : probablement en construction ; ancien : souvent construit sous un autre nom), D = projet en développement avec avis environnemental)
+- "etapes": parmi ["I","X","A","E"] pour les projets D (I = en instruction, X = sans suite connue après 3 ans, A = lauréat pas encore construit, E = construit)
+- "priorites": parmi ["P1","P2","P3"]
+- "regions": parmi ${JSON.stringify(REGIONS)}
+- "departements": codes à 2 chiffres
+- "puissance_min_kw", "puissance_max_kw": en kW (1 MW = 1000 kW)
+- "fin_contrat_avant", "fin_contrat_apres": années (bornes de la fin du contrat d'achat)
+- "mise_en_service_min", "mise_en_service_max": années de mise en service (ou de l'avis pour les projets en développement)
+- "score_min": score de pertinence minimal (0-100)
+- "appels_offres": parmi ${JSON.stringify(AO_FAM)} ; "annee_ao_min", "annee_ao_max": années de désignation des lauréats ; "periodes": périodes d'appel (ex. ["P13"])
+- "sources": parmi ["R","S","C","G","X","M","O"] (R registre national, S extraction S21, C lauréats CRE, G Global Solar Power Tracker, X Excel de l'équipe, M avis environnementaux, O OpenStreetMap)
+- "proprietaire": "base" (société dans notre base), "oui" (propriétaire connu) ou "non" (inconnu)
+- "tri": "score", "kw", "fc", "dt" ou "nom" ; "sens": "croissant" ou "decroissant"
+- "explication": une phrase en français qui dit ce que tu as compris
+Demande : ${question}`;
+}
+function pfromAI(j){
+  const a = x => Array.isArray(x) ? x : x ? [x] : [];
+  const f = {...PF0(), sort: ["score","kw","fc","dt","nom"].includes(j.tri) ? j.tri : "score"};
+  f.dir = j.sens === "croissant" ? 1 : j.sens === "decroissant" ? -1 : null;
+  f.q = j.texte || ""; f.ts = a(j.types).filter(t => TP[t]); f.ets = a(j.etapes).filter(t => ETP[t]); f.prs = [];
+  f.regs = a(j.regions).filter(r => REGIONS.includes(r)); f.deps = a(j.departements).map(d => String(d).toUpperCase().padStart(2, "0"));
+  f.kw_min = j.puissance_min_kw != null ? +j.puissance_min_kw : null; f.kw_max = j.puissance_max_kw != null ? +j.puissance_max_kw : null;
+  f.fc_max = j.fin_contrat_avant ? +j.fin_contrat_avant : null; f.fc_min = j.fin_contrat_apres ? +j.fin_contrat_apres : null;
+  f.ms_min = j.mise_en_service_min ? +j.mise_en_service_min : null; f.ms_max = j.mise_en_service_max ? +j.mise_en_service_max : null; f.sc_min = j.score_min != null ? +j.score_min : null;
+  f.aos = a(j.appels_offres).filter(x => AO_FAM.includes(x)); f.ao_min = j.annee_ao_min ? +j.annee_ao_min : null; f.ao_max = j.annee_ao_max ? +j.annee_ao_max : null;
+  f.pers = a(j.periodes).map(x => String(x).toUpperCase());
+  f.srcs = a(j.sources).filter(x => PSRC[x]); f.proprio = ["base","oui","non"].includes(j.proprietaire) ? j.proprietaire : "";
+  return f;
+}
+async function psearch(){
+  const q = $("q").value.trim();
+  noterRecherche(q, "projets");
+  if (!q) { PF.q = ""; paiNote = ""; showNote(); prefresh(); return; }
+  if (!phrase(q) || !sample) { PF = {...PF0(), sort: PF.sort, q}; paiNote = !sample && phrase(q) ? "La recherche en langage naturel n'est disponible que dans claude.ai ; recherche par mots." : ""; showNote(); prefresh(); return; }
+  $("go").disabled = true; $("ai-note").hidden = false; $("ai-note").innerHTML = `<span class="spin"></span> Claude analyse votre demande…`;
+  try {
+    const j = await sample.json(pconsigne(q), {modelTier: "default"});
+    PF = pfromAI(j || {});
+    let n = pquery(PF).length;
+    if (!n && PF.q) { PF.q = ""; n = pquery(PF).length; }
+    paiNote = `<b>Compris :</b> ${esc(j.explication || "")} <span>· ${fmt(n)} projet${n > 1 ? "s" : ""}</span>`;
+  } catch (e) { PF = {...PF0(), sort: PF.sort, q}; paiNote = "Claude n'a pas pu analyser la demande : recherche par mots."; }
+  finally { $("go").disabled = false; }
+  showNote(); prefresh();
+}
+const PEXEMPLES = ["Lauréats CRE4 bâtiment P13 du groupe Technique Solaire", "Projets sans suite de plus de 5 MW en Nouvelle-Aquitaine", "Lauréats PPE2 au sol désignés depuis 2023", "Centrales de plus de 1 MW dont le contrat finit d'ici 2029",
+  "Projets en instruction en Occitanie dont le porteur est inconnu", "Lauréats CRE depuis 2023 en Grand Est"];
+
+/* ---------------- recherche en langage naturel (Claude) ---------------- */
+const EXEMPLES = ["Lauréats PPE2 au sol depuis 2022 en Occitanie", "Propriétaires agricoles en Bretagne dont le contrat finit d'ici 2028",
+  "Développeurs avec des projets en cours en Occitanie", "Centrales au sol de plus de 5 MW en fin de contrat d'ici 2030",
+  "Propriétaires joignables avec plus de 3 centrales", "SCI et SAS de Nouvelle-Aquitaine avec plus de 1 MW", "Lauréats CRE récents pas encore dans le registre"];
+let sample = null;
+async function initAI(){
+  $("ex").onclick = e => { const b = e.target.closest("button"); if (!b) return; $("q").value = b.textContent; mode() === "projets" ? psearch() : search(); };
+  const C = window.claude;
+  sample = C && C.use ? await C.use("sample") : null;
+}
+function consigne(question){
+  return `Tu transformes une demande de prospection en filtres pour un moteur de recherche de leads (base de propriétaires et développeurs de centrales photovoltaïques en France). Almavision est un cabinet de conseil M&A qui cherche des actifs et des projets À VENDRE chez des propriétaires et développeurs indépendants ou de taille moyenne ; les grands énergéticiens, IPP et fonds sont des acheteurs, pas des cibles. Les priorités P1 > P2 > P3 mesurent cette pertinence. Nous sommes le ${new Date().toLocaleDateString("fr-FR")}.
+Réponds UNIQUEMENT par un objet JSON avec ces clés (omets celles qui ne servent pas) :
+- "texte": mots à chercher dans le nom de la société, le nom d'un de ses projets ou centrales, le SIREN, le groupe, le dirigeant, la ville (seulement des noms propres ou un SIREN, jamais des mots génériques comme "propriétaire" ou "centrale")
+- "segments": parmi ${JSON.stringify(Object.keys(SEG))} (asset = propriétaire de centrales à racheter ; corpo_dev = développeur)
+- "priorites": parmi ["P1","P2","P3"] (P1 = vendeurs les plus probables pour Almavision)
+- "statuts": parmi ${JSON.stringify(Object.keys(ST))}
+- "responsable": un de ${JSON.stringify(MEMBRES)} ou "aucun" (personne ne le suit)
+- "regions": parmi ${JSON.stringify(REGIONS)}
+- "departements": codes à 2 chiffres (ex. "33", "2A")
+- "puissance_min_kw", "puissance_max_kw": nombres en kW (1 MW = 1000 kW)
+- "fin_contrat_avant", "fin_contrat_apres": années ; contrat d'achat qui se termine entre ces bornes
+- "nb_projets_min", "nb_projets_max": nombre de projets du propriétaire (centrales + projets en développement)
+- "score_min": score de pertinence Almavision minimal (0-100)
+- "fin_obligation_achat": true pour les contrats d'obligation d'achat de 20 ans des années 2006-2011
+- "types_proprietaire": parmi ${JSON.stringify(ROLES)} (SCEA, GAEC, EARL = Agricole ou familial ; SCI, SAS indépendantes = Indépendant)
+- "installations": parmi ${JSON.stringify(Object.keys(TYPES))} (batiment = toiture)
+- "joignable": true si l'utilisateur veut un téléphone ou un email
+- "projets_developpement": true pour des développeurs ou groupes qui ont des projets en cours
+- "laureats_non_construits": true pour des lauréats d'appels d'offres CRE pas retrouvés dans le registre des installations (souvent construits sous un autre nom ; seuls les récents sont vraisemblablement en construction)
+- "origine": "lead" (leads déjà suivis par l'équipe) ou "nouveau" (propriétaires nouvellement identifiés)
+- "appels_offres": codes d'appels d'offres CRE parmi ${JSON.stringify(AO_FAM)} (CRE4 = 2017-2021, PPE2 = depuis 2021, SOL = au sol, BAT = bâtiment)
+- "annee_ao_min", "annee_ao_max": années de désignation des lauréats (ex. lauréats depuis 2022)
+- "sources": bases où les centrales ont été trouvées, parmi ${JSON.stringify(Object.keys(SRC))} (R registre national, S extraction S21, C lauréats CRE, G Global Solar Power Tracker, X Excel)
+- "inclure_clos": true seulement si l'utilisateur veut aussi les leads clos
+- "tri": "score" (priorité), "kw" (puissance), "np" (nombre de projets), "fc" (fin de contrat proche) ou "nom" ; "sens": "croissant" ou "decroissant"
+- "explication": une phrase en français qui dit ce que tu as compris
+Demande : ${question}`;
+}
+function fromAI(j){
+  const a = x => Array.isArray(x) ? x : x ? [x] : [];
+  const f = {...F0(), sort: ["score","kw","np","fc","nom"].includes(j.tri) ? j.tri : "score"};
+  f.dir = j.sens === "croissant" ? 1 : j.sens === "decroissant" ? -1 : null;
+  f.q = j.texte || "";
+  f.segs = a(j.segments).filter(x => SEG[x]); f.prs = []; f.sts = a(j.statuts).filter(x => ST[x]);
+  f.re = "";
+  f.regs = a(j.regions).filter(r => REGIONS.includes(r)); f.deps = a(j.departements).map(d => String(d).toUpperCase().padStart(2, "0"));
+  f.kw_min = j.puissance_min_kw != null ? +j.puissance_min_kw : null; f.kw_max = j.puissance_max_kw != null ? +j.puissance_max_kw : null;
+  f.fc_max = j.fin_contrat_avant ? +j.fin_contrat_avant : null; f.fc_min = j.fin_contrat_apres ? +j.fin_contrat_apres : null; f.foa = !!j.fin_obligation_achat;
+  f.np_min = j.nb_projets_min != null ? +j.nb_projets_min : null; f.np_max = j.nb_projets_max != null ? +j.nb_projets_max : null;
+  f.sc_min = j.score_min != null ? +j.score_min : null;
+  f.roles = a(j.types_proprietaire).filter(r => ROLES.includes(r)); f.tys = a(j.installations).filter(t => TYPES[t]);
+  f.tel = !!j.joignable; f.pdv = !!j.projets_developpement; f.cre = !!j.laureats_non_construits;
+  f.orig = ""; f.clos = !!j.inclure_clos;
+  f.aos = a(j.appels_offres).filter(x => AO_FAM.includes(x)); f.srcs = a(j.sources).filter(x => SRC[x]);
+  f.ao_min = j.annee_ao_min ? +j.annee_ao_min : null; f.ao_max = j.annee_ao_max ? +j.annee_ao_max : null;
+  return f;
+}
+function phrase(q){ return q.trim().split(/\s+/).length >= 3 && !/^\d{9}$/.test(q.trim()); }
+async function search(){
+  const q = $("q").value.trim();
+  noterRecherche(q, "recherche");
+  if (!q) { F.q = ""; aiNote = ""; refresh(); return; }
+  if (!phrase(q) || !sample) {   // nom, SIREN, ville : recherche directe
+    F = {...F0(), sort: F.sort, q}; aiNote = !sample && phrase(q) ? "La recherche en langage naturel n'est disponible que dans claude.ai ; recherche par mots." : "";
+    showNote(); refresh(); return; }
+  $("go").disabled = true; $("ai-note").hidden = false; $("ai-note").innerHTML = `<span class="spin"></span> Claude analyse votre demande…`;
+  try {
+    const j = await sample.json(consigne(q), {modelTier: "default"});
+    F = fromAI(j || {});
+    const n = query(F).length;
+    aiNote = `<b>Compris :</b> ${esc(j.explication || "")} <span style="color:var(--muted)">· ${fmt(n)} résultat${n > 1 ? "s" : ""}</span>`;
+    if (!n && F.q) { F.q = ""; aiNote += ` <span style="color:var(--muted)">(mots retirés pour élargir)</span>`; }
+  } catch (e) {
+    F = {...F0(), sort: F.sort, q};
+    aiNote = ({not_granted: "Vous n'avez pas autorisé la page à utiliser Claude : recherche par mots.",
+               rate_limited: "Trop de demandes d'un coup : recherche par mots, réessayez dans une minute."})[e && e.code] || "Claude n'a pas pu analyser la demande : recherche par mots.";
+  } finally { $("go").disabled = false; }
+  showNote(); refresh();
+}
+function mode(){ return $("v-projets").hidden ? "corpo" : "projets"; }
+function showNote(){ const n = mode() === "projets" ? paiNote : aiNote; $("ai-note").hidden = !n; $("ai-note").innerHTML = n; }
+function setHero(){
+  const pj = mode() === "projets";
+  $("fz-c").hidden = pj; $("fz-p").hidden = !pj;
+  $("hero-t").innerHTML = pj ? "Trouvez des <span>projets à vendre</span>" : "Trouvez vos prochaines <span>cibles</span>";
+  $("hero-sub").textContent = pj ? `${fmt(PROJ.length)} projets : centrales en service, lauréats CRE, projets en développement${NB_OSM ? `, et ${fmt(NB_OSM)} toitures vues sur OpenStreetMap (filtre « Type de projet »)` : ""} · liés à leur société propriétaire`
+    : `${fmt(LEADS.length)} propriétaires et développeurs de centrales solaires, classés selon leur probabilité d'avoir des actifs ou des projets à vendre · données du ${DATA.genere}`;
+  $("q").placeholder = pj ? "Décrivez les projets que vous cherchez, ou tapez un nom de projet, une commune, un propriétaire…" : "Décrivez les leads que vous cherchez, ou tapez un nom de société, de projet, un SIREN, une ville…";
+  $("q").value = pj ? PF.q : F.q;
+  $("ex").innerHTML = `<span>Exemples :</span>` + (pj ? PEXEMPLES : EXEMPLES).map(e => `<button type="button">${esc(e)}</button>`).join("");
+  showNote();
+}
+
+/* ---------------- export ---------------- */
+async function exporter(){
+  const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+  if (!dl) { toast("L'export n'est disponible que dans claude.ai."); return; }
+  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.xlsx) || "vendor/xlsx.full.min.js"; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
+  if (!window.XLSX) { toast("Export impossible pour le moment."); return; }
+  const rows = current.map(l => ({"Priorité": l.pr, "Société": l.s, "SIREN": l.sn || "", "Type": SEG[l.seg] || l.seg, "Groupe": l.dv || l.gr || "", "Type de propriétaire": l.dr || "",
+    "Statut": ST[l.st] || l.st, "Responsable": l.re || "", "Projets (centrales + en développement)": l.np, "Centrales": l.nc, "Puissance (kW)": l.kw || "", "Fin de contrat": l.fc || "", "Fin d'OA": l.foa ? l.foa.fin : "",
+    "Régions": l.regn.join(", "), "Départements": l.deps.join(", "), "Ville": l.ville || "", "Dirigeants": l.di || "", "Téléphone": l.te || "", "Email": l.em || "", "Site web": l.web || "",
+    "Appels d'offres CRE": l.aos.map(aoTxt).join(", "),
+    "Sources lead": l.sl.join(" ; "), "Sources entreprise": l.se.map(srcLong).join(" ; "),
+    "Sources projets": l.sp.map(e => `${SL[e[0]]} (${e[1]})`).join(" ; "), "Sources contacts": [...new Set(l.ct.map(c => c[2]))].join(" ; "),
+    "Propriétaire identifié par": [...new Set(l.ce.map(c => c[7]).filter(Boolean))].map(p => (PROP[p] || "").split(" :")[0]).join(", "),
+    "Origine": l.o === "nouveau" ? "Nouveau propriétaire" : "Lead de l'équipe"}));
+  const wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [8,36,11,16,26,20,13,12,9,12,10,8,24,14,18,40,16,26,24,40,30,50,50,40,28,18].map(w => ({wch: w}));
+  XLSX.utils.book_append_sheet(wb, ws, "Cibles");
+  try { await dl.save({filename: `cibles-${TODAY}.xlsx`, data: new Uint8Array(XLSX.write(wb, {type: "array", bookType: "xlsx"}))}); toast("Fichier enregistré."); }
+  catch (e) { if (e && e.code !== "declined") toast("Export impossible pour le moment."); }
+}
+
+/* ---------------- fiche ---------------- */
+let openK = null;
+function openLead(k){ openA = null; openP = null; openK = k; renderDrawer(); document.querySelectorAll(".row").forEach(r => r.classList.toggle("sel", r.dataset.k === k)); }
+function closeLead(){ openK = null; openP = null; $("drawer").hidden = true; document.querySelectorAll(".row.sel").forEach(r => r.classList.remove("sel")); }
+function tachesDe(k){ return Object.entries(taches).filter(([, t]) => t.k === k).sort((a, b) => (a[1].fait - b[1].fait) || (a[1].ech || "9").localeCompare(b[1].ech || "9")); }
+// Fiche société : chaque bloc devient repliable (titre cliquable), sauf « Projets de la société » et « Note de l'équipe ».
+// L'état ouvert ou fermé de chaque bloc est retenu pour les fiches suivantes (navigateur de chacun).
+const SEC_FERMEES = ["Pertinence pour Almavision", "Toutes les centrales", "Historique", "Toutes les sources", "Trouvé par l'agent"];
+function replier(db){
+  for (const bloc of [...db.children]) {
+    if (bloc.matches("details")) {   // volets déjà repliables : même style, état retenu
+      const titre = bloc.querySelector("summary").textContent.trim();
+      bloc.classList.add("sec"); suivreSection(bloc, titre); continue;
+    }
+    const h = bloc.querySelector(":scope > h3") || bloc.querySelector(":scope > div:first-child > h3");
+    if (!h) continue;
+    const titre = h.textContent.trim();
+    if (/^(Projets de la société|Note de l'équipe)/.test(titre)) continue;
+    const det = document.createElement("details"); det.className = "sec";
+    const sm = document.createElement("summary"); sm.innerHTML = h.innerHTML; h.remove();
+    bloc.replaceWith(det); det.append(sm, bloc);
+    suivreSection(det, titre);
+  }
+}
+function suivreSection(det, titre){
+  const cle = "sec:" + titre.replace(/[:(·].*$/, "").trim();
+  const v = store.get(cle);
+  det.open = v ? v === "1" : !SEC_FERMEES.some(t => titre.startsWith(t));
+  det.addEventListener("toggle", () => store.set(cle, det.open ? "1" : "0"));
+}
+function renderDrawer(){
+  $("drawer").classList.remove("wide");
+  const base = BYK.get(openK); if (!base) return closeLead();
+  const l = eff(base), d = $("drawer"), ro = canWrite === false || !db;
+  const why = (l.rs || []).filter(r => RAISONS[r]).map(r => `<div><i class="${RAISONS[r][0]}"></i><span>${RAISONS[r][1]}</span></div>`);
+  if (l.foa) why.push(`<div><i class="w"></i><span>Détail : ${l.foa.n} centrale${l.foa.n > 1 ? "s" : ""} (${mw(l.foa.kw)}) en fin d'obligation d'achat de 20 ans en <b>${l.foa.fin}</b> : le propriétaire doit décider de l'avenir de ses actifs.</span></div>`);
+  if (l.fc && (!l.foa || l.fc !== l.foa.fin)) why.push(`<div><i class="w"></i><span>Prochaine fin de contrat d'achat : <b>${l.fc}</b>.</span></div>`);
+  if (l.pd) why.push(`<div><i></i><span>${l.pd.n} projet${l.pd.n > 1 ? "s" : ""} en développement dans le groupe${l.pd.mw ? `, ${fmt(l.pd.mw)} MWc` : ""} (avis environnementaux).</span></div>`);
+  if (l.cre && l.cre.nr) why.push(`<div><i></i><span>${l.cre.nr} lauréat${l.cre.nr > 1 ? "s" : ""} CRE pas retrouvé${l.cre.nr > 1 ? "s" : ""} dans le registre des installations (souvent construits sous un autre nom).</span></div>`);
+  if (l.dv) why.push(`<div><i></i><span>Groupe <b>${esc(l.dv)}</b>${l.dr ? ` (${esc(l.dr)}${l.dn ? `, ${fmt(l.dn)} sociétés` : ""})` : ""}.</span></div>`);
+  if (l.o === "nouveau") why.push(`<div><i></i><span>Propriétaire identifié par la base (registre national, Sirene ou fichier foncier) : pas encore travaillé par l'équipe.</span></div>`);
+  const ct = l.ct.length ? l.ct.map(c => { const tel = isTel(c), href = tel ? "tel:" + c[1].replace(/\s/g, "") : c[0] === "email" ? "mailto:" + c[1] : /^https?:/.test(c[1]) ? c[1] : "https://" + c[1];
+    return `<div class="crow"><span class="tag">${esc({telephone:"Tél.", mobile:"Mobile", email:"Email", site_web:"Site", linkedin:"LinkedIn"}[c[0]] || c[0])}</span><a class="v" href="${esc(href)}" ${tel ? "" : 'target="_blank" rel="noopener"'}>${esc(c[1])}</a>${c[4] ? `<span style="color:var(--ink2);font-size:12.5px">${esc(c[4])}</span>` : ""}<span class="src">${esc(c[2])}${c[3] ? " · validé" : ""}</span></div>`; }).join("")
+    : `<p class="saved" style="margin:0">Aucun contact connu. Notez dans la fiche celui que vous trouvez.</p>`;
+  const pe = l.pe.length ? l.pe.map(p => `<div>${p[2] ? "<b>" : ""}${esc(p[0])}${p[2] ? "</b>" : ""}${p[1] ? ` <small>${esc(p[1])}</small>` : ""}${p[3] ? ` <small>· ${esc(p[3])}</small>` : ""}</div>`).join("") : `<span class="saved">Aucun dirigeant connu.</span>`;
+  const mesProj = PK.get(l.k) || [];
+  const ce = l.ce.map(c => { const ao = c[5] != null ? AOT[c[5]] : null;
+    return `<tr><td>${PBY.has(c[9]) ? `<a data-openp="${esc(c[9])}" style="color:var(--accent);cursor:pointer">${esc(c[0] || "")}</a>` : esc(c[0] || "")}${c[10] === 2 ? ` <span class="tag">lauréat non retrouvé au registre</span>` : ""}
+    <div class="srcline">${(c[8] || []).map(e => esc(SL[e[0]] + (e[1] ? " · ligne " + e[1] : ""))).join(" ; ") || srcHtml(c[6] || "")}${c[7] ? ` · propriétaire : ${esc((PROP[c[7]] || "").split(" :")[0].split(" (")[0])}` : ""}</div></td>
+    <td class="num">${c[1] ? mw(c[1]) : ""}</td><td>${esc(c[2] || "")}</td><td>${ao ? aoHtml(ao) : ""}</td><td class="num">${c[3] || ""}</td>
+    <td class="num">${c[4] ? `<span class="tag ${c[4] <= 2031 ? "warn" : ""}">${c[4]}</span>` : ""}</td></tr>`; }).join("");
+  const props = [...new Set(l.ce.map(c => c[7]).filter(Boolean))];
+  const ts = tachesDe(l.k);
+  const legacy = l.pa && !suivi[l.k]?.paFait ? `<div class="task"><input type="checkbox" data-legacy="${esc(l.k)}" aria-label="Marquer comme fait" ${ro ? "disabled" : ""}><div><div class="tt">${esc(l.pa)}</div><div class="tm">Excel${l.da ? " · " + frDate(l.da) : ""}</div></div><span></span></div>` : "";
+  d.hidden = false;
+  d.innerHTML = `<div class="dh"><div class="top"><span class="hex ${esc(l.pr)}">${esc(l.pr)}</span><div><h2>${esc(l.s)}</h2>
+    <div class="meta"><span>${esc(SEG[l.seg] || l.seg)}</span>${l.sn ? `<span class="mono">SIREN ${esc(l.sn)}</span>` : ""}${l.ville ? `<span>${esc(l.ville)}</span>` : ""}${l.ca ? `<span>CA ${fmt(Math.round(l.ca / 1000))} k€</span>` : ""}</div></div>
+    <button class="x" id="close" aria-label="Fermer la fiche">×</button></div>
+    <div class="acts">${l.te ? `<a class="btn primary small" href="tel:${esc(l.te.replace(/\s/g, ""))}" style="text-decoration:none">Appeler ${esc(l.te)}</a>` : ""}
+      <select id="e-st" aria-label="Statut" ${ro ? "disabled" : ""}>${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${l.st === k ? "selected" : ""}>${v}</option>`).join("")}</select>
+      <select id="e-re" aria-label="Responsable" ${ro ? "disabled" : ""}><option value="">Responsable : personne</option>${MEMBRES.map(m => `<option value="${esc(m)}" ${l.re === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select></div></div>
+  <div class="db">
+    ${bandeauArx(l)}
+    ${identiteSoc(l)}
+    ${l.fil && l.fil.length ? `<div><h3>Sociétés réunies dans cette fiche (${fmt(l.nfil || l.fil.length)})</h3>
+      <p class="saved" style="margin:0 0 6px">Filiales et SPV du groupe : le suivi se fait ici, sur la société de tête.</p>
+      <ul class="srcs">${l.fil.map(f => `<li>${esc(f[0])}${f[1] ? ` · ${fmt(f[1])} centrale${f[1] > 1 ? "s" : ""}` : ""}${f[2] ? `, ${mw(f[2])}` : ""}</li>`).join("")}</ul>
+      ${(l.nfil || 0) > l.fil.length ? `<p class="saved" style="margin:4px 0 0">et ${fmt(l.nfil - l.fil.length)} autres.</p>` : ""}</div>` : ""}
+    <div>
+      <div><h3>À faire</h3>
+      <form class="newtask" id="d-new" style="margin-bottom:6px"><input type="text" id="d-t" placeholder="Ajouter une tâche pour cette société" aria-label="Nouvelle tâche" ${ro ? "disabled" : ""}><input type="date" id="d-d" aria-label="Échéance" ${ro ? "disabled" : ""}><button class="btn primary small" ${ro ? "disabled" : ""}>Ajouter</button></form>
+      <div>${legacy}${ts.map(([id, t]) => taskHtml(id, t, false)).join("")}</div></div>
+    </div>
+    <div class="note-equipe"><h3>Note de l'équipe</h3><textarea class="note" id="e-note" placeholder="Ce qu'on sait, ce qui a été dit…" ${ro ? "disabled" : ""}>${esc(l.note)}</textarea><p class="saved" id="majinfo">${l.maj ? `Mis à jour le ${frDate(l.maj.le)}` : ""}</p></div>
+    <details class="det"><summary>Pertinence pour Almavision</summary>
+      <div class="scorebar" style="margin-top:8px"><b style="font-size:20px;color:var(--forest)">${Number(l.sc) || 0}</b><span>/ 100</span><span class="b"><i style="width:${Number(l.sc) || 0}%"></i></span>
+      ${l.px ? `<span class="tag">Priorité de l'équipe (Excel) : ${esc(l.px)}${l.sx != null ? " · " + l.sx : ""}</span>` : ""}</div>
+      ${why.length ? `<div class="why" style="margin-top:10px">${why.join("")}</div>` : ""}</details>
+    ${l.me && l.me.length ? `<div><h3>Méthaniseur${l.me.length > 1 ? "s" : ""} de la société</h3><ul class="srcs">${l.me.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+      <p class="saved" style="margin:4px 0 0">Excel « Base de données globale de méthanisation », lien vérifié au registre (même société, ou contact dirigeant de la société). Coordonnées à valider.</p></div>` : ""}
+    ${l.en && l.en.length ? `<div><h3>Trouvé par l'agent d'enquête</h3><ul class="srcs">${l.en.map(t => { const m = t.match(/^(.*?)(?: — (https?:\/\/\S+))?$/);
+        return `<li>${esc(m[1])}${m[2] ? ` <a href="${esc(m[2])}" target="_blank" rel="noopener">source</a>` : ""}</li>`; }).join("")}</ul>
+      <p class="saved" style="margin:4px 0 0">Informations trouvées sur le web ou dans les annonces légales (BODACC) : à vérifier avant usage.</p></div>` : ""}
+    ${mesProj.length ? `<div><h3>Projets de la société</h3><p style="margin:0 0 8px;font-size:13.5px">${fmt(mesProj.length)} projet${mesProj.length > 1 ? "s" : ""} dans Recherche Projets : ${["S","L","D"].map(t => [t, mesProj.filter(p => p.t === t).length]).filter(x => x[1]).map(([t, n]) => `${n} ${({S:"en service", L:"lauréat"+(n>1?"s":"")+" CRE non retrouvé"+(n>1?"s":"")+" au registre", D:"en développement"})[t]}`).join(", ")}.</p>
+      <button class="btn small" id="to-proj">Voir ses projets</button></div>` : ""}
+    ${ce ? `<div><h3>Toutes les centrales (${fmt(l.ce.length)}${l.nc > l.ce.length ? ` plus grandes sur ${fmt(l.nc)}` : ""})</h3><div style="overflow-x:auto"><table class="sub"><thead><tr><th>Nom et sources</th><th class="num">Puissance</th><th>Lieu</th><th>Appel d'offres</th><th class="num">Mise en service</th><th class="num">Fin contrat</th></tr></thead><tbody>${ce}</tbody></table></div></div>` : ""}
+    ${(() => { const g = l.dk && GROUPES[l.dk]; if (!g) return "";
+        return `<div><h3>Le groupe : ${esc(g.n)} <span class="saved">${fmt(g.t)} sociétés</span></h3><ul class="srcs">${g.m.map(m => `<li class="idr" tabindex="0">${m[4] && m[4] !== l.k ? `<span class="owner" data-open="${esc(m[4])}">${esc(m[0])}</span>` : `<b>${esc(m[0])}</b>`}${m[1] ? ` · ${fmt(m[1])} centrale${m[1] > 1 ? "s" : ""}` : ""}${m[2] ? `, ${mw(m[2])}` : ""}${m[3] ? `<span class="ids">${esc(m[3])}</span>` : ""}</li>`).join("")}</ul>${g.t > g.m.length ? `<p class="saved" style="margin:4px 0 0">${fmt(g.t - g.m.length)} autres sociétés dans le groupe.</p>` : ""}</div>`; })()}
+    ${l.rx && l.rx.length ? `<div><h3>Rachats et cessions</h3><ul class="srcs">${l.rx.map(d => `<li>${esc({rachete_par: "Rachetée par", a_rachete: "A racheté", actifs_vendus_a: "A vendu des actifs à", actifs_achetes_a: "A acheté des actifs à"}[d[0]] || d[0])} <b>${esc(d[1])}</b> <span class="saved">${esc(d[2] || "")}</span></li>`).join("")}</ul></div>` : ""}
+    <div><h3>Contacts</h3><div class="clist">${ct}</div></div>
+    <div><h3>Dirigeants</h3><div class="ppl">${pe}</div></div>
+    ${l.no || l.ap.length ? `<div><h3>Historique (Excel)</h3>${l.ap.map(a => `<p style="margin:0 0 4px;font-size:13.5px"><span class="saved">${frDate(a.date)}</span> ${esc(a.resultat || "")}${a.suite ? ` · suite : ${esc(a.suite)}` : ""}</p>`).join("")}${l.no ? `<p style="margin:0;white-space:pre-wrap;font-size:13.5px;color:var(--ink2)">${esc(l.no)}</p>` : ""}</div>` : ""}
+    <details class="det"><summary>Toutes les sources de la fiche (détail)</summary><div class="origine">
+      ${l.sl.length ? `<h4>Le lead</h4><ul>${l.sl.map(t => `<li>créé depuis ${esc(t)}</li>`).join("")}</ul>` : l.o === "nouveau" ? `<h4>Le lead</h4><ul><li>propriétaire identifié par la base, pas encore dans les Excel de l'équipe</li></ul>` : ""}
+      <h4>L'entreprise</h4><ul>${l.se.length ? l.se.map(e => `<li>${esc(srcLong(e))}</li>`).join("") : `<li>source non tracée</li>`}</ul>
+      ${l.sp.length ? `<h4>Les projets (centrales)</h4><ul>${l.sp.map(e => `<li>${esc(SL[e[0]])} : ${fmt(e[1])} centrale${e[1] > 1 ? "s" : ""}</li>`).join("")}</ul>` : ""}
+      ${props.length ? `<h4>Le propriétaire des centrales</h4><ul>${props.map(p => `<li>identifié par ${esc(PROP[p])}</li>`).join("")}</ul>` : ""}
+      ${l.ct.length ? `<h4>Les contacts</h4><ul>${[...new Set(l.ct.map(c => c[2]))].map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}</div></details>
+    <div class="links">${l.sn ? `<a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(l.sn)}" target="_blank" rel="noopener">Annuaire des entreprises</a><a href="https://www.pappers.fr/entreprise/${esc(l.sn)}" target="_blank" rel="noopener">Pappers</a>` : ""}${l.web ? `<a href="${esc(/^https?:/.test(l.web) ? l.web : "https://" + l.web)}" target="_blank" rel="noopener">Site web</a>` : ""}
+      <a href="https://www.google.com/search?q=${encodeURIComponent(l.s + " " + (l.ville || ""))}" target="_blank" rel="noopener">Rechercher sur le web</a></div>
+  </div>`;
+  replier(d.querySelector(".db"));
+  $("close").onclick = closeLead;
+  if ($("to-proj")) $("to-proj").onclick = () => { PF = {...PF0(), k: l.k}; closeLead(); show("projets"); prefresh(); };
+  $("e-st").onchange = e => { garderK.add(l.k); saveSuivi(l.k, {st: e.target.value}); };
+  $("e-re").onchange = e => saveSuivi(l.k, {re: e.target.value || null});
+  $("e-note").onchange = e => { garderK.add(l.k); saveSuivi(l.k, {note: e.target.value}); };
+  $("d-new").onsubmit = e => { e.preventDefault(); const t = $("d-t").value.trim(); if (!t) return $("d-t").focus();
+    addTask({k: l.k, s: l.s, t, ech: $("d-d").value || null, resp: l.re || ""}); $("d-t").value = ""; };
+}
+
+/* ---------------- tâches ---------------- */
+function addTask(t, fait = false){
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6), moi = "", now = new Date().toISOString();
+  const body = {...t, fait, par: moi, le: now, ...(fait ? {fait_le: now, fait_par: moi} : {})};
+  taches[id] = body; write("taches", id, body); renderAll(); toast(fait ? "Marqué comme fait." : "Tâche ajoutée.");
+}
+function faitExcel(k){ const l = BYK.get(k); if (!l) return; saveSuivi(k, {paFait: true}); addTask({k, s: l.s, t: l.pa, ech: l.da || null, resp: eff(l).re || ""}, true); }
+function toggleTask(id, done){ const t = taches[id]; if (!t) return;
+  const body = {...t, fait: done, fait_le: done ? new Date().toISOString() : null, fait_par: done ? "" : null};
+  taches[id] = body; write("taches", id, body); renderAll(); }
+function deleteTask(id){ delete taches[id]; write("taches", id, null, true); renderAll(); }
+function taskHtml(id, t, showLead){
+  const late = !t.fait && t.ech && t.ech < TODAY;
+  return `<div class="task ${t.fait ? "done" : ""}"><input type="checkbox" data-task="${esc(id)}" ${t.fait ? "checked" : ""} aria-label="Marquer comme fait">
+    <div><div class="tt">${esc(t.t)}</div><div class="tm">${showLead && t.k ? `<a data-open="${esc(t.k)}">${esc(t.s || "fiche")}</a>` : ""}${t.p ? `<a data-openp="${esc(t.p)}">projet : ${esc((t.pn || "").slice(0, 60))}</a>` : ""}${t.resp ? `<span>${esc(t.resp)}</span>` : ""}${t.fait ? `<span>fait le ${frDate(t.fait_le)}</span>` : ""}</div></div>
+    <span style="display:flex;gap:6px;align-items:center"><span class="when ${late ? "late" : ""}">${t.ech ? frDate(t.ech) : ""}</span><button class="del" data-del="${esc(id)}" aria-label="Supprimer la tâche">×</button></span></div>`;
+}
+let qui = store.get("qui2") || "";
+function legacyTasks(){ // prochaines actions saisies dans les Excel : affichées comme tâches tant qu'elles ne sont pas faites
+  return LEADS.filter(l => l.pa && !CLOS.has(eff(l).st) && !(suivi[l.k] && suivi[l.k].paFait))
+    .map(l => ["xl:" + l.k, {k: l.k, s: l.s, t: l.pa, ech: l.da || null, resp: eff(l).re || "", fait: false, xl: true}]);
+}
+function renderTodo(){
+  let all = [...Object.entries(taches), ...legacyTasks()];
+  if (qui) all = all.filter(([, t]) => t.resp === qui);
+  const open = all.filter(([, t]) => !t.fait), done = all.filter(([, t]) => t.fait).sort((a, b) => (b[1].fait_le || "").localeCompare(a[1].fait_le || "")).slice(0, 30);
+  const wk = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const groups = [["En retard", open.filter(([, t]) => t.ech && t.ech < TODAY), "late"], ["Aujourd'hui", open.filter(([, t]) => t.ech === TODAY)],
+    ["Cette semaine", open.filter(([, t]) => t.ech && t.ech > TODAY && t.ech <= wk)], ["Plus tard", open.filter(([, t]) => t.ech && t.ech > wk)],
+    ["Sans date", open.filter(([, t]) => !t.ech)]];
+  groups.forEach(g => g[1].sort((a, b) => (a[1].ech || "").localeCompare(b[1].ech || "")));
+  const late = groups[0][1].length;
+  const b = $("nb-taches"); b.hidden = !open.length; b.textContent = open.length; b.classList.toggle("late", late > 0);
+  $("todo").innerHTML = groups.filter(g => g[1].length).map(g => `<div class="group"><h2 class="${g[2] || ""}">${g[0]} <span class="tag">${g[1].length}</span></h2>${g[1].slice(0, 200).map(([id, t]) => taskHtml(id, t, true)).join("")}</div>`).join("")
+    + (open.length ? "" : `<div class="empty">Rien à faire pour l'instant. Ajoutez une tâche ci-dessus, ou depuis une fiche (bouton « + À faire » dans les résultats).</div>`)
+    + (done.length ? `<div class="group"><h2>Fait récemment <span class="tag">${done.length}</span></h2>${done.map(([id, t]) => taskHtml(id, t, true)).join("")}</div>` : "");
+}
+document.addEventListener("change", e => {
+  const c = e.target.closest("input[data-task]"), x = e.target.closest("input[data-legacy]");
+  if (c) { const id = c.dataset.task;
+    if (id.startsWith("xl:")) faitExcel(id.slice(3)); else toggleTask(id, c.checked); }
+  if (x) faitExcel(x.dataset.legacy);
+});
+document.addEventListener("click", e => {
+  if (e.target.closest && e.target.closest("select[data-stt]")) return;
+  if (e.target.closest && e.target.closest("input[data-sel]")) return;
+  if (e.target.closest && e.target.closest("textarea[data-note-edit], .postit-aide")) return;
+  const pi = e.target.closest && e.target.closest("button[data-note]");
+  if (pi) { e.stopPropagation(); ouvrirNote(pi.dataset.note); return; }
+  const del = e.target.closest("[data-del]"); if (del) { if (del.dataset.del.startsWith("xl:")) { saveSuivi(del.dataset.del.slice(3), {paFait: true}); } else deleteTask(del.dataset.del); return; }
+  const op = e.target.closest("[data-open]"); if (op) { e.stopPropagation(); openLead(op.dataset.open); return; }
+  const opp = e.target.closest("[data-openp]"); if (opp) { openProjet(opp.dataset.openp); return; }
+  const addp = e.target.closest("[data-addp]"); if (addp) { e.stopPropagation(); openProjet(addp.dataset.addp); setTimeout(() => $("pd-t") && $("pd-t").focus(), 50); return; }
+  const prow = e.target.closest(".row.p[data-p]"); if (prow) { openProjet(prow.dataset.p); return; }
+  const add = e.target.closest("[data-add]"); if (add) { e.stopPropagation(); openLead(add.dataset.add); setTimeout(() => $("d-t") && $("d-t").focus(), 50); return; }
+  const row = e.target.closest(".row[data-k]"); if (row) openLead(row.dataset.k);
+});
+document.addEventListener("keydown", e => { if (e.target.closest && e.target.closest("select[data-stt], textarea[data-note-edit], button[data-note], input[data-sel]")) return;
+  if (e.key === "Escape" && (openK || openP)) closeLead();
+  if (e.key === "Enter" && e.target.classList && e.target.classList.contains("p") && e.target.dataset.p) openProjet(e.target.dataset.p);
+  if (e.key === "Enter" && e.target.classList && e.target.classList.contains("row")) openLead(e.target.dataset.k); });
+
+/* ---------------- carte (d3 chargé à l'ouverture) ---------------- */
+let MAP = null;
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const MAX_CARTE = 60000;   // toute une recherche tient sur la carte (44 000 projets au plus aujourd'hui)
+async function renderMap(){
+  if (!window.d3) await new Promise(ok => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.d3) || "vendor/d3.min.js"; s.onload = ok; s.onerror = ok; document.head.appendChild(s); });
+  if (!window.d3 || !DATA.deps || !DATA.deps.length) { $("m-info").textContent = "La carte n'est pas disponible dans cette vue."; return; }
+  if (!MAP) MAP = initMap();
+  const src = lastMode === "projets" ? pcur.map(p => ({...p, s: p.n, _p: true, nc: 1, deps: p.dep ? [p.dep] : [], ville: p.com, aos: p.ao ? [p.ao] : []})) : current;
+  // position exacte quand on l'a (OpenStreetMap, satellite, avis MRAe), sinon centre de la commune
+  document.querySelector(".mapbar").hidden = lastMode !== "projets";
+  const quoi = lastMode === "projets" ? $("m-quoi").value : "";
+  const pts = src.filter(l => (l.pt || l.geo) && (!quoi || (quoi === "exact" ? !!l.pt : l.t === quoi))).slice(0, MAX_CARTE);
+  MAP.pts = pts.map(l => { const g = l.pt || l.geo, xy = MAP.proj([g[1], g[0]]); return xy ? {x: xy[0], y: xy[1], l, exact: !!l.pt} : null; }).filter(Boolean);
+  $("legend").innerHTML = `<span><i style="background:${css("--p1")}"></i>P1</span><span><i style="background:${css("--p2")}"></i>P2</span><span><i style="background:${css("--p3")}"></i>P3 et autres</span>${lastMode === "projets" ? `<span><i style="background:#2A5B86"></i>Toiture vue sur OpenStreetMap</span><span><i style="background:#fff;border:2px solid #00352F"></i>Contour foncé : position exacte (sinon centre de la commune)</span>` : ""}<span>Taille : puissance</span>`;
+  $("m-info").textContent = `${fmt(MAP.pts.length)} ${lastMode === "projets" ? "projets" : "cibles"} affichés sur ${fmt(src.length)} trouvés (dernière recherche : ${lastMode === "projets" ? "Recherche Projets" : "Recherche Corpo"})${src.length > MAX_CARTE ? `, les ${fmt(MAX_CARTE)} premiers selon le tri` : MAP.pts.length < src.length && !(lastMode === "projets" && $("m-quoi").value) ? " (les autres n'ont pas de lieu connu)" : ""}${lastMode === "projets" && $("m-quoi").value ? " · filtre de la carte : " + $("m-quoi").selectedOptions[0].textContent : ""}.`;
+  drawMap();
+}
+function initMap(){
+  const cv = $("map"), wrap = $("mapwrap"), w = wrap.clientWidth, h = Math.max(420, Math.min(w * .9, innerHeight - 220)), dpr = devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = h * dpr; cv.style.height = h + "px";
+  const fc = {type: "FeatureCollection", features: DATA.deps.map(d => ({type: "Feature", geometry: {type: "Polygon", coordinates: d.r}}))};
+  const proj = d3.geoConicConformal().parallels([44, 49]).rotate([-3, 0]).fitExtent([[10, 10], [w - 10, h - 10]], fc);
+  const gp = d3.geoPath(proj), deps = DATA.deps.map(d => new Path2D(gp({type: "Polygon", coordinates: d.r}) || ""));
+  const m = {cv, ctx: cv.getContext("2d"), w, h, dpr, proj, deps, t: d3.zoomIdentity, pts: []};
+  const zoom = d3.zoom().scaleExtent([1, 60]).on("zoom", e => { m.t = e.transform; drawMap(); });
+  d3.select(cv).call(zoom);
+  const hit = e => { const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; let best = null, bd = 120;
+    for (const p of m.pts) { const d = (m.t.applyX(p.x) - x) ** 2 + (m.t.applyY(p.y) - y) ** 2; if (d < bd) { bd = d; best = p; } } return best ? {p: best, x, y} : null; };
+  cv.addEventListener("mousemove", e => { const h_ = hit(e), tip = $("maptip"); if (!h_) { tip.hidden = true; return; } const l = h_.p.l;
+    tip.innerHTML = `<b>${esc(l.s)}</b><br>${esc(l.pr)} · ${mw(l.kw)} · ${fmt(l.nc)} centrale${l.nc > 1 ? "s" : ""}${l.fc ? " · fin " + l.fc : ""}${l.aos.length ? "<br>AO : " + esc(l.aos.slice(0, 3).map(aoTxt).join(", ")) : ""}<br><span style="color:var(--muted)">${esc(l.ville || l.deps.join(", "))}</span>${srcProjets(l).length ? `<br><span style="color:var(--muted)">Projets : ${esc(srcProjets(l).join(", "))}</span>` : ""}`;
+    tip.hidden = false; tip.style.left = Math.min(h_.x + 12, m.w - 270) + "px"; tip.style.top = (h_.y + 12) + "px"; });
+  cv.addEventListener("mouseleave", () => $("maptip").hidden = true);
+  cv.addEventListener("click", e => { const h_ = hit(e); if (!h_) return; h_.p.l._p ? openProjet(h_.p.l.i) : openLead(h_.p.l.k); });
+  return m;
+}
+function drawMap(){
+  const m = MAP; if (!m) return; const c = m.ctx, k = m.t.k;
+  c.setTransform(m.dpr, 0, 0, m.dpr, 0, 0); c.clearRect(0, 0, m.w, m.h); c.save(); c.translate(m.t.x, m.t.y); c.scale(k, k);
+  c.fillStyle = "#FFFFFF"; c.strokeStyle = css("--line"); c.lineWidth = .8 / k; for (const d of m.deps) { c.fill(d); c.stroke(d); }
+  const col = {P1: css("--p1"), P2: css("--p2")}, other = css("--p3"), ring = css("--bg");
+  // toitures OpenStreetMap dessinées en dernier (par-dessus), en petits points : sinon cachées sous les autres
+  for (const p of [...m.pts].sort((a, b) => ((a.l.t === "O") - (b.l.t === "O")) || (PRANK[b.l.pr] || 4) - (PRANK[a.l.pr] || 4))) {
+    const r = (p.l.t === "O" ? 2.2 : Math.min(7, 2 + Math.sqrt(p.l.kw || 0) / 30)) / Math.sqrt(k);
+    c.beginPath(); c.arc(p.x, p.y, r, 0, 2 * Math.PI); c.fillStyle = p.l.t === "O" ? "#2A5B86" : col[p.l.pr] || other; c.fill();
+    if (p.l.t === "O") { c.lineWidth = .6 / k; c.strokeStyle = ring; c.stroke(); continue; }   // petit point bleu, sans contour foncé
+    c.lineWidth = (p.exact ? 1.6 : 1) / k; c.strokeStyle = p.exact ? "#00352F" : ring; c.stroke(); }
+  c.restore();
+}
+addEventListener("resize", () => { if (MAP && !$("v-carte").hidden) { MAP = null; renderMap(); } });
+$("m-quoi").onchange = () => renderMap();
+
+/* ---------------- navigation ---------------- */
+function show(v){ document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.v === v));
+  if (SEL.k.ids.size || SEL.p.ids.size) { viderSel("k"); viderSel("p"); }
+  ["recherche", "projets", "prospection", "taches", "carte"].forEach(x => $("v-" + x).hidden = x !== v); $("hero").hidden = !["recherche", "projets"].includes(v); store.set("vue", v);
+  if (v === "recherche" || v === "projets") { lastMode = v; setHero(); }
+  if (v === "projets") renderProjets();
+  if (v === "prospection") renderProsp();
+  if (v === "taches") renderTodo(); if (v === "carte") renderMap(); }
+document.querySelector("nav.tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) show(b.dataset.v); });
+let lastMode = "recherche";
+function renderAll(){ renderList(); renderProjets(); renderTodo(); renderProsp(); if (openP && !$("drawer").hidden && !openK) { const a = document.activeElement; if (!a || !$("drawer").contains(a) || a.tagName === "BUTTON" || a.type === "checkbox") openProjet(openP); } if (openK && !$("drawer").hidden) { const a = document.activeElement; if (!a || !$("drawer").contains(a) || a.tagName === "BUTTON" || a.type === "checkbox") renderDrawer(); } }
+
+$("ask").onsubmit = e => { e.preventDefault(); mode() === "projets" ? psearch() : search(); };
+$("clear").onclick = () => { $("q").value = ""; if (mode() === "projets") { PF = {...PF0(), sort: PF.sort}; paiNote = ""; showNote(); prefresh(); } else { F = {...F0(), sort: F.sort}; aiNote = ""; showNote(); refresh(); } $("q").focus(); };
+$("psort").onchange = e => { PF.sort = e.target.value; PF.dir = SENS_DEFAUT[PF.sort] || -1; prefresh(false); };
+$("pdir").onclick = () => { PF.dir = -(PF.dir || SENS_DEFAUT[PF.sort] || -1); prefresh(false); };
+$("pmore").onclick = () => { pshown += 100; renderProjets(); };
+$("pexport").onclick = exporterProjets;
+$("sort").onchange = e => { F.sort = e.target.value; F.dir = SENS_DEFAUT[F.sort] || -1; refresh(false); };
+$("dir").onclick = () => { F.dir = -(F.dir || SENS_DEFAUT[F.sort] || -1); refresh(false); };
+$("more").onclick = () => { shown += 100; renderList(); };
+$("export").onclick = exporter;
+$("qui").innerHTML += MEMBRES.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join(""); $("qui").value = qui;
+$("pr-re").innerHTML += MEMBRES.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join(""); renderProsp();
+$("qui").onchange = () => { qui = $("qui").value; store.set("qui2", qui); renderTodo(); };
+$("nt-r").innerHTML = `<option value="">Pour qui ?</option>` + MEMBRES.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
+$("newtask").onsubmit = e => { e.preventDefault(); const t = $("nt-t").value.trim(); if (!t) return $("nt-t").focus();
+  addTask({k: null, s: null, t, ech: $("nt-d").value || null, resp: $("nt-r").value || ""}); $("nt-t").value = ""; };
+initFilters(); initAI(); refresh(); renderTodo();
+initPFilters(); prefresh();
+show(["recherche", "projets", "prospection", "taches", "carte"].includes(store.get("vue")) ? store.get("vue") : "recherche");
+connect();
+})();

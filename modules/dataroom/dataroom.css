@@ -1,0 +1,6 @@
+/* Module Data Room Access (en co-construction) */
+.dr-grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.dr-grille h2{font-size:16px;margin:0 0 10px;color:var(--forest)}
+.dr-grille ul,.dr-grille ol{margin:0;padding-left:20px;display:grid;gap:6px;color:var(--ink2)}
+.dr-etapes li.fait{color:var(--accent);font-weight:600}
+.dr-etapes li.fait::marker{content:"✓  "}
