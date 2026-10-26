@@ -778,7 +778,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202610261245`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202610261506`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -905,6 +905,7 @@ for (const l of LEADS) {
   l.regn = l.regs.map(i => REGIONS[i]);
   l.np = (l.nc || 0) + ((l.pd && l.pd.n) || 0);
   l._txt = fold([l.s, l.sn, l.gr, l.dv, l.di, l.ville, l.deps.join(" "), l.regn.join(" "), l.no, l.aos.map(aoTxt).join(" ")].join(" "));
+  if (l.me && l.me.length) l._txt += " " + fold("methaniseur methanisation biogaz " + l.me.join(" "));
   if (l.ax) l._txt += " " + fold(["arx", ...l.ax.map(i => ARX[i]).filter(Boolean).flatMap(a => [a.nom, a.prospection_vendeur, ...(a.referents || []), ...(a.metier || [])])].join(" "));
 }
 
@@ -2180,6 +2181,8 @@ function renderDrawer(){
       <div class="scorebar" style="margin-top:8px"><b style="font-size:20px;color:var(--forest)">${Number(l.sc) || 0}</b><span>/ 100</span><span class="b"><i style="width:${Number(l.sc) || 0}%"></i></span>
       ${l.px ? `<span class="tag">Priorité de l'équipe (Excel) : ${esc(l.px)}${l.sx != null ? " · " + l.sx : ""}</span>` : ""}</div>
       ${why.length ? `<div class="why" style="margin-top:10px">${why.join("")}</div>` : ""}</details>
+    ${l.me && l.me.length ? `<div><h3>Méthaniseur${l.me.length > 1 ? "s" : ""} de la société</h3><ul class="srcs">${l.me.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+      <p class="saved" style="margin:4px 0 0">Excel « Base de données globale de méthanisation », lien vérifié au registre (même société, ou contact dirigeant de la société). Coordonnées à valider.</p></div>` : ""}
     ${l.en && l.en.length ? `<div><h3>Trouvé par l'agent d'enquête</h3><ul class="srcs">${l.en.map(t => { const m = t.match(/^(.*?)(?: — (https?:\/\/\S+))?$/);
         return `<li>${esc(m[1])}${m[2] ? ` <a href="${esc(m[2])}" target="_blank" rel="noopener">source</a>` : ""}</li>`; }).join("")}</ul>
       <p class="saved" style="margin:4px 0 0">Informations trouvées sur le web ou dans les annonces légales (BODACC) : à vérifier avant usage.</p></div>` : ""}
