@@ -70,7 +70,13 @@ window.__pret = (async () => {
       const canal = sb.channel("doc-" + col)
         .on("postgres_changes", {event: "INSERT", schema: "public", table: "app_doc", filter: `collection=eq.${col}`}, recu)
         .on("postgres_changes", {event: "UPDATE", schema: "public", table: "app_doc", filter: `collection=eq.${col}`}, recu)
-        // les suppressions ne se filtrent pas côté serveur : celles d'une autre collection sont ignorées
+        // suppressions faites par les collègues : lues dans l'historique (une ligne ajoutée, « apres » vide), dont la
+        // diffusion respecte les règles d'accès ; les suppressions de app_doc ne sont plus diffusées (db/site.sql)
+        .on("postgres_changes", {event: "INSERT", schema: "public", table: "app_doc_historique", filter: `collection=eq.${col}`},
+          p => { const h = p && p.new;
+            if (!h || h.apres === undefined) bientot(2);   // message incomplet (trop gros pour le temps réel) : relecture
+            else if (h.apres === null && h.id != null) retirer(String(h.id)); })
+        // ancienne diffusion des suppressions, tant que db/site.sql n'a pas été rejoué (sans effet ensuite)
         .on("postgres_changes", {event: "DELETE", schema: "public", table: "app_doc"},
           p => { const o = p && p.old; if (!o || !o.collection || o.collection === col) bientot(2); })
         .subscribe(etat => {
