@@ -471,7 +471,7 @@ textarea.note{width:100%;min-height:70px;border:1px solid var(--line);border-rad
   <section id="v-prospection" class="panel" hidden>
     <div class="todo-head"><h1>Prospection</h1>
       <label class="me" style="margin-left:0;color:var(--ink2)">Responsable <select id="pr-re" style="border-color:var(--line);background:var(--bg);color:var(--ink)"><option value="">toute l'équipe</option><option value="aucun">sans responsable</option></select></label></div>
-    <label class="me" style="margin-left:0;color:var(--ink2)">Afficher <select id="pr-quoi" style="border-color:var(--line);background:var(--bg);color:var(--ink)"><option value="">sociétés et projets</option><option value="societes">sociétés (Corpo)</option><option value="projets">projets</option></select></label>
+    <select id="pr-quoi" hidden aria-hidden="true"><option value="societes">sociétés</option></select><span class="saved" style="margin-left:0">Le suivi se fait par société (tête de groupe) ; les projets suivent le statut de leur société.</span>
     <p style="margin:4px 0 0;color:var(--ink2)">Toutes les fiches qualifiées : chaque société et chaque projet dont le statut n'est plus « Non traité », rangés par statut.</p>
     <div class="pchips" id="pr-st" role="group" aria-label="Statuts affichés"></div>
     <div class="prsel"><button type="button" class="btn small" id="pr-tout"></button></div>
@@ -778,7 +778,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202610211232`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202610261146`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -912,8 +912,20 @@ for (const l of LEADS) {
 let suivi = {}, taches = {}, db = null, user = null, myId = null, canWrite = null;
 // clé de suivi d'un projet : la sienne, ou celle d'une fiche regroupée avec lui si c'est là que l'équipe a écrit
 const pkey = p => { const k = "p:" + p.i; if (suivi[k] || !p.al) return k; const a = p.al.find(x => suivi["p:" + x[0]]); return a ? "p:" + a[0] : k; };
-const pst = p => normSt((suivi[pkey(p)] || {}).st || "non_traite");
-const pre = p => (suivi[pkey(p)] || {}).re || "";
+// Le suivi se fait par société (décision du 26/10/2026) : un projet prend le statut et le responsable de sa société
+// de tête de groupe ; un projet sans société connue ne peut pas entrer en prospection.
+const groupeDe = p => (p && p.k && BYK.get(p.k)) || null;
+const pst = p => { const l = groupeDe(p); return l ? eff(l).st : "non_traite"; };
+const pre = p => { const l = groupeDe(p); return l ? (eff(l).re || "") : ""; };
+// changer le statut depuis un projet : c'est la société qui est mise à jour, et on le dit
+function statutProjet(p, st, sel){
+  const l = groupeDe(p);
+  if (!l) { toast("Société propriétaire inconnue : ce projet ne peut pas entrer en prospection. Identifiez d'abord sa société."); if (sel) sel.value = "non_traite"; return; }
+  garderK.add(l.k); if (p) garderP.add(p.i);
+  saveSuivi(l.k, {st});
+  toast(st === "non_traite" ? `${l.s} retirée de la prospection (le suivi se fait par société).`
+    : `${l.s} ajoutée à la prospection en « ${ST[st]} » : le suivi se fait par société (tête du groupe), pas par projet.`);
+}
 const pids = p => [p.i, ...(p.al || []).map(x => x[0])];
 const eff = l => { const s = suivi[l.k] || (l.ka || []).map(a => suivi[a]).find(Boolean) || {}; return {...l, st: normSt(s.st ?? l.st), re: s.re !== undefined ? s.re : l.re, note: s.note || "", maj: s.maj}; };
 function setSync(t){ $("sync").textContent = t; }
@@ -932,14 +944,18 @@ function write(col, id, body, del){
 const garderK = new Set(), garderP = new Set();
 // statut modifiable depuis la ligne (société : clé du lead ; projet : « p: » + identifiant du projet)
 function menuStatut(st, type, id){
-  const ro = canWrite === false || !db;
-  return `<select class="stp ${esc(st)}" data-stt="${esc(type)}" data-id="${esc(id)}" aria-label="Statut" title="${ro ? "Statut (consultation seule)" : "Changer le statut"}" ${ro ? "disabled" : ""}>${
+  const g = type === "p" ? groupeDe(PBY.get(id)) : null, sansG = type === "p" && !g;
+  const ro = canWrite === false || !db || sansG;
+  const titre = sansG ? "Société propriétaire inconnue : pas de prospection possible" : ro ? "Statut (consultation seule)"
+    : g ? `Statut de ${g.s} (société de tête du groupe)` : "Changer le statut";
+  return `<select class="stp ${esc(st)}" data-stt="${esc(type)}" data-id="${esc(id)}" aria-label="${esc(titre)}" title="${esc(titre)}" ${ro ? "disabled" : ""}>${
     Object.entries(ST).map(([k, v]) => `<option value="${k}" ${k === st ? "selected" : ""}>${v}</option>`).join("")}</select>`;
 }
 document.addEventListener("change", e => {
   const m = e.target.closest && e.target.closest("select[data-stt]"); if (!m) return;
-  (m.dataset.stt === "p" ? garderP : garderK).add(m.dataset.id);
-  saveSuivi(m.dataset.stt === "p" ? pkey(PBY.get(m.dataset.id)) : m.dataset.id, {st: m.value});
+  if (m.dataset.stt === "p") return statutProjet(PBY.get(m.dataset.id), m.value, m);
+  garderK.add(m.dataset.id);
+  saveSuivi(m.dataset.id, {st: m.value});
 });
 /* ---------------- sélection multiple : cocher des lignes (Maj+clic pour une plage) et changer leur statut d'un coup ---------------- */
 // k : sociétés (Recherche Corpo), p : projets (Recherche Projets). Pour chacune : identifiants cochés, dernière case cliquée.
@@ -1043,6 +1059,18 @@ async function ecrireUne(col, id, body){
 }
 // fiches : [[type, id], ...] (type « k » société, « p » projet) ; go : le bouton qui lance l'envoi ; apres : quand c'est fini
 async function appliquerFiches(fiches, st, go, apres){
+  // le suivi se fait par société : chaque projet coché devient sa société de tête (une seule fois)
+  const nbP = fiches.filter(f => f[0] === "p").length;
+  if (nbP) {
+    const vus = new Set(), conv = []; let sans = 0;
+    for (const [t, id] of fiches) {
+      const k = t === "p" ? (groupeDe(PBY.get(id)) || {}).k : (BYK.get(id) || {}).k || id;
+      if (!k) { sans++; continue; }
+      if (!vus.has(k)) { vus.add(k); conv.push(["k", k]); }
+    }
+    if (!go.dataset.conf) toast(`${fmt(nbP)} projet${nbP > 1 ? "s" : ""} : le statut s'applique à leur société de tête (${fmt(conv.length)} société${conv.length > 1 ? "s" : ""} en tout)${sans ? `, ${fmt(sans)} sans société connue ignoré${sans > 1 ? "s" : ""}` : ""}.`);
+    fiches = conv;
+  }
   if (!fiches.length || go.disabled) return;
   if (!db || canWrite === false) { toast("Le suivi partagé n'est pas disponible ici : rien n'a été enregistré."); return; }
   if (fiches.length > MAX_LOT) { toast(`${fmt(fiches.length)} fiches sélectionnées : ${fmt(MAX_LOT)} au plus par envoi. Affinez la recherche.`); return; }
@@ -1544,7 +1572,7 @@ let prSts = new Set(PR_ORDRE.filter(x => !["pas_interesse", "hors_scope"].includ
 function renderProsp(){
   const re = $("pr-re").value, quoi = $("pr-quoi").value;
   const socs = LEADS.map(eff).filter(l => l.st !== "non_traite");
-  const projs = PROJ.filter(p => pst(p) !== "non_traite");
+  const projs = [];   // le suivi se fait par société : les projets apparaissent dans la fiche de leur société
   const nb = {}; socs.forEach(l => nb[l.st] = (nb[l.st] || 0) + 1); projs.forEach(p => nb[pst(p)] = (nb[pst(p)] || 0) + 1);
   const actifs = socs.filter(l => !CLOS.has(l.st)).length + projs.filter(p => !CLOS.has(pst(p))).length;
   $("nb-prosp").textContent = fmt(actifs); $("nb-prosp").hidden = !actifs;
@@ -1775,8 +1803,9 @@ function openProjet(i){
   d.innerHTML = `<div class="dh"><div class="top"><span class="hex ${esc(p.pr)}">${esc(p.pr)}</span><div><h2>${esc(p.n || "Projet")}</h2>
     <div class="meta"><span class="tp ${esc(p.t)}">${esc(TP[p.t])}</span>${p.t === "D" && p.et ? `<span>${esc(ETP[p.et])}</span>` : ""}<span>${esc([p.com, p.dep ? "(" + p.dep + ")" : "", p.regn].filter(Boolean).join(" "))}</span>${p.kw ? `<span><b style="color:#fff">${mw(p.kw)}</b></span>` : ""}</div></div>
     <button class="x" id="close" aria-label="Fermer la fiche">×</button></div>
-    <div class="acts"><select id="pe-st" aria-label="Statut du projet" ${ro ? "disabled" : ""}>${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${pst(p) === k ? "selected" : ""}>${v}</option>`).join("")}</select>
-      <select id="pe-re" aria-label="Responsable du projet" ${ro ? "disabled" : ""}><option value="">Responsable : personne</option>${MEMBRES.map(m => `<option value="${esc(m)}" ${pre(p) === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
+    <div class="acts">${l && pst(p) === "non_traite" && !ro ? `<button class="btn primary small" id="pe-ajout" type="button" title="Le suivi se fait par société : c'est ${esc(l.s)} qui entre en prospection">Ajouter ${esc(l.s)} à la prospection</button>` : ""}
+      <select id="pe-st" aria-label="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue"}" title="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue : pas de prospection possible"}" ${ro || !l ? "disabled" : ""}>${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${pst(p) === k ? "selected" : ""}>${v}</option>`).join("")}</select>
+      <select id="pe-re" aria-label="Responsable de la société" title="${l ? `Responsable de ${esc(l.s)}` : ""}" ${ro || !l ? "disabled" : ""}><option value="">Responsable : personne</option>${MEMBRES.map(m => `<option value="${esc(m)}" ${pre(p) === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
       ${l ? `<button class="btn primary small" id="to-soc">Fiche de la société : ${esc(l.s)}</button>` : ""}${l && l.te ? `<a class="btn small ghost" href="tel:${esc(l.te.replace(/\s/g, ""))}" style="text-decoration:none">Appeler ${esc(l.te)}</a>` : ""}${p.u ? `<a class="btn small ghost" href="${esc(p.u)}" target="_blank" rel="noopener" style="text-decoration:none">Lire l'avis (PDF)</a>` : ""}${p.uc ? `<a class="btn small ghost" href="${esc(p.uc)}" target="_blank" rel="noopener" style="text-decoration:none" title="Copie gardée par Almavision, si le site officiel ne répond pas">Copie archivée</a>` : ""}${lienCarte(p)}</div></div>
   <div class="db">
     ${identite(p, l)}
@@ -1798,8 +1827,9 @@ function openProjet(i){
   </div>`;
   $("close").onclick = closeLead;
   if ($("to-soc")) $("to-soc").onclick = () => openLead(p.k);
-  $("pe-st").onchange = e => { garderP.add(p.i); saveSuivi(pkey(p), {st: e.target.value}); };
-  $("pe-re").onchange = e => saveSuivi(pkey(p), {re: e.target.value || null});
+  $("pe-st").onchange = e => statutProjet(p, e.target.value, e.target);
+  if ($("pe-ajout")) $("pe-ajout").onclick = () => statutProjet(p, "a_qualifier");
+  $("pe-re").onchange = e => { if (l) { saveSuivi(l.k, {re: e.target.value || null}); toast(`Responsable de ${l.s} mis à jour (suivi par société).`); } };
   $("pe-note").onchange = e => { garderP.add(p.i); saveSuivi(pkey(p), {note: e.target.value.trim()}); };
   $("pd-new").onsubmit = e => { e.preventDefault(); const t = $("pd-t").value.trim(); if (!t) return $("pd-t").focus();
     addTask({k: p.k || null, s: l ? l.s : p.owner || null, p: p.i, pn: p.n, t, ech: $("pd-d").value || null, resp: l ? l.re || "" : ""}); $("pd-t").value = ""; };
@@ -2136,6 +2166,10 @@ function renderDrawer(){
   <div class="db">
     ${bandeauArx(l)}
     ${identiteSoc(l)}
+    ${l.fil && l.fil.length ? `<div><h3>Sociétés réunies dans cette fiche (${fmt(l.nfil || l.fil.length)})</h3>
+      <p class="saved" style="margin:0 0 6px">Filiales et SPV du groupe : le suivi se fait ici, sur la société de tête.</p>
+      <ul class="srcs">${l.fil.map(f => `<li>${esc(f[0])}${f[1] ? ` · ${fmt(f[1])} centrale${f[1] > 1 ? "s" : ""}` : ""}${f[2] ? `, ${mw(f[2])}` : ""}</li>`).join("")}</ul>
+      ${(l.nfil || 0) > l.fil.length ? `<p class="saved" style="margin:4px 0 0">et ${fmt(l.nfil - l.fil.length)} autres.</p>` : ""}</div>` : ""}
     <div>
       <div><h3>À faire</h3>
       <form class="newtask" id="d-new" style="margin-bottom:6px"><input type="text" id="d-t" placeholder="Ajouter une tâche pour cette société" aria-label="Nouvelle tâche" ${ro ? "disabled" : ""}><input type="date" id="d-d" aria-label="Échéance" ${ro ? "disabled" : ""}><button class="btn primary small" ${ro ? "disabled" : ""}>Ajouter</button></form>
