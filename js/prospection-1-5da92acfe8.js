@@ -5,7 +5,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202611051828`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202611051844`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -438,25 +438,56 @@ async function chercherNoms(ids){
   catch {} finally { rechNoms = false; }
   renderRecents();
 }
-let rechTout = [];
+// Menu sous la barre de recherche (05/11/2026, comme Google) : il s'ouvre au clic dans la barre, se filtre sur le texte
+// tapé, se parcourt au clavier (flèches, Entrée, Échap) et se ferme quand on clique ailleurs ou qu'on lance la recherche.
+let rechTout = [], suggOuvert = false, suggSel = -1;
+const ICONE_HIST = `<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 function renderRecents(){
-  const el = $("recents");
+  const el = $("recents"), t = fold($("q").value.trim());
+  const vu = new Set();   // même texte dans le même onglet : seulement la plus récente, quelle que soit la personne
   rechTout = Object.entries(recherches).flatMap(([id, d]) => d.liste.map(x => ({...x, id})))
-    .sort((a, b) => Date.parse(b.le) - Date.parse(a.le)).slice(0, NB_RECENTS);
-  if (!rechTout.length) { el.hidden = true; el.innerHTML = ""; return; }
+    .sort((a, b) => Date.parse(b.le) - Date.parse(a.le))
+    .filter(x => { const c = x.mode + "|" + fold(x.q); if (vu.has(c)) return false; vu.add(c); return !t || fold(x.q).includes(t); })
+    .slice(0, NB_RECENTS);
+  if (suggSel >= rechTout.length) suggSel = -1;
+  if (!suggOuvert || !rechTout.length) { el.hidden = true; el.innerHTML = ""; $("q").setAttribute("aria-expanded", "false"); return; }
   const manque = [...new Set(rechTout.map(x => x.id))].filter(id => id !== myId && !(id in nomsRech));
   if (manque.length) chercherNoms(manque);
   const qui = id => id === myId ? "Vous" : nomsRech[id] || "";
-  el.innerHTML = `<span>Dernières recherches de l'équipe :</span>` + rechTout.map((x, i) => {
+  el.innerHTML = `<div class="sh">Dernières recherches de l'équipe</div>` + rechTout.map((x, i) => {
     const onglet = x.mode === "projets" ? "Recherche Projets" : "Recherche Corpo", n = qui(x.id);
-    return `<button type="button" data-rech="${i}" title="${esc(`${n ? n + " · " : ""}${onglet} · ${ilYa(x.le)} : ${x.q}`)}" aria-label="${esc(`Relancer la recherche${n ? " de " + n : ""} : ${x.q}, ${ilYa(x.le)}, ${onglet}`)}">${
-      n ? `<b>${esc(n)}</b>` : ""}<span class="rq">${esc(x.q)}</span><i>${esc(ilYa(x.le))}${x.mode === "projets" ? " · projets" : ""}</i></button>`; }).join("");
-  el.hidden = false;
+    return `<button type="button" role="option" id="rech-${i}" data-rech="${i}" class="${i === suggSel ? "on" : ""}" aria-selected="${i === suggSel}" title="${esc(`${n ? n + " · " : ""}${onglet} · ${ilYa(x.le)} : ${x.q}`)}">${ICONE_HIST}<span class="rq">${esc(x.q)}</span><i>${
+      n ? `<b>${esc(n)}</b> · ` : ""}${esc(ilYa(x.le))}${x.mode === "projets" ? " · projets" : ""}</i></button>`; }).join("");
+  el.hidden = false; $("q").setAttribute("aria-expanded", "true");
+  if (suggSel >= 0) { $("q").setAttribute("aria-activedescendant", "rech-" + suggSel); $("rech-" + suggSel).scrollIntoView({block: "nearest"}); }
+  else $("q").removeAttribute("aria-activedescendant");
 }
-$("recents").onclick = e => { const b = e.target.closest("button[data-rech]"); if (!b) return; const x = rechTout[+b.dataset.rech]; if (!x) return;
+function ouvrirSugg(){ if (!suggOuvert) { suggOuvert = true; suggSel = -1; } renderRecents(); }
+function fermerSugg(){ if (!suggOuvert) return; suggOuvert = false; suggSel = -1; $("q").removeAttribute("aria-activedescendant"); renderRecents(); }
+function relancer(x){
+  fermerSugg();
   if ((mode() === "projets" ? "projets" : "recherche") !== x.mode) show(x.mode);
-  $("q").value = x.q; x.mode === "projets" ? psearch() : search(); };
-setInterval(() => { if (!$("recents").hidden) renderRecents(); }, 60000);   // « il y a … » tenu à jour
+  $("q").value = x.q; $("q").blur(); x.mode === "projets" ? psearch() : search();
+}
+$("recents").addEventListener("mousedown", e => e.preventDefault());   // le clic dans le menu ne fait pas perdre la barre
+$("recents").onclick = e => { const b = e.target.closest("button[data-rech]"); if (!b) return; const x = rechTout[+b.dataset.rech]; if (x) relancer(x); };
+$("q").addEventListener("focus", ouvrirSugg);
+$("q").addEventListener("click", ouvrirSugg);
+$("q").addEventListener("input", () => { suggOuvert = true; suggSel = -1; renderRecents(); });
+$("q").addEventListener("blur", fermerSugg);
+$("q").addEventListener("keydown", e => {
+  if (e.key === "Escape") { if (suggOuvert && rechTout.length) { e.preventDefault(); fermerSugg(); } return; }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (!suggOuvert) { ouvrirSugg(); if (!rechTout.length) return; }
+    if (!rechTout.length) return;
+    e.preventDefault();
+    const n = rechTout.length;
+    suggSel = e.key === "ArrowDown" ? (suggSel + 1 >= n ? -1 : suggSel + 1) : (suggSel <= -1 ? n - 1 : suggSel - 1);
+    renderRecents(); return;
+  }
+  if (e.key === "Enter" && suggOuvert && suggSel >= 0 && rechTout[suggSel]) { e.preventDefault(); relancer(rechTout[suggSel]); }
+});
+setInterval(() => { if (suggOuvert) renderRecents(); }, 60000);   // « il y a … » tenu à jour
 
 /* ---------------- moteur de recherche ---------------- */
 const F0 = () => ({q:"", etape:"", segs:[], prs:[], sts:[], re:"", regs:[], deps:[], kw_min:null, kw_max:null, fc_min:null, fc_max:null, np_min:null, np_max:null, sc_min:null, sc_max:null,
@@ -1215,16 +1246,10 @@ async function psearch(){
   finally { $("go").disabled = false; }
   showNote(); prefresh();
 }
-const PEXEMPLES = ["Lauréats CRE4 bâtiment P13 du groupe Technique Solaire", "Projets sans suite de plus de 5 MW en Nouvelle-Aquitaine", "Lauréats PPE2 au sol désignés depuis 2023", "Centrales de plus de 1 MW dont le contrat finit d'ici 2029",
-  "Projets en instruction en Occitanie dont le porteur est inconnu", "Lauréats CRE depuis 2023 en Grand Est"];
 
 /* ---------------- recherche en langage naturel (Claude) ---------------- */
-const EXEMPLES = ["Lauréats PPE2 au sol depuis 2022 en Occitanie", "Propriétaires agricoles en Bretagne dont le contrat finit d'ici 2028",
-  "Développeurs avec des projets en cours en Occitanie", "Centrales au sol de plus de 5 MW en fin de contrat d'ici 2030",
-  "Propriétaires joignables avec plus de 3 centrales", "SCI et SAS de Nouvelle-Aquitaine avec plus de 1 MW", "Lauréats CRE récents pas encore dans le registre"];
 let sample = null;
 async function initAI(){
-  $("ex").onclick = e => { const b = e.target.closest("button"); if (!b) return; $("q").value = b.textContent; mode() === "projets" ? psearch() : search(); };
   const C = window.claude;
   sample = C && C.use ? await C.use("sample") : null;
 }
@@ -1308,7 +1333,6 @@ function setHero(){
     : `${fmt(LEADS.length)} propriétaires et développeurs de centrales solaires, classés selon leur probabilité d'avoir des actifs ou des projets à vendre · données du ${DATA.genere}`;
   $("q").placeholder = pj ? "Décrivez les projets que vous cherchez, ou tapez un nom de projet, une commune, un propriétaire…" : "Décrivez les leads que vous cherchez, ou tapez un nom de société, de projet, un SIREN, une ville…";
   $("q").value = pj ? PF.q : F.q;
-  $("ex").innerHTML = `<span>Exemples :</span>` + (pj ? PEXEMPLES : EXEMPLES).map(e => `<button type="button">${esc(e)}</button>`).join("");
   showNote();
 }
 
@@ -1614,7 +1638,7 @@ async function initGoogle(){
     Object.assign(cal.cv.style, {left: (pc.x - w / 2) + "px", top: (pc.y - h / 2) + "px", width: w + "px", height: h + "px"});
     if (cal.cv.width !== w * dpr || cal.cv.height !== h * dpr) { cal.cv.width = w * dpr; cal.cv.height = h * dpr; }
     const c = cal.cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
-    const f = Math.min(3, Math.sqrt(2 ** Math.max(0, zoom - 6))), ecran = [];
+    const f = Math.min(2.2, 1 + Math.max(0, zoom - 6) * .25), ecran = [];   // les points grossissent un peu en zoomant
     for (const q of g.pts) {
       const x = (q.w[0] - m0[0]) * z, y = (q.w[1] - m0[1]) * z;
       if (x < -10 || y < -10 || x > w + 10 || y > h + 10) continue;
@@ -1686,7 +1710,7 @@ document.querySelector("nav.tabs").addEventListener("click", e => { const b = e.
 let lastMode = "recherche";
 function renderAll(){ renderList(); renderProjets(); renderTodo(); renderProsp(); if (openP && !$("drawer").hidden && !openK) { const a = document.activeElement; if (!a || !$("drawer").contains(a) || a.tagName === "BUTTON" || a.type === "checkbox") openProjet(openP); } if (openK && !$("drawer").hidden) { const a = document.activeElement; if (!a || !$("drawer").contains(a) || a.tagName === "BUTTON" || a.type === "checkbox") renderDrawer(); } }
 
-$("ask").onsubmit = e => { e.preventDefault(); mode() === "projets" ? psearch() : search(); };
+$("ask").onsubmit = e => { e.preventDefault(); fermerSugg(); mode() === "projets" ? psearch() : search(); };
 $("clear").onclick = () => { $("q").value = ""; if (mode() === "projets") { PF = {...PF0(), sort: PF.sort}; paiNote = ""; showNote(); prefresh(); } else { F = {...F0(), sort: F.sort}; aiNote = ""; showNote(); refresh(); } $("q").focus(); };
 $("psort").onchange = e => { PF.sort = e.target.value; PF.dir = SENS_DEFAUT[PF.sort] || -1; prefresh(false); };
 $("pdir").onclick = () => { PF.dir = -(PF.dir || SENS_DEFAUT[PF.sort] || -1); prefresh(false); };
