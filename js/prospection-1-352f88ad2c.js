@@ -5,7 +5,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202610261822`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202611051828`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -154,6 +154,11 @@ function statutProjet(p, st, sel){
   toast(st === "non_traite" ? `${l.s} retirée de la prospection (le suivi se fait par société).`
     : `${l.s} ajoutée à la prospection en « ${ST[st]} » : le suivi se fait par société (tête du groupe), pas par projet.`);
 }
+// Côté projet, pas de « À qualifier » ni de responsable (05/11/2026) : ils restent sur la fiche société.
+// Si la société est déjà « À qualifier », le statut s'affiche mais ne peut pas être choisi depuis un projet.
+const ST_PROJET = Object.fromEntries(Object.entries(ST).filter(([k]) => k !== "a_qualifier"));
+const optsST = (st, projet) => Object.entries(projet ? ST_PROJET : ST).map(([k, v]) => `<option value="${k}" ${k === st ? "selected" : ""}>${v}</option>`).join("")
+  + (projet && st === "a_qualifier" ? `<option value="a_qualifier" selected disabled>${ST.a_qualifier}</option>` : "");
 const pids = p => [p.i, ...(p.al || []).map(x => x[0])];
 const eff = l => { const s = suivi[l.k] || (l.ka || []).map(a => suivi[a]).find(Boolean) || {}; return {...l, st: normSt(s.st ?? l.st), re: s.re !== undefined ? s.re : l.re, note: s.note || "", maj: s.maj}; };
 function setSync(t){ $("sync").textContent = t; }
@@ -177,7 +182,7 @@ function menuStatut(st, type, id){
   const titre = sansG ? "Société propriétaire inconnue : pas de prospection possible" : ro ? "Statut (consultation seule)"
     : g ? `Statut de ${g.s} (société de tête du groupe)` : "Changer le statut";
   return `<select class="stp ${esc(st)}" data-stt="${esc(type)}" data-id="${esc(id)}" aria-label="${esc(titre)}" title="${esc(titre)}" ${ro ? "disabled" : ""}>${
-    Object.entries(ST).map(([k, v]) => `<option value="${k}" ${k === st ? "selected" : ""}>${v}</option>`).join("")}</select>`;
+    optsST(st, type === "p")}</select>`;
 }
 document.addEventListener("change", e => {
   const m = e.target.closest && e.target.closest("select[data-stt]"); if (!m) return;
@@ -207,7 +212,7 @@ function majSel(t){
   $(x + "bulk-n").textContent = `${fmt(n)} ${mot[n > 1 ? 1 : 0]} ${n > 1 ? "sélectionnés" : "sélectionné"}`.replace("sociétés sélectionnés", "sociétés sélectionnées").replace("société sélectionné", "société sélectionnée");
   const b = $(x + "bulk-all"); b.hidden = n >= total; b.textContent = `Sélectionner les ${fmt(total)} résultats`;
   const sel = $(x + "bulk-st");
-  if (!sel.options.length) sel.innerHTML = Object.entries(ST).map(([k, v]) => `<option value="${k}" ${k === "a_qualifier" ? "selected" : ""}>${v}</option>`).join("");
+  if (!sel.options.length) sel.innerHTML = t === "p" ? optsST("a_contacter", true) : optsST("a_qualifier", false);
 }
 function cocher(t, id, on, plage){
   const S = SEL[t];
@@ -949,7 +954,7 @@ function pquery(f){ const r = PROJ.filter(p => pmatch(p, f));
   return trier(r, CLES_P[f.sort] || CLES_P.score, f.dir || SENS_DEFAUT[f.sort] || -1); }
 const PSRC = {...SRC, M: "Avis environnementaux (MRAe et projets-environnement.gouv.fr)", O: "OpenStreetMap"};
 const SPEC_P = () => [
-  {g: "Projet", items: [{t: "select", k: "etape", lab: "Suivi", opts: [["nontraite","Non traité"],["qualifier","À qualifier"],["prospection","Dans Prospection (tout sauf Non traité)"]]}, {t: "multi", k: "ts", lab: "Type de projet", opts: Object.entries(TP)}, {t: "multi", k: "ets", lab: "Étape (projets en développement)", opts: Object.entries(ETP)},
+  {g: "Projet", items: [{t: "select", k: "etape", lab: "Suivi", opts: [["nontraite","Non traité"],["prospection","Dans Prospection (tout sauf Non traité)"]]}, {t: "multi", k: "ts", lab: "Type de projet", opts: Object.entries(TP)}, {t: "multi", k: "ets", lab: "Étape (projets en développement)", opts: Object.entries(ETP)},
     {t: "multi", k: "tys", lab: "Installation", opts: [...new Set(PROJ.map(p => p.ty).filter(Boolean))].sort().map(t => [t, TYPES[t] || t])}]},
   {g: "Puissance et dates", items: [{t: "range", k: "kw", lab: "Puissance", unit: "MW", mult: 1000},
     {t: "range", k: "ms", lab: "Mise en service (ou date de l'avis)", unit: "année", step: 1, fmt: an},
@@ -957,7 +962,7 @@ const SPEC_P = () => [
   {g: "Appels d'offres", items: [{t: "multi", k: "aos", lab: "Appel d'offres (ordre d'intérêt)", opts: AO_FAM.map(aoOpt)},
     {t: "multi", k: "pers", lab: "Période (appel)", opts: PERIODES.map(x => [x, "Appel " + x])},
     {t: "range", k: "ao", lab: "Année de désignation", unit: "année", step: 1, fmt: an}]},
-  {g: "Suivi", items: [{t: "multi", k: "sts", lab: "Statut du projet", opts: Object.entries(ST)}]},
+  {g: "Suivi", items: [{t: "multi", k: "sts", lab: "Statut du projet", opts: Object.entries(ST_PROJET)}]},
   {g: "Propriétaire et sources", items: [{t: "select", k: "proprio", lab: "Propriétaire", opts: [["base","Société dans la base"],["oui","Propriétaire connu"],["non","Propriétaire inconnu"]]},
     {t: "multi", k: "srcs", lab: "Trouvé dans", opts: Object.entries({...SRC_COURT, M: "Avis MRAe", O: "OpenStreetMap"})}]},
 ];
@@ -992,7 +997,7 @@ function renderProjets(){
   $("pmore").hidden = pcur.length <= pshown; majSel("p");
 }
 function ligneProjet(p){
-    const ids = pids(p), nt = Object.values(taches).filter(t => !t.fait && ids.includes(t.p)).length, st = pst(p), re = pre(p);
+    const ids = pids(p), nt = Object.values(taches).filter(t => !t.fait && ids.includes(t.p)).length, st = pst(p);
     return `<div class="row p ${openP === p.i ? "sel" : ""} ${SEL.p.ids.has(p.i) ? "coche" : ""}" data-p="${esc(p.i)}" role="button" tabindex="0">
     <div class="stc">${caseSel("p", p.i, p.n || "Projet sans nom")}${menuStatut(st, "p", p.i)}</div>
     <div><div class="t">${esc(p.n || "Projet sans nom")}</div><div class="s">${esc([p.com, p.dep ? "(" + p.dep + ")" : "", p.regn].filter(Boolean).join(" "))}</div><div class="prov">${esc([...new Set(pSources(p).map(COURT))].join(", "))}</div></div>
@@ -1001,7 +1006,7 @@ function ligneProjet(p){
     <div class="k">${p.k ? `<span class="owner" data-open="${esc(p.k)}">${esc(p.owner)}</span>` : p.owner ? esc(p.owner) : `<span style="color:var(--muted)">inconnu</span>`}${p.por && p.t === "D" && p.por !== p.owner ? `<div class="s">${esc(p.por)}</div>` : ""}
       ${p.cand ? `<div class="s">Candidat : ${esc(p.cand.nom)}${p.cand.sn ? ` · SIREN ${esc(p.cand.sn)}` : ""}</div>` : ""}${p.fa ? `<div class="s">Groupe : ${esc(p.fa)}</div>` : ""}</div>
     <div>${postitP(p)}</div>
-    <div style="text-align:right">${re ? `<span class="tag">${esc(re)}</span> ` : ""}${nt ? `<span class="tag">${nt} à faire</span> ` : ""}<button class="btn small" data-addp="${esc(p.i)}" type="button">+ À faire</button></div></div>`; }
+    <div style="text-align:right">${nt ? `<span class="tag">${nt} à faire</span> ` : ""}<button class="btn small" data-addp="${esc(p.i)}" type="button">+ À faire</button></div></div>`; }
 // Lien Google Maps : point précis (centre du parc vu par satellite, sinon emprise ou lieu-dit de l'avis MRAe) ;
 // sinon recherche de la commune (Google affiche son contour), sinon du département, pour chercher le parc à l'œil
 const DEPNOM = Object.fromEntries((DATA.deps || []).map(d => [d.c, d.n]));
@@ -1032,8 +1037,7 @@ function openProjet(i){
     <div class="meta"><span class="tp ${esc(p.t)}">${esc(TP[p.t])}</span>${p.t === "D" && p.et ? `<span>${esc(ETP[p.et])}</span>` : ""}<span>${esc([p.com, p.dep ? "(" + p.dep + ")" : "", p.regn].filter(Boolean).join(" "))}</span>${p.kw ? `<span><b style="color:#fff">${mw(p.kw)}</b></span>` : ""}</div></div>
     <button class="x" id="close" aria-label="Fermer la fiche">×</button></div>
     <div class="acts">${l && pst(p) === "non_traite" && !ro ? `<button class="btn primary small" id="pe-ajout" type="button" title="Le suivi se fait par société : c'est ${esc(l.s)} qui entre en prospection">Ajouter ${esc(l.s)} à la prospection</button>` : ""}
-      <select id="pe-st" aria-label="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue"}" title="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue : pas de prospection possible"}" ${ro || !l ? "disabled" : ""}>${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${pst(p) === k ? "selected" : ""}>${v}</option>`).join("")}</select>
-      <select id="pe-re" aria-label="Responsable de la société" title="${l ? `Responsable de ${esc(l.s)}` : ""}" ${ro || !l ? "disabled" : ""}><option value="">Responsable : personne</option>${MEMBRES.map(m => `<option value="${esc(m)}" ${pre(p) === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
+      <select id="pe-st" aria-label="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue"}" title="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue : pas de prospection possible"}" ${ro || !l ? "disabled" : ""}>${optsST(pst(p), true)}</select>
       ${l ? `<button class="btn primary small" id="to-soc">Fiche de la société : ${esc(l.s)}</button>` : ""}${l && l.te ? `<a class="btn small ghost" href="tel:${esc(l.te.replace(/\s/g, ""))}" style="text-decoration:none">Appeler ${esc(l.te)}</a>` : ""}${p.u ? `<a class="btn small ghost" href="${esc(p.u)}" target="_blank" rel="noopener" style="text-decoration:none">Lire l'avis (PDF)</a>` : ""}${p.uc ? `<a class="btn small ghost" href="${esc(p.uc)}" target="_blank" rel="noopener" style="text-decoration:none" title="Copie gardée par Almavision, si le site officiel ne répond pas">Copie archivée</a>` : ""}${lienCarte(p)}</div></div>
   <div class="db">
     ${identite(p, l)}
@@ -1056,8 +1060,7 @@ function openProjet(i){
   $("close").onclick = closeLead;
   if ($("to-soc")) $("to-soc").onclick = () => openLead(p.k);
   $("pe-st").onchange = e => statutProjet(p, e.target.value, e.target);
-  if ($("pe-ajout")) $("pe-ajout").onclick = () => statutProjet(p, "a_qualifier");
-  $("pe-re").onchange = e => { if (l) { saveSuivi(l.k, {re: e.target.value || null}); toast(`Responsable de ${l.s} mis à jour (suivi par société).`); } };
+  if ($("pe-ajout")) $("pe-ajout").onclick = () => statutProjet(p, "a_contacter");
   $("pe-note").onchange = e => { garderP.add(p.i); saveSuivi(pkey(p), {note: e.target.value.trim()}); };
   $("pd-new").onsubmit = e => { e.preventDefault(); const t = $("pd-t").value.trim(); if (!t) return $("pd-t").focus();
     addTask({k: p.k || null, s: l ? l.s : p.owner || null, p: p.i, pn: p.n, t, ech: $("pd-d").value || null, resp: l ? l.re || "" : ""}); $("pd-t").value = ""; };
@@ -1503,22 +1506,142 @@ document.addEventListener("keydown", e => { if (e.target.closest && e.target.clo
   if (e.key === "Enter" && e.target.classList && e.target.classList.contains("p") && e.target.dataset.p) openProjet(e.target.dataset.p);
   if (e.key === "Enter" && e.target.classList && e.target.classList.contains("row")) openLead(e.target.dataset.k); });
 
-/* ---------------- carte (d3 chargé à l'ouverture) ---------------- */
-let MAP = null;
+/* ---------------- carte ---------------- */
+// Seuls les projets à position précise sont placés (centre du parc vu par satellite, toiture OpenStreetMap, emprise ou
+// lieu-dit de l'avis MRAe), jamais le centre d'une commune. Après une Recherche Corpo : les projets des sociétés trouvées.
+// Fond : Google Maps sur le site (clé dans la config de la page, window.__gmaps), sinon les départements dessinés par d3.
+let MAP = null, GMAP = null, gmPret = null, gmPanne = false, gmVus = "";
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const MAX_CARTE = 60000;   // toute une recherche tient sur la carte (44 000 projets au plus aujourd'hui)
+const MAX_CARTE = 60000;   // toute une recherche tient sur la carte
+function pointsCarte(){
+  const corpo = lastMode !== "projets", quoi = $("m-quoi").value, vus = new Set(), pts = [];
+  const base = corpo ? current.flatMap(l => PK.get(l.k) || []) : pcur;
+  for (const p of base) {
+    if (!p.pt || vus.has(p.i)) continue;
+    vus.add(p.i);
+    if ((!quoi || p.t === quoi) && pts.length < MAX_CARTE) pts.push(p);
+  }
+  return {pts, precis: vus.size, total: corpo ? current.length : pcur.length, corpo, quoi};
+}
+const palette = () => ({P1: css("--p1"), P2: css("--p2"), autre: css("--p3")});   // lue une fois par dessin
+const couleurPt = (p, pal) => p.t === "O" ? "#2A5B86" : pal[p.pr] || pal.autre;
+const rayonPt = p => p.t === "O" ? 2.2 : Math.min(7, 2 + Math.sqrt(p.kw || 0) / 30);
+// toitures OpenStreetMap dessinées en dernier (par-dessus), en petits points : sinon cachées sous les autres
+const ordrePts = pts => [...pts].sort((a, b) => ((a.t === "O") - (b.t === "O")) || (PRANK[b.pr] || 4) - (PRANK[a.pr] || 4));
+function bulleProjet(p){
+  return `<b>${esc(p.n || "Projet sans nom")}</b><br>${esc(TP[p.t] || "")}${p.kw ? " · " + (p.kwe ? "≈ " : "") + mw(p.kw) : ""}${p.fc ? " · fin " + esc(p.fc) : ""}` +
+    `${p.ao ? "<br>AO : " + esc(aoTxt(p.ao)) : ""}${p.owner ? "<br>" + esc(p.owner) : ""}` +
+    `<br><span style="color:var(--muted)">${esc([p.com, p.dep ? "(" + p.dep + ")" : ""].filter(Boolean).join(" "))}</span>`;
+}
+function bulle(p, x, y, w){ const tip = $("maptip"); if (!p) { tip.hidden = true; return; }
+  tip.innerHTML = bulleProjet(p); tip.hidden = false; tip.style.left = Math.min(x + 12, w - 270) + "px"; tip.style.top = (y + 12) + "px"; }
+function pointProche(liste, x, y){ let best = null, bd = 120;
+  for (const q of liste) { const d = (q.x - x) ** 2 + (q.y - y) ** 2; if (d < bd) { bd = d; best = q; } } return best && best.p; }
 async function renderMap(){
+  const r = pointsCarte();
+  $("legend").innerHTML = `<span><i style="background:${css("--p1")}"></i>P1</span><span><i style="background:${css("--p2")}"></i>P2</span>` +
+    `<span><i style="background:${css("--p3")}"></i>P3 et autres</span><span><i style="background:#2A5B86"></i>Toiture vue sur OpenStreetMap</span><span>Taille : puissance</span>`;
+  $("m-info").textContent = `${fmt(r.pts.length)} projet${r.pts.length > 1 ? "s" : ""} placé${r.pts.length > 1 ? "s" : ""}` +
+    (r.corpo ? ` : les projets à position précise des ${fmt(r.total)} sociétés de la dernière Recherche Corpo`
+             : ` sur ${fmt(r.total)} trouvés par la dernière Recherche Projets (${fmt(r.precis)} ont une position précise)`) +
+    `${r.precis > MAX_CARTE ? `, les ${fmt(MAX_CARTE)} premiers selon le tri` : ""}${r.quoi ? " · filtre de la carte : " + $("m-quoi").selectedOptions[0].textContent : ""}.` +
+    " Les projets placés au centre de leur commune ne sont pas montrés.";
+  if (window.__gmaps && !gmPanne) {
+    try { await carteGoogle(r.pts); return; }
+    catch (e) { gmPanne = true; $("m-info").textContent += ` Google Maps indisponible (${e.message}) : carte simple.`; }
+  }
+  await carteD3(r.pts);
+}
+
+/* Google Maps : le script de Google (seul script extérieur de la page, permis par la règle CSP du module) ; les points
+   sont dessinés dans un calque canvas, bien plus rapide que des marqueurs pour des dizaines de milliers de projets. */
+function chargerGoogle(){
+  if (!gmPret) gmPret = new Promise((ok, ko) => {
+    window.__gmInit = ok;
+    window.gm_authFailure = () => {   // clé refusée par Google (restriction de site, facturation) : retour à la carte simple
+      gmPanne = true; if (GMAP) { GMAP.div.remove(); GMAP = null; }
+      if (!$("v-carte").hidden) renderMap().then(() => $("m-info").textContent += " Google Maps a refusé la clé du site : carte simple.");
+    };
+    const s = document.createElement("script");
+    s.src = "https://maps.googleapis.com/maps/api/js?" + new URLSearchParams({key: window.__gmaps, v: "weekly", language: "fr", region: "FR",
+      loading: "async", callback: "__gmInit", auth_referrer_policy: "origin"});
+    s.onerror = () => ko(new Error("script non chargé"));
+    document.head.appendChild(s);
+    setTimeout(() => ko(new Error("délai dépassé")), 20000);
+  });
+  return gmPret;
+}
+// coordonnées « monde » de Google (Mercator, 256 px au zoom 0) : calculées une fois par point
+const monde = (lat, lon) => { const s = Math.sin(lat * Math.PI / 180); return [256 * (.5 + lon / 360), 256 * (.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI))]; };
+async function carteGoogle(pts){
+  await chargerGoogle();
+  if (!GMAP) GMAP = await initGoogle();
+  $("map").hidden = true; GMAP.div.hidden = false;
+  const pal = palette();
+  GMAP.pts = ordrePts(pts).map(p => ({p, w: monde(p.pt[0], p.pt[1]), c: couleurPt(p, pal), r: rayonPt(p)}));
+  // nouvelle recherche : la carte se cadre sur ses projets
+  const vus = pts.length + ":" + (pts[0] && pts[0].i) + ":" + (pts.length && pts[pts.length - 1].i);
+  if (vus !== gmVus && pts.length) {
+    // cadrage sur la métropole quand la recherche y a des projets (l'outre-mer ferait dézoomer sur le monde entier)
+    const metro = pts.filter(p => p.pt[0] > 41 && p.pt[0] < 51.5 && p.pt[1] > -5.5 && p.pt[1] < 10);
+    const b = new google.maps.LatLngBounds(); for (const p of metro.length ? metro : pts) b.extend({lat: p.pt[0], lng: p.pt[1]});
+    GMAP.carte.fitBounds(b, 30);
+    google.maps.event.addListenerOnce(GMAP.carte, "idle", () => { if (GMAP.carte.getZoom() > 15) GMAP.carte.setZoom(15); });
+  }
+  gmVus = vus;
+  GMAP.dessiner();
+}
+async function initGoogle(){
+  const {Map, OverlayView} = await google.maps.importLibrary("maps");
+  const wrap = $("mapwrap"), div = document.createElement("div");
+  div.id = "gmap"; div.style.height = Math.max(420, Math.min(wrap.clientWidth * .9, innerHeight - 220)) + "px"; wrap.prepend(div);
+  const fond = store.get("carte-fond");
+  const carte = new Map(div, {center: {lat: 46.6, lng: 2.4}, zoom: 6, mapTypeId: ["roadmap", "satellite", "hybrid", "terrain"].includes(fond) ? fond : "roadmap",
+    clickableIcons: false, gestureHandling: "greedy", streetViewControl: true, fullscreenControl: true, mapTypeControl: true});
+  carte.addListener("maptypeid_changed", () => store.set("carte-fond", carte.getMapTypeId()));
+  const g = {carte, div, pts: [], ecran: []};
+  class Calque extends OverlayView {
+    onAdd(){ this.cv = document.createElement("canvas"); Object.assign(this.cv.style, {position: "absolute", pointerEvents: "none"}); this.getPanes().overlayLayer.appendChild(this.cv); }
+    onRemove(){ this.cv.remove(); }
+    draw(){ g.dessiner(); }
+  }
+  g.calque = new Calque(); g.calque.setMap(carte);
+  g.dessiner = () => {
+    const cal = g.calque, pr = cal.getProjection(), ctr = carte.getCenter(); if (!pr || !cal.cv || !ctr) return;
+    const w = div.clientWidth, h = div.clientHeight, dpr = devicePixelRatio || 1, zoom = carte.getZoom(), z = 2 ** zoom;
+    // le canevas couvre la vue, calé sur le centre de la carte (les bords peuvent faire le tour du monde quand on dézoome)
+    const pc = pr.fromLatLngToDivPixel(ctr), mc = monde(ctr.lat(), ctr.lng()), m0 = [mc[0] - w / 2 / z, mc[1] - h / 2 / z];
+    Object.assign(cal.cv.style, {left: (pc.x - w / 2) + "px", top: (pc.y - h / 2) + "px", width: w + "px", height: h + "px"});
+    if (cal.cv.width !== w * dpr || cal.cv.height !== h * dpr) { cal.cv.width = w * dpr; cal.cv.height = h * dpr; }
+    const c = cal.cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+    const f = Math.min(3, Math.sqrt(2 ** Math.max(0, zoom - 6))), ecran = [];
+    for (const q of g.pts) {
+      const x = (q.w[0] - m0[0]) * z, y = (q.w[1] - m0[1]) * z;
+      if (x < -10 || y < -10 || x > w + 10 || y > h + 10) continue;
+      c.beginPath(); c.arc(x, y, q.r * f, 0, 2 * Math.PI); c.fillStyle = q.c; c.fill();
+      c.lineWidth = q.p.t === "O" ? .6 : 1.2; c.strokeStyle = "#FFFFFF"; c.stroke();
+      ecran.push({x, y, p: q.p});
+    }
+    g.ecran = ecran;
+  };
+  let attente = 0;
+  carte.addListener("bounds_changed", () => { if (!attente) attente = requestAnimationFrame(() => { attente = 0; g.dessiner(); }); });
+  const vise = e => { const d = e.domEvent, r = div.getBoundingClientRect(); return d && "clientX" in d ? pointProche(g.ecran, d.clientX - r.left, d.clientY - r.top) : null; };
+  carte.addListener("mousemove", e => { const p = vise(e), d = e.domEvent, r = div.getBoundingClientRect();
+    carte.setOptions({draggableCursor: p ? "pointer" : null}); bulle(p, d.clientX - r.left, d.clientY - r.top, div.clientWidth); });
+  carte.addListener("mouseout", () => bulle(null));
+  carte.addListener("click", e => { const p = vise(e); if (p) openProjet(p.i); });
+  return g;
+}
+
+/* Carte simple (sans clé Google, ou page hors du site) : contours des départements dessinés par d3 */
+async function carteD3(pts){
   if (!window.d3) await new Promise(ok => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.d3) || "vendor/d3.min.js"; s.onload = ok; s.onerror = ok; document.head.appendChild(s); });
   if (!window.d3 || !DATA.deps || !DATA.deps.length) { $("m-info").textContent = "La carte n'est pas disponible dans cette vue."; return; }
+  $("map").hidden = false;
   if (!MAP) MAP = initMap();
-  const src = lastMode === "projets" ? pcur.map(p => ({...p, s: p.n, _p: true, nc: 1, deps: p.dep ? [p.dep] : [], ville: p.com, aos: p.ao ? [p.ao] : []})) : current;
-  // position exacte quand on l'a (OpenStreetMap, satellite, avis MRAe), sinon centre de la commune
-  document.querySelector(".mapbar").hidden = lastMode !== "projets";
-  const quoi = lastMode === "projets" ? $("m-quoi").value : "";
-  const pts = src.filter(l => (l.pt || l.geo) && (!quoi || (quoi === "exact" ? !!l.pt : l.t === quoi))).slice(0, MAX_CARTE);
-  MAP.pts = pts.map(l => { const g = l.pt || l.geo, xy = MAP.proj([g[1], g[0]]); return xy ? {x: xy[0], y: xy[1], l, exact: !!l.pt} : null; }).filter(Boolean);
-  $("legend").innerHTML = `<span><i style="background:${css("--p1")}"></i>P1</span><span><i style="background:${css("--p2")}"></i>P2</span><span><i style="background:${css("--p3")}"></i>P3 et autres</span>${lastMode === "projets" ? `<span><i style="background:#2A5B86"></i>Toiture vue sur OpenStreetMap</span><span><i style="background:#fff;border:2px solid #00352F"></i>Contour foncé : position exacte (sinon centre de la commune)</span>` : ""}<span>Taille : puissance</span>`;
-  $("m-info").textContent = `${fmt(MAP.pts.length)} ${lastMode === "projets" ? "projets" : "cibles"} affichés sur ${fmt(src.length)} trouvés (dernière recherche : ${lastMode === "projets" ? "Recherche Projets" : "Recherche Corpo"})${src.length > MAX_CARTE ? `, les ${fmt(MAX_CARTE)} premiers selon le tri` : MAP.pts.length < src.length && !(lastMode === "projets" && $("m-quoi").value) ? " (les autres n'ont pas de lieu connu)" : ""}${lastMode === "projets" && $("m-quoi").value ? " · filtre de la carte : " + $("m-quoi").selectedOptions[0].textContent : ""}.`;
+  const pal = palette();
+  MAP.pts = ordrePts(pts).map(p => { const xy = MAP.proj([p.pt[1], p.pt[0]]); return xy ? {x: xy[0], y: xy[1], p, c: couleurPt(p, pal), r: rayonPt(p)} : null; }).filter(Boolean);
   drawMap();
 }
 function initMap(){
@@ -1530,29 +1653,25 @@ function initMap(){
   const m = {cv, ctx: cv.getContext("2d"), w, h, dpr, proj, deps, t: d3.zoomIdentity, pts: []};
   const zoom = d3.zoom().scaleExtent([1, 60]).on("zoom", e => { m.t = e.transform; drawMap(); });
   d3.select(cv).call(zoom);
-  const hit = e => { const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; let best = null, bd = 120;
-    for (const p of m.pts) { const d = (m.t.applyX(p.x) - x) ** 2 + (m.t.applyY(p.y) - y) ** 2; if (d < bd) { bd = d; best = p; } } return best ? {p: best, x, y} : null; };
-  cv.addEventListener("mousemove", e => { const h_ = hit(e), tip = $("maptip"); if (!h_) { tip.hidden = true; return; } const l = h_.p.l;
-    tip.innerHTML = `<b>${esc(l.s)}</b><br>${esc(l.pr)} · ${mw(l.kw)} · ${fmt(l.nc)} centrale${l.nc > 1 ? "s" : ""}${l.fc ? " · fin " + l.fc : ""}${l.aos.length ? "<br>AO : " + esc(l.aos.slice(0, 3).map(aoTxt).join(", ")) : ""}<br><span style="color:var(--muted)">${esc(l.ville || l.deps.join(", "))}</span>${srcProjets(l).length ? `<br><span style="color:var(--muted)">Projets : ${esc(srcProjets(l).join(", "))}</span>` : ""}`;
-    tip.hidden = false; tip.style.left = Math.min(h_.x + 12, m.w - 270) + "px"; tip.style.top = (h_.y + 12) + "px"; });
-  cv.addEventListener("mouseleave", () => $("maptip").hidden = true);
-  cv.addEventListener("click", e => { const h_ = hit(e); if (!h_) return; h_.p.l._p ? openProjet(h_.p.l.i) : openLead(h_.p.l.k); });
+  const hit = e => { const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    return {p: pointProche(m.pts.map(q => ({x: m.t.applyX(q.x), y: m.t.applyY(q.y), p: q.p})), x, y), x, y}; };
+  cv.addEventListener("mousemove", e => { const h_ = hit(e); bulle(h_.p, h_.x, h_.y, m.w); });
+  cv.addEventListener("mouseleave", () => bulle(null));
+  cv.addEventListener("click", e => { const h_ = hit(e); if (h_.p) openProjet(h_.p.i); });
   return m;
 }
 function drawMap(){
   const m = MAP; if (!m) return; const c = m.ctx, k = m.t.k;
   c.setTransform(m.dpr, 0, 0, m.dpr, 0, 0); c.clearRect(0, 0, m.w, m.h); c.save(); c.translate(m.t.x, m.t.y); c.scale(k, k);
   c.fillStyle = "#FFFFFF"; c.strokeStyle = css("--line"); c.lineWidth = .8 / k; for (const d of m.deps) { c.fill(d); c.stroke(d); }
-  const col = {P1: css("--p1"), P2: css("--p2")}, other = css("--p3"), ring = css("--bg");
-  // toitures OpenStreetMap dessinées en dernier (par-dessus), en petits points : sinon cachées sous les autres
-  for (const p of [...m.pts].sort((a, b) => ((a.l.t === "O") - (b.l.t === "O")) || (PRANK[b.l.pr] || 4) - (PRANK[a.l.pr] || 4))) {
-    const r = (p.l.t === "O" ? 2.2 : Math.min(7, 2 + Math.sqrt(p.l.kw || 0) / 30)) / Math.sqrt(k);
-    c.beginPath(); c.arc(p.x, p.y, r, 0, 2 * Math.PI); c.fillStyle = p.l.t === "O" ? "#2A5B86" : col[p.l.pr] || other; c.fill();
-    if (p.l.t === "O") { c.lineWidth = .6 / k; c.strokeStyle = ring; c.stroke(); continue; }   // petit point bleu, sans contour foncé
-    c.lineWidth = (p.exact ? 1.6 : 1) / k; c.strokeStyle = p.exact ? "#00352F" : ring; c.stroke(); }
+  const ring = css("--bg");
+  for (const q of m.pts) {
+    c.beginPath(); c.arc(q.x, q.y, q.r / Math.sqrt(k), 0, 2 * Math.PI); c.fillStyle = q.c; c.fill();
+    if (q.p.t === "O") { c.lineWidth = .6 / k; c.strokeStyle = ring; } else { c.lineWidth = 1.6 / k; c.strokeStyle = "#00352F"; }
+    c.stroke(); }
   c.restore();
 }
-addEventListener("resize", () => { if (MAP && !$("v-carte").hidden) { MAP = null; renderMap(); } });
+addEventListener("resize", () => { if (MAP && !$("v-carte").hidden && !$("map").hidden) { MAP = null; renderMap(); } });
 $("m-quoi").onchange = () => renderMap();
 
 /* ---------------- navigation ---------------- */

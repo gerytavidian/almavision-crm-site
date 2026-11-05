@@ -1,5 +1,5 @@
 <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=87d1f7a01f"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=32c14aba0b"></head><body>
-<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service"}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le Drive partagé d'Almavision.", "statut": "en co-construction"}]}</script>
+<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service"}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction"}]}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
   <form class="cnx-box" id="cnx-form" autocomplete="on">
@@ -29,7 +29,7 @@
 <main class="cq-page" id="dr" hidden>
   <h1>Data Room Access</h1>
   <p class="cq-intro">Des data rooms personnalisables pour nos opérations : chaque salle s'appuie sur un dossier du
-    Drive partagé d'Almavision, l'équipe y range les documents comme aujourd'hui, et la plateforme les ouvre aux
+    SharePoint d'Almavision, l'équipe y range les documents comme aujourd'hui, et la plateforme les ouvre aux
     acquéreurs et à leurs conseils, dossier par dossier, avec un journal de chaque consultation.</p>
   <div class="dr-grille">
     <section class="cq-carte">
@@ -37,11 +37,13 @@
       <ul>
         <li>Une salle par opération (centrale, portefeuille, société, projet en développement), à partir d'un modèle
           d'arborescence que l'on adapte.</li>
-        <li>Les fichiers restent dans Google Drive ; ils ne sont jamais partagés directement avec un acquéreur.</li>
+        <li>Les fichiers restent dans SharePoint ; ils ne sont jamais partagés directement avec un acquéreur.</li>
         <li>Des groupes d'acquéreurs cloisonnés et, pour chaque dossier, deux niveaux : consulter seulement, ou consulter
           et télécharger.</li>
         <li>Une publication explicite : un nouveau document n'est visible qu'après validation par l'équipe.</li>
         <li>Un journal nominatif (qui a consulté ou téléchargé quoi, et quand) et une révocation immédiate.</li>
+        <li>Un assistant qui répond aux questions des acquéreurs à partir des seuls documents qui leur sont ouverts, avec
+          la référence de chaque page citée, et un tableau de bord de ce qu'ils consultent et cherchent.</li>
         <li>Ensuite : questions-réponses par groupe d'acquéreurs, puis dépôt de documents par le vendeur.</li>
       </ul>
     </section>
@@ -49,10 +51,11 @@
       <h2>Où on en est</h2>
       <ol class="dr-etapes">
         <li class="fait">Plateforme à modules en place</li>
-        <li class="fait">Choix faits ensemble : Drive partagé dédié, droits par dossier, toute l'équipe gère les salles,
+        <li class="fait">Choix faits ensemble : site SharePoint dédié, droits par dossier, toute l'équipe gère les salles,
           PDF, Office et images jusqu'à 250 Mo</li>
-        <li>Socle des droits et séparation stricte entre l'équipe et les invités</li>
-        <li>Première version pour l'équipe, reliée au Drive partagé</li>
+        <li class="fait">Socle des droits et séparation stricte entre l'équipe et les invités</li>
+        <li class="fait">Plan de la première version validé (assistant compris)</li>
+        <li>Première version pour l'équipe, reliée à SharePoint</li>
         <li>Ouverture à un premier acquéreur pilote</li>
       </ol>
     </section>

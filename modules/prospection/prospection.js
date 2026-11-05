@@ -9,6 +9,9 @@ window.__pret = (async () => {
   const P = await window.plateforme.pret;
   const sb = P.sb, session = P.session, prenom = P.moi.prenom;
   window.__lib = {d3: "vendor/d3.min.js", xlsx: "vendor/xlsx.full.min.js"};
+  // clé Google Maps du site (clé de navigateur, limitée au site chez Google) : sans elle, la carte simple d3
+  const conf = JSON.parse(document.getElementById("plateforme-config").textContent);
+  if (conf.google_maps) window.__gmaps = conf.google_maps;
 
   // données de l'application : gzip en base64, décompressé dans le navigateur
   window.__lireDonnees = async f => {

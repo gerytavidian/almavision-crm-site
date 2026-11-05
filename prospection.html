@@ -1,5 +1,5 @@
 <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Prospection Projet · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=87d1f7a01f"></head><body>
-<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "prospection", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service"}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le Drive partagé d'Almavision.", "statut": "en co-construction"}]}</script>
+<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "prospection", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service"}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction"}]}</script>
 <title>Prospection Almavision</title>
 <style>
 /* Thème unique, choisi : l'univers Almavision. Un bandeau vert sapin à motif d'hexagones porte la recherche ;
@@ -371,8 +371,8 @@ textarea.note{width:100%;min-height:70px;border:1px solid var(--line);border-rad
 .btn.deco{margin-left:10px;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff}
 .mapbar{margin:0 0 8px}.mapbar[hidden]{display:none}.mapbar select{border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--bg);margin-left:6px}
 .mapwrap{position:relative;border-radius:14px;overflow:hidden;background:var(--cloud)}
-#map{display:block;width:100%;cursor:grab;touch-action:none}
-.maptip{position:absolute;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,30,25,.14);max-width:260px}
+#map{display:block;width:100%;cursor:grab;touch-action:none}#map[hidden],#gmap[hidden]{display:none}#gmap{width:100%}
+.maptip{position:absolute;z-index:3;pointer-events:none;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,30,25,.14);max-width:260px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink2);margin:10px 0}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 .toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:9px;font-size:13.5px;z-index:60;max-width:90vw}
@@ -482,10 +482,9 @@ textarea.note{width:100%;min-height:70px;border:1px solid var(--line);border-rad
   </section>
 
   <section id="v-carte" class="panel" hidden>
-    <p style="margin:0 0 6px;color:var(--ink2)">La carte montre les résultats de votre dernière recherche (Corpo ou Projets). Molette pour zoomer, clic pour ouvrir la fiche.</p>
+    <p style="margin:0 0 6px;color:var(--ink2)">La carte montre les projets de votre dernière recherche qui ont une position précise (Recherche Projets, ou les projets des sociétés trouvées par la Recherche Corpo). Molette pour zoomer, clic pour ouvrir la fiche.</p>
     <div class="mapbar"><label>Afficher <select id="m-quoi" aria-label="Ce que la carte affiche">
       <option value="">tous les résultats de la recherche</option>
-      <option value="exact">seulement les positions exactes</option>
       <option value="O">seulement les toitures OpenStreetMap</option>
       <option value="S">seulement les centrales en service</option>
       <option value="L">seulement les lauréats non retrouvés</option>
@@ -526,9 +525,9 @@ textarea.note{width:100%;min-height:70px;border:1px solid var(--line);border-rad
   </form>
 </div>
 <script src="plateforme/coquille.js?v=aba07f2478"></script>
-<script src="modules/prospection/prospection.js?v=7783ee7f4c"></script>
+<script src="modules/prospection/prospection.js?v=e5fe95d71c"></script>
 
 <div id="chargement" class="chargement" role="status">Chargement de la base de prospection…</div>
-<script src="js/prospection-1-c971dfb178.js"></script>
+<script src="js/prospection-1-352f88ad2c.js"></script>
 
 </body></html>
