@@ -5,7 +5,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202611060959`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202611061032`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -1106,6 +1106,28 @@ function identiteSoc(l){
   add("Site web", web ? `<a href="${esc(/^https?:/.test(web[1]) ? web[1] : "https://" + web[1])}" target="_blank" rel="noopener">${esc(web[1])}</a>` : "", web ? web[2] : "");
   return `<div class="ident"><h3>Ce que l'on sait sur la société <span class="saved" style="text-transform:none;letter-spacing:0;font-weight:400">· survolez une ligne pour voir sa source</span></h3><div class="idt">${rows.join("")}</div></div>`;
 }
+// encadré « Pappers » des fiches Corpo : les informations de la page Pappers, lues dans les registres publics (etl/registre_corpo.py)
+function encadrePappers(l){
+  const p = l.pp; if (!p) return "";
+  const rows = [], euros = v => v == null ? "–" : fmt(Math.round(v / 1000)) + " k€";
+  const add = (lab, val, src) => { if (val) rows.push(`<div class="idr" tabindex="0"><div class="idl">${lab}</div><div class="idv">${val}${src ? `<span class="ids">${esc(src)}</span>` : ""}</div></div>`); };
+  const RE = "API Recherche d'entreprises (INSEE, INPI)", BO = "BODACC (annonces légales)";
+  add("Dénomination", `<b>${esc(p.nom || l.s)}</b>${p.sigle ? ` (${esc(p.sigle)})` : ""}${p.ferme ? ` <span class="tag warn">cessée le ${frDate(p.ferme)}</span>` : ""}${(p.lab || []).map(t => ` <span class="tag">${esc(t)}</span>`).join("")}`, RE);
+  add("Siège", p.adr ? esc(p.adr) : "", RE);
+  add("Forme juridique", p.forme ? esc(p.forme) : "", RE);
+  add("Capital social", p.capital ? `${fmt(p.capital[0])} ${p.capital[1] === "EUR" ? "€" : esc(p.capital[1])} <span class="saved">annonce du ${frDate(p.capital[2])}</span>` : "", BO);
+  add("Création", p.cree ? frDate(p.cree) : "", RE);
+  add("Activité (NAF)", p.naf ? `<span class="mono">${esc(p.naf)}</span>` : "", RE);
+  add("Taille", [p.cat ? esc(p.cat) + (p.cat_an ? ` (${esc(p.cat_an)})` : "") : "", p.eff ? esc(p.eff) + (p.eff_an ? ` (${esc(p.eff_an)})` : "") : ""].filter(Boolean).join(" · "), RE);
+  add("Établissements", p.etab ? `${fmt(p.etab[0] || 0)} ouvert${(p.etab[0] || 0) > 1 ? "s" : ""} sur ${fmt(p.etab[1] || 0)}` : "", RE);
+  add("N° de TVA", p.tva ? `<span class="mono">${esc(p.tva)}</span>` : "", RE);
+  add("Finances", p.fin && p.fin.length ? `<table class="sub pp-fin"><thead><tr><th>Année</th><th class="num">Chiffre d'affaires</th><th class="num">Résultat net</th></tr></thead><tbody>${p.fin.map(f => `<tr><td>${f[0]}</td><td class="num">${euros(f[1])}</td><td class="num${f[2] < 0 ? " neg" : ""}">${euros(f[2])}</td></tr>`).join("")}</tbody></table>` : `<span class="saved">comptes non publiés (ou confidentiels)</span>`, RE + " : comptes déposés au greffe");
+  add("Dépôt des comptes", p.comptes ? `exercice clos le ${frDate(p.comptes[0])} <span class="saved">publié le ${frDate(p.comptes[1])}</span>` : "", BO);
+  add("Dirigeants", p.dir && p.dir.length ? p.dir.map(d => `<div>${d[2] ? "<b>" : ""}${esc(d[0] || "")}${d[2] ? "</b>" : ""}${d[1] ? ` <small class="saved">${esc(d[1])}</small>` : ""}${d[2] ? ` <small class="mono saved">${esc(d[2])}</small>` : ""}</div>`).join("") : "", RE);
+  add("Procédures collectives", p.proc && p.proc.length ? p.proc.map(a => `<div><span class="tag warn">${frDate(a[0])}</span> ${a[2] ? `<a href="${esc(a[2])}" target="_blank" rel="noopener">${esc(a[1])}</a>` : esc(a[1])}</div>`).join("") : `<span class="saved">aucune au BODACC</span>`, BO);
+  add("Annonces BODACC", p.ann && p.ann.length ? p.ann.map(a => `<div class="pp-ann"><span class="saved">${frDate(a[0])}</span> <b>${esc(a[1] || "")}</b> · ${a[3] ? `<a href="${esc(a[3])}" target="_blank" rel="noopener">${esc(a[2] || "voir")}</a>` : esc(a[2] || "")}</div>`).join("") + (p.nann > p.ann.length ? `<div class="saved">${fmt(p.nann)} annonces en tout (dont dépôts de comptes)</div>` : "") : "", BO);
+  return `<div class="ident pp"><h3>Pappers <span class="saved" style="text-transform:none;letter-spacing:0;font-weight:400">· registres officiels au ${frDate(p.maj)}</span>${l.sn ? `<a class="btn small" href="https://www.pappers.fr/entreprise/${esc(l.sn)}" target="_blank" rel="noopener" style="margin-left:auto;text-transform:none;letter-spacing:0">Voir sur Pappers</a>` : ""}</h3><div class="idt">${rows.join("")}</div></div>`;
+}
 // « Ce que l'on sait sur ce projet » : chaque information avec sa source à côté
 function identite(p, l){
   const sl = (p.sl || []).map(e => [SL[e[0]] || "", srcLong(e)]);
@@ -1408,6 +1430,7 @@ function renderDrawer(){
   <div class="db">
     ${bandeauArx(l)}
     ${identiteSoc(l)}
+    ${encadrePappers(l)}
     ${l.fil && l.fil.length ? `<div><h3>Sociétés réunies dans cette fiche (${fmt(l.nfil || l.fil.length)})</h3>
       <p class="saved" style="margin:0 0 6px">Filiales et SPV du groupe : le suivi se fait ici, sur la société de tête.</p>
       <ul class="srcs">${l.fil.map(f => `<li>${esc(f[0])}${f[1] ? ` · ${fmt(f[1])} centrale${f[1] > 1 ? "s" : ""}` : ""}${f[2] ? `, ${mw(f[2])}` : ""}</li>`).join("")}</ul>
