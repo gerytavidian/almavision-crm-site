@@ -5,7 +5,7 @@ if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) do
 let DATA;
 try {
   const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202611060947`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+    fetch(`${f}?v=202611060959`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -154,11 +154,8 @@ function statutProjet(p, st, sel){
   toast(st === "non_traite" ? `${l.s} retirée de la prospection (le suivi se fait par société).`
     : `${l.s} ajoutée à la prospection en « ${ST[st]} » : le suivi se fait par société (tête du groupe), pas par projet.`);
 }
-// Côté projet, pas de « À qualifier » ni de responsable (05/11/2026) : ils restent sur la fiche société.
-// Si la société est déjà « À qualifier », le statut s'affiche mais ne peut pas être choisi depuis un projet.
-const ST_PROJET = Object.fromEntries(Object.entries(ST).filter(([k]) => k !== "a_qualifier"));
-const optsST = (st, projet) => Object.entries(projet ? ST_PROJET : ST).map(([k, v]) => `<option value="${k}" ${k === st ? "selected" : ""}>${v}</option>`).join("")
-  + (projet && st === "a_qualifier" ? `<option value="a_qualifier" selected disabled>${ST.a_qualifier}</option>` : "");
+// Plus de statut, de responsable ni de sélection côté projets (06/11/2026) : le suivi se fait seulement sur les sociétés.
+const optsST = st => Object.entries(ST).map(([k, v]) => `<option value="${k}" ${k === st ? "selected" : ""}>${v}</option>`).join("");
 const pids = p => [p.i, ...(p.al || []).map(x => x[0])];
 const eff = l => { const s = suivi[l.k] || (l.ka || []).map(a => suivi[a]).find(Boolean) || {}; return {...l, st: normSt(s.st ?? l.st), re: s.re !== undefined ? s.re : l.re, note: s.note || "", maj: s.maj}; };
 function setSync(t){ $("sync").textContent = t; }
@@ -182,7 +179,7 @@ function menuStatut(st, type, id){
   const titre = sansG ? "Société propriétaire inconnue : pas de prospection possible" : ro ? "Statut (consultation seule)"
     : g ? `Statut de ${g.s} (société de tête du groupe)` : "Changer le statut";
   return `<select class="stp ${esc(st)}" data-stt="${esc(type)}" data-id="${esc(id)}" aria-label="${esc(titre)}" title="${esc(titre)}" ${ro ? "disabled" : ""}>${
-    optsST(st, type === "p")}</select>`;
+    optsST(st)}</select>`;
 }
 document.addEventListener("change", e => {
   const m = e.target.closest && e.target.closest("select[data-stt]"); if (!m) return;
@@ -212,7 +209,7 @@ function majSel(t){
   $(x + "bulk-n").textContent = `${fmt(n)} ${mot[n > 1 ? 1 : 0]} ${n > 1 ? "sélectionnés" : "sélectionné"}`.replace("sociétés sélectionnés", "sociétés sélectionnées").replace("société sélectionné", "société sélectionnée");
   const b = $(x + "bulk-all"); b.hidden = n >= total; b.textContent = `Sélectionner les ${fmt(total)} résultats`;
   const sel = $(x + "bulk-st");
-  if (!sel.options.length) sel.innerHTML = t === "p" ? optsST("a_contacter", true) : optsST("a_qualifier", false);
+  if (!sel.options.length) sel.innerHTML = optsST("a_qualifier");
 }
 function cocher(t, id, on, plage){
   const S = SEL[t];
@@ -349,7 +346,7 @@ document.addEventListener("click", e => {
   const c = e.target.closest && e.target.closest("input[data-sel]"); if (!c) return;
   e.stopPropagation(); cocher(c.dataset.sel, c.dataset.id, c.checked, e.shiftKey);
 }, true);
-for (const t of ["k", "p"]) {
+for (const t of ["k"]) {   // plus de sélection ni de statut côté projets (06/11/2026)
   const x = SEL[t].x;
   $(x ? "pselall" : "selall").onchange = e => { const S = SEL[t]; S.vus().forEach(id => e.target.checked ? S.ids.add(id) : S.ids.delete(id)); S.der = null;
     t === "k" ? renderList() : renderProjets(); };
@@ -968,11 +965,6 @@ function pmatch(p, f){
       || (c === "O" && (p.t === "O" || (p.pt && p.pt[2] === "o"))))) return false;
   if (f.tys.length && !f.tys.includes(p.ty)) return false;
   const fixe = garderP.has(p.i);
-  if (!fixe && f.etape === "nontraite" && pst(p) !== "non_traite") return false;
-  if (!fixe && f.etape === "qualifier" && pst(p) !== "a_qualifier") return false;
-  if (!fixe && f.etape === "prospection" && pst(p) === "non_traite") return false;
-  if (!fixe && f.sts && f.sts.length && !f.sts.includes(pst(p))) return false;
-  if (f.re && (f.re === "aucun" ? !!pre(p) : pre(p) !== f.re)) return false;
   if (f.proprio === "oui" && !p.owner) return false;
   if (f.proprio === "non" && p.owner) return false;
   if (f.proprio === "base" && !p.k) return false;
@@ -985,7 +977,7 @@ function pquery(f){ const r = PROJ.filter(p => pmatch(p, f));
   return trier(r, CLES_P[f.sort] || CLES_P.score, f.dir || SENS_DEFAUT[f.sort] || -1); }
 const PSRC = {...SRC, M: "Avis environnementaux (MRAe et projets-environnement.gouv.fr)", O: "OpenStreetMap"};
 const SPEC_P = () => [
-  {g: "Projet", items: [{t: "select", k: "etape", lab: "Suivi", opts: [["nontraite","Non traité"],["prospection","Dans Prospection (tout sauf Non traité)"]]}, {t: "multi", k: "ts", lab: "Type de projet", opts: Object.entries(TP)}, {t: "multi", k: "ets", lab: "Étape (projets en développement)", opts: Object.entries(ETP)},
+  {g: "Projet", items: [{t: "multi", k: "ts", lab: "Type de projet", opts: Object.entries(TP)}, {t: "multi", k: "ets", lab: "Étape (projets en développement)", opts: Object.entries(ETP)},
     {t: "multi", k: "tys", lab: "Installation", opts: [...new Set(PROJ.map(p => p.ty).filter(Boolean))].sort().map(t => [t, TYPES[t] || t])}]},
   {g: "Puissance et dates", items: [{t: "range", k: "kw", lab: "Puissance", unit: "MW", mult: 1000},
     {t: "range", k: "ms", lab: "Mise en service (ou date de l'avis)", unit: "année", step: 1, fmt: an},
@@ -993,7 +985,6 @@ const SPEC_P = () => [
   {g: "Appels d'offres", items: [{t: "multi", k: "aos", lab: "Appel d'offres (ordre d'intérêt)", opts: AO_FAM.map(aoOpt)},
     {t: "multi", k: "pers", lab: "Période (appel)", opts: PERIODES.map(x => [x, "Appel " + x])},
     {t: "range", k: "ao", lab: "Année de désignation", unit: "année", step: 1, fmt: an}]},
-  {g: "Suivi", items: [{t: "multi", k: "sts", lab: "Statut du projet", opts: Object.entries(ST_PROJET)}]},
   {g: "Propriétaire et sources", items: [{t: "select", k: "proprio", lab: "Propriétaire", opts: [["base","Société dans la base"],["oui","Propriétaire connu"],["non","Propriétaire inconnu"]]},
     {t: "multi", k: "srcs", lab: "Trouvé dans", opts: Object.entries({...SRC_COURT, M: "Avis MRAe", O: "OpenStreetMap"})}]},
 ];
@@ -1025,12 +1016,12 @@ function renderProjets(){
   $("p-p1").textContent = fmt(pcur.filter(p => p.pr === "P1").length);
   if (!pcur.length) { $("plist").innerHTML = `<div class="empty">Aucun projet ne correspond. Retirez un critère ou reformulez votre recherche.</div>`; $("pmore").hidden = true; return; }
   $("plist").innerHTML = pcur.slice(0, pshown).map(ligneProjet).join("");
-  $("pmore").hidden = pcur.length <= pshown; majSel("p");
+  $("pmore").hidden = pcur.length <= pshown;
 }
+// Ligne projet sans statut ni case à cocher (06/11/2026) : le suivi se fait seulement sur les sociétés (Recherche Corpo)
 function ligneProjet(p){
-    const ids = pids(p), nt = Object.values(taches).filter(t => !t.fait && ids.includes(t.p)).length, st = pst(p);
-    return `<div class="row p ${openP === p.i ? "sel" : ""} ${SEL.p.ids.has(p.i) ? "coche" : ""}" data-p="${esc(p.i)}" role="button" tabindex="0">
-    <div class="stc">${caseSel("p", p.i, p.n || "Projet sans nom")}${menuStatut(st, "p", p.i)}</div>
+    const ids = pids(p), nt = Object.values(taches).filter(t => !t.fait && ids.includes(t.p)).length;
+    return `<div class="row p ${openP === p.i ? "sel" : ""}" data-p="${esc(p.i)}" role="button" tabindex="0">
     <div><div class="t">${esc(p.n || "Projet sans nom")}</div><div class="s">${esc([p.com, p.dep ? "(" + p.dep + ")" : "", p.regn].filter(Boolean).join(" "))}</div><div class="prov">${esc([...new Set(pSources(p).map(COURT))].join(", "))}</div></div>
     <div class="k"><b>${p.kw ? (p.kwe ? "≈ " : "") + mw(p.kw) : "–"}</b>${p.kwe ? `<div class="s" title="Puissance estimée d'après la surface de la toiture dessinée dans OpenStreetMap (0,15 kW par m²), souvent surestimée">estimés</div>` : ""}</div>
     <div class="k"><span class="tp ${esc(p.t)}">${esc(TP[p.t])}</span><div style="margin-top:3px">${p.t === "D" ? esc(ETP[p.et] || "") + (p.dt ? ` · avis ${p.dt.slice(0, 4)}` : "") : p.ao ? aoHtml(p.ao) : ""}${p.fc ? ` <span class="tag ${p.fc <= 2031 ? "warn" : ""}">fin ${esc(p.fc)}</span>` : ""}${p.ms ? ` <span class="saved">MES ${p.ms}</span>` : ""}</div></div>
@@ -1067,9 +1058,7 @@ function openProjet(i){
   d.innerHTML = `<div class="dh"><div class="top"><span class="hex ${esc(p.pr)}">${esc(p.pr)}</span><div><h2>${esc(p.n || "Projet")}</h2>
     <div class="meta"><span class="tp ${esc(p.t)}">${esc(TP[p.t])}</span>${p.t === "D" && p.et ? `<span>${esc(ETP[p.et])}</span>` : ""}<span>${esc([p.com, p.dep ? "(" + p.dep + ")" : "", p.regn].filter(Boolean).join(" "))}</span>${p.kw ? `<span><b style="color:#fff">${mw(p.kw)}</b></span>` : ""}</div></div>
     <button class="x" id="close" aria-label="Fermer la fiche">×</button></div>
-    <div class="acts">${l && pst(p) === "non_traite" && !ro ? `<button class="btn primary small" id="pe-ajout" type="button" title="Le suivi se fait par société : c'est ${esc(l.s)} qui entre en prospection">Ajouter ${esc(l.s)} à la prospection</button>` : ""}
-      <select id="pe-st" aria-label="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue"}" title="${l ? `Statut de ${esc(l.s)} (société de tête du groupe)` : "Société propriétaire inconnue : pas de prospection possible"}" ${ro || !l ? "disabled" : ""}>${optsST(pst(p), true)}</select>
-      ${l ? `<button class="btn primary small" id="to-soc">Fiche de la société : ${esc(l.s)}</button>` : ""}${l && l.te ? `<a class="btn small ghost" href="tel:${esc(l.te.replace(/\s/g, ""))}" style="text-decoration:none">Appeler ${esc(l.te)}</a>` : ""}${p.u ? `<a class="btn small ghost" href="${esc(p.u)}" target="_blank" rel="noopener" style="text-decoration:none">Lire l'avis (PDF)</a>` : ""}${p.uc ? `<a class="btn small ghost" href="${esc(p.uc)}" target="_blank" rel="noopener" style="text-decoration:none" title="Copie gardée par Almavision, si le site officiel ne répond pas">Copie archivée</a>` : ""}${lienCarte(p)}</div></div>
+    <div class="acts">${l ? `<button class="btn primary small" id="to-soc">Fiche de la société : ${esc(l.s)}</button>` : ""}${l && l.te ? `<a class="btn small ghost" href="tel:${esc(l.te.replace(/\s/g, ""))}" style="text-decoration:none">Appeler ${esc(l.te)}</a>` : ""}${p.u ? `<a class="btn small ghost" href="${esc(p.u)}" target="_blank" rel="noopener" style="text-decoration:none">Lire l'avis (PDF)</a>` : ""}${p.uc ? `<a class="btn small ghost" href="${esc(p.uc)}" target="_blank" rel="noopener" style="text-decoration:none" title="Copie gardée par Almavision, si le site officiel ne répond pas">Copie archivée</a>` : ""}${lienCarte(p)}</div></div>
   <div class="db">
     ${identite(p, l)}
     <div>
@@ -1090,8 +1079,6 @@ function openProjet(i){
   </div>`;
   $("close").onclick = closeLead;
   if ($("to-soc")) $("to-soc").onclick = () => openLead(p.k);
-  $("pe-st").onchange = e => statutProjet(p, e.target.value, e.target);
-  if ($("pe-ajout")) $("pe-ajout").onclick = () => statutProjet(p, "a_contacter");
   $("pe-note").onchange = e => { garderP.add(p.i); saveSuivi(pkey(p), {note: e.target.value.trim()}); };
   $("pd-new").onsubmit = e => { e.preventDefault(); const t = $("pd-t").value.trim(); if (!t) return $("pd-t").focus();
     addTask({k: p.k || null, s: l ? l.s : p.owner || null, p: p.i, pn: p.n, t, ech: $("pd-d").value || null, resp: l ? l.re || "" : ""}); $("pd-t").value = ""; };

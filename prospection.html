@@ -246,14 +246,14 @@ select.stp option{background:#fff;color:#0E2422;font-weight:500;text-decoration:
 .pchips button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 11px;cursor:pointer;font-size:13px;color:var(--ink2)}
 .pchips button[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:var(--bg)}
 .tel{color:var(--accent);font-weight:600}
-.row.p,.head.phead{grid-template-columns:172px minmax(0,2.2fr) 96px minmax(0,1.1fr) minmax(0,1.3fr) minmax(0,1.3fr) 112px}
+.row.p,.head.phead{grid-template-columns:minmax(0,2.2fr) 96px minmax(0,1.1fr) minmax(0,1.3fr) minmax(0,1.3fr) 112px}
 .tp{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;white-space:nowrap}
 .tp.S{background:var(--cloud);color:#2F5568}.tp.L{background:var(--coral-weak);color:var(--warn)}.tp.D{background:var(--accent-weak);color:var(--accent)}.tp.C{background:#F3E7C9;color:#7A5410}.tp.O{background:#E4EEF7;color:#2A5B86}
 .owner{color:var(--accent);cursor:pointer;font-weight:600}
 dl.kvx{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;margin:0;font-size:13.5px}
 dl.kvx dt{color:var(--muted)}dl.kvx dd{margin:0;overflow-wrap:anywhere}
 dl.kvx a{color:var(--accent)}
-@media (max-width:900px){.row.p,.head.phead{grid-template-columns:140px 1fr 96px}}
+@media (max-width:900px){.row.p,.head.phead{grid-template-columns:1fr 96px}}
 .ao{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:5px;background:var(--cloud);color:var(--forest);font-weight:600;white-space:nowrap}
 .ao small{font-weight:500;color:var(--slate)}
 .src{display:inline-flex;gap:3px;vertical-align:middle}
@@ -442,15 +442,9 @@ textarea.note{width:100%;min-height:70px;border:1px solid var(--line);border-rad
       <label>Trier <select id="psort"><option value="score">par pertinence Almavision</option><option value="kw">par puissance</option><option value="fc">par fin de contrat</option><option value="dt">par date (avis ou mise en service)</option><option value="nom">par nom</option></select></label>
       <button class="btn small sens" id="pdir" type="button"></button>
       <button class="btn small" id="pexport">Exporter en Excel</button></div>
-    <div class="head phead"><span class="stc"><input type="checkbox" id="pselall" aria-label="Sélectionner les lignes affichées" title="Sélectionner les lignes affichées">Statut</span><span>Projet</span><span>Puissance</span><span>Étape</span><span>Propriétaire</span><span>Note</span><span></span></div>
+    <div class="head phead"><span>Projet</span><span>Puissance</span><span>Étape</span><span>Propriétaire</span><span>Note</span><span></span></div>
     <div class="list" id="plist"></div>
     <div class="more"><button class="btn" id="pmore" hidden>Afficher 100 de plus</button></div>
-    <div class="bulk" id="pbulk" hidden role="region" aria-label="Sélection">
-      <b id="pbulk-n"></b><button type="button" class="lien" id="pbulk-all"></button>
-      <span class="spacer" style="flex:1"></span>
-      <label>Passer en <select id="pbulk-st" aria-label="Nouveau statut"></select></label>
-      <button type="button" class="go" id="pbulk-go">Appliquer</button>
-      <button type="button" class="lien" id="pbulk-x">Tout désélectionner</button></div>
     </div>
   </section>
 
@@ -529,6 +523,6 @@ textarea.note{width:100%;min-height:70px;border:1px solid var(--line);border-rad
 <script src="modules/prospection/prospection.js?v=e5fe95d71c"></script>
 
 <div id="chargement" class="chargement" role="status">Chargement de la base de prospection…</div>
-<script src="js/prospection-1-c8564b199f.js"></script>
+<script src="js/prospection-1-f45123cc1a.js"></script>
 
 </body></html>
