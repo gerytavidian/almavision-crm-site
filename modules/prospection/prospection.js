@@ -13,13 +13,54 @@ window.__pret = (async () => {
   const conf = JSON.parse(document.getElementById("plateforme-config").textContent);
   if (conf.google_maps) window.__gmaps = conf.google_maps;
 
-  // données de l'application : gzip en base64, décompressé dans le navigateur
+  // Données de l'application : gzip en base64, décompressé dans le navigateur.
+  // Cache local (trafic) : un membre de l'équipe qui a choisi « Rester connecté » garde les fichiers compressés sur
+  // l'appareil (IndexedDB « almavision-prospection ») ; à l'ouverture suivante, seule la version (quelques octets,
+  // table app_data) est lue, et le fichier n'est retéléchargé que si elle a changé. Jamais pour un invité ni sans
+  // « Rester connecté » (session limitée à l'onglet) ; cache d'un autre compte ignoré et effacé ; effacé à la
+  // déconnexion, à la fermeture de session ailleurs et au retrait de l'accès (P.surArret).
+  const BASE_CACHE = "almavision-prospection", MAGASIN = "donnees";
+  const avecCache = P.moi.type === "interne" && P.appareil === true && typeof indexedDB !== "undefined";
+  const idb = (mode, f) => new Promise((ok, ko) => {
+    const o = indexedDB.open(BASE_CACHE, 1);
+    o.onupgradeneeded = () => o.result.createObjectStore(MAGASIN);
+    o.onerror = () => ko(o.error);
+    o.onsuccess = () => {
+      const base = o.result, t = base.transaction(MAGASIN, mode), m = t.objectStore(MAGASIN);
+      let r; const q = f(m); if (q) q.onsuccess = () => { r = q.result; };
+      t.oncomplete = () => { base.close(); ok(r); };
+      t.onerror = t.onabort = () => { base.close(); ko(t.error); };
+    };
+  });
+  const oublierCache = () => new Promise(ok => {
+    try { const d = indexedDB.deleteDatabase(BASE_CACHE); d.onsuccess = d.onerror = d.onblocked = () => ok(); } catch { ok(); }
+  });
+  if (typeof indexedDB !== "undefined") {
+    P.surArret(oublierCache);
+    if (!avecCache) await oublierCache();   // « Rester connecté » décoché depuis, ou autre compte : rien ne reste
+  }
+  const decompresser = async bin => JSON.parse(await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("gzip"))).text());
   window.__lireDonnees = async f => {
     const nom = f.replace(/^data-|\.json$/g, "");
+    if (avecCache) {
+      try {
+        const [{data: v, error: ev}, garde] = await Promise.all([
+          sb.from("app_data").select("version").eq("nom", nom).maybeSingle(), idb("readonly", m => m.get(nom))]);
+        if (!ev && v && garde && garde.user_id === session.user.id && garde.version === v.version && garde.gz instanceof Uint8Array) {
+          return await decompresser(garde.gz);
+        }
+        if (garde && garde.user_id !== session.user.id) await idb("readwrite", m => m.clear());
+      } catch { /* cache illisible : lecture ordinaire */ }
+    }
     const {data, error} = await sb.rpc("donnees_app", {n: nom});
     if (error || !data) throw new Error(`${f} : ${error ? error.message : "absent"}`);
     const bin = Uint8Array.from(atob(data.gz), c => c.charCodeAt(0));
-    return JSON.parse(await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("gzip"))).text());
+    const json = await decompresser(bin);
+    if (avecCache) {
+      try { await idb("readwrite", m => m.put({version: data.version, gz: bin, user_id: session.user.id, le: new Date().toISOString()}, nom)); }
+      catch { /* stockage plein ou refusé : pas de cache */ }
+    }
+    return json;
   };
   const erreur = e => Object.assign(new Error(e.message), {code: e.code === "42501" || /row-level security/i.test(e.message) ? "invalid_argument" : "unavailable"});
   // Lecture d'une collection : tout au départ, puis seulement ce qui a changé (maj plus récent que le dernier vu, avec

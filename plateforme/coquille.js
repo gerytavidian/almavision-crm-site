@@ -1,8 +1,11 @@
 /* Coquille commune de la plateforme Almavision (une copie par page, assemblée par etl/site.py).
 
-   Connexion à Supabase par email et mot de passe (comptes créés par etl/comptes.py), session gardée dans l'onglet
-   (sessionStorage) ou sur l'appareil (localStorage) si « Rester connecté » est coché, accès revérifié toutes les
-   5 minutes, déconnexion propre, changement de mot de passe, menu des modules.
+   Connexion à Supabase par email et mot de passe (comptes créés par etl/comptes.py) ou, pour un acquéreur, par code
+   reçu par email ; second facteur (application d'authentification) pour un membre sur un module qui l'exige ; session
+   gardée dans l'onglet
+   (sessionStorage) ou sur l'appareil (localStorage) si « Rester connecté » est coché (membres de l'équipe seulement :
+   la session d'un invité reste toujours dans l'onglet), accès revérifié toutes les 5 minutes, déconnexion propre,
+   changement de mot de passe, menu des modules.
 
    Chaque module attend la coquille :
        const P = await window.plateforme.pret;
@@ -12,6 +15,8 @@
    P.sb            client supabase-js au nom de la personne : la sécurité par ligne de la base est la seule vraie barrière
    P.session       session Supabase
    P.moi           {user_id, prenom, type: "interne" | "invite"}
+   P.appareil      vrai si un membre a choisi « Rester connecté » (session sur l'appareil) : seul cas où un module garde
+                   des données sur l'appareil (cache de la Prospection)
    P.module        {id, nom, role} du module de la page (null sur l'accueil)
    P.modules       modules accessibles [{id, nom, page, description, statut, role}]
    P.esc(t)        échappement HTML (préférer textContent)
@@ -53,8 +58,58 @@
       try { if (!s) throw new Error("pas de stockage"); s.setItem(k, v); } catch { memoire.set(k, v); }
       for (const autre of magasins()) if (autre !== s) try { autre.removeItem(k); } catch {} },   // jamais la session aux deux endroits
     removeItem: k => { memoire.delete(k); for (const s of magasins()) try { s.removeItem(k); } catch {} }};
+  const ongletSeulement = () => {
+    try { localStorage.removeItem(PREF); } catch {}
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (!k || !JETON.test(k)) continue;
+        const v = localStorage.getItem(k);
+        try { sessionStorage.setItem(k, v); } catch { memoire.set(k, v); }
+        localStorage.removeItem(k);
+      }
+    } catch {}
+  };
   const effacerJetons = () => { memoire.clear();
     for (const s of magasins()) try { for (let i = s.length - 1; i >= 0; i--) { const k = s.key(i); if (k && JETON.test(k)) s.removeItem(k); } } catch {} };
+
+  // Plateforme en veille : le projet Supabase (offre gratuite) se met en pause après une semaine sans activité ; ses
+  // adresses ne répondent plus (erreur réseau ou 5xx). Sur une erreur de connexion, la coquille interroge
+  // /auth/v1/health : si le projet ne répond pas, elle affiche « en veille » au lieu d'une erreur brute, et réessaie
+  // toute seule toutes les 30 secondes (page rechargée dès qu'il répond). Rien n'est envoyé d'autre que la clé publique.
+  const SONDE_MS = 8000, REESSAI_MS = 30000;
+  const repond = async () => {
+    try {
+      const rep = await fetch(`${CONF.url}/auth/v1/health`, {method: "GET", redirect: "error", credentials: "omit", cache: "no-store",
+        headers: {apikey: CONF.cle}, signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(SONDE_MS) : undefined});
+      return rep.status < 500;
+    } catch { return false; }
+  };
+  let enVeille = false;
+  const veille = async () => {
+    if (enVeille) return true;
+    if (await repond()) return false;
+    enVeille = true;
+    document.body.textContent = "";
+    const m = document.createElement("div"); m.className = "chargement cq-veille"; m.id = "cq-veille"; m.setAttribute("role", "alert");
+    const titre = document.createElement("b"); titre.textContent = "La plateforme est en veille.";
+    const texte = document.createElement("p");
+    texte.textContent = "La base de données ne répond pas : elle se met en pause après quelques jours sans visite, ou elle est " +
+      "momentanément injoignable. La page réessaie toute seule toutes les 30 secondes ; si cela dure, prévenez Géry " +
+      "(relance depuis le tableau de bord Supabase, une minute environ).";
+    const etat = document.createElement("p"); etat.id = "cq-veille-etat";
+    const essayer = async () => {
+      etat.textContent = "Nouvel essai…";
+      if (await repond()) { etat.textContent = "La base répond : rechargement."; location.reload(); return; }
+      etat.textContent = "Toujours en veille (dernier essai : " + new Date().toLocaleTimeString("fr-FR") + ").";
+      setTimeout(essayer, REESSAI_MS);
+    };
+    m.append(titre, texte, bouton("Réessayer maintenant", () => essayer(), "btn small"), etat);
+    document.body.appendChild(m);
+    setTimeout(essayer, REESSAI_MS);
+    return true;
+  };
+  const affiche = texte => Object.assign(new Error(texte), {affiche: true});
 
   async function demarrer() {
     await charger("vendor/supabase.min.js");
@@ -70,15 +125,18 @@
     // déconnexion : session locale fermée, jetons effacés quoi qu'il arrive, page rechargée (écran de connexion)
     let sortie = false;
     const arrets = new Set();   // abonnements des modules, coupés à la déconnexion
-    const couper = () => { sortie = true; for (const f of [...arrets]) try { f(); } catch {} };
+    // les arrêts peuvent rendre une promesse (cache effacé) : attendue 1,5 s au plus avant de recharger
+    const couper = () => { sortie = true;
+      return Promise.race([Promise.all([...arrets].map(f => { try { return Promise.resolve(f()).catch(() => {}); } catch { return null; } })),
+                           new Promise(ok => setTimeout(ok, 1500))]); };
     const deconnecter = async (recharger = true) => {
-      couper();
+      await couper();
       try { await sb.auth.signOut({scope: "local"}); } catch {}
       effacerJetons();
       if (recharger) location.reload();
     };
     // session fermée ailleurs (autre onglet, jeton expiré qui ne se renouvelle plus) : même chose
-    sb.auth.onAuthStateChange(evt => { if (evt === "SIGNED_OUT" && !sortie) { couper(); effacerJetons(); location.reload(); } });
+    sb.auth.onAuthStateChange(evt => { if (evt === "SIGNED_OUT" && !sortie) { effacerJetons(); couper().then(() => location.reload()); } });
 
     let session = null;
     try { ({data: {session}} = await sb.auth.getSession()); } catch { session = null; }
@@ -87,6 +145,45 @@
       const caseRester = document.getElementById("cnx-rester");
       caseRester.checked = rester();
       session = await new Promise(fin => {
+        // connexion par code (acquéreurs) : la page demande le code à la fonction serveur « code », qui répond toujours
+        // la même chose ; le code est vérifié par Supabase Auth ; la session reste dans l'onglet (préférence retirée)
+        const formMdp = document.getElementById("cnx-form"), formCode = document.getElementById("cnx-code-form");
+        const msgCode = document.getElementById("cnx-code-msg"), champCode = document.getElementById("cnx-code");
+        document.getElementById("cnx-vers-code").onclick = () => { formMdp.hidden = true; formCode.hidden = false; msgCode.textContent = ""; };
+        document.getElementById("cnx-vers-mdp").onclick = () => { formCode.hidden = true; formMdp.hidden = false; };
+        document.getElementById("cnx-code-demander").onclick = async () => {
+          const email = document.getElementById("cnx-code-email").value.trim(), b = document.getElementById("cnx-code-demander");
+          if (!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(email)) { msgCode.textContent = "Adresse email attendue."; return; }
+          b.disabled = true; msgCode.textContent = "Envoi…";
+          let texte = "";
+          try {
+            const rep = await fetch(`${CONF.url}/functions/v1/code`, {
+              method: "POST", redirect: "error", credentials: "omit", cache: "no-store",
+              headers: {"apikey": CONF.cle, "Content-Type": "application/json"}, body: JSON.stringify({email}),
+            });
+            const corps = await rep.json().catch(() => null);
+            texte = rep.ok && corps && typeof corps.message === "string" ? corps.message
+              : rep.status === 400 ? "Adresse email attendue." : "Service momentanément indisponible : réessayez dans quelques minutes.";
+          } catch { texte = "Pas de réponse du serveur : réessayez dans quelques minutes."; }
+          if (!/Si cette adresse/.test(texte) && texte !== "Adresse email attendue." && await veille()) return;
+          b.disabled = false;
+          msgCode.textContent = texte;
+          for (const id of ["cnx-code-lib", "cnx-code", "cnx-code-go"]) document.getElementById(id).hidden = false;
+          champCode.focus();
+        };
+        formCode.onsubmit = async e => {
+          e.preventDefault();
+          const email = document.getElementById("cnx-code-email").value.trim(), code = champCode.value.replace(/\s/g, "");
+          if (!/^\d{6,10}$/.test(code)) { msgCode.textContent = "Code à chiffres attendu (reçu par email)."; return; }
+          try { localStorage.removeItem(PREF); } catch {}   // jamais « rester connecté » par ce chemin
+          const b = document.getElementById("cnx-code-go"); b.disabled = true;
+          let data = null, error = null;
+          try { ({data, error} = await sb.auth.verifyOtp({email, token: code, type: "email"})); } catch (x) { error = x; }
+          b.disabled = false;
+          if (error || !data || !data.session) { msgCode.textContent = "Code incorrect ou expiré : demandez-en un nouveau."; return; }
+          champCode.value = "";
+          fin(data.session);
+        };
         document.getElementById("cnx-form").onsubmit = async e => {
           e.preventDefault(); msg.textContent = ""; const b = document.getElementById("cnx-go"); b.disabled = true; b.textContent = "Connexion…";
           // la préférence est posée avant la connexion : la session s'écrit directement au bon endroit
@@ -95,6 +192,7 @@
           try { ({data, error} = await sb.auth.signInWithPassword({email: document.getElementById("cnx-email").value.trim(), password: document.getElementById("cnx-mdp").value})); }
           catch (x) { error = x; }
           b.disabled = false; b.textContent = "Se connecter";
+          if (error && error.message !== "Invalid login credentials" && await veille()) return;
           if (error || !data || !data.session) { msg.textContent = error && error.message === "Invalid login credentials" ? "Email ou mot de passe incorrect." : "Connexion impossible : " + (error ? error.message : "réessayez") + "."; return; }
           document.getElementById("cnx-mdp").value = "";
           fin(data.session);
@@ -119,12 +217,84 @@
         return membre ? (CONF.modules || []).map(m => ({id: m.id, role: "equipe"})) : [];
       } catch { return null; }
     };
-    const acces = await lireAcces();
+    let acces = await lireAcces();
+    const estMembre = async () => { if (membre === null) { try { membre = (await sb.rpc("est_membre")).data === true; } catch { membre = false; } } return membre; };
+
+    // Double authentification de l'équipe : un module marqué « double_auth » (module.json, acces.double_auth_equipe)
+    // n'est ouvert par la base à un membre qu'avec un jeton « aal2 » (mot de passe + code de l'application
+    // d'authentification). Sans lui, le module manque à mes_modules : sur sa page, la coquille demande le code (ou fait
+    // enregistrer l'application la première fois), puis relit les accès avec le nouveau jeton. Les invités n'ont pas de
+    // second facteur (code par email à chaque connexion) : rien ne leur est demandé.
+    const exigeMfa = m => !!(m && m.double_auth);
+    const aSecondFacteur = async () => {
+      try { const {data} = await sb.auth.mfa.getAuthenticatorAssuranceLevel(); return !!data && data.currentLevel === "aal2"; }
+      catch { return false; }
+    };
+    let manquants = acces === null ? [] : (CONF.modules || []).filter(m => exigeMfa(m) && !acces.some(a => a.id === m.id));
+    if (manquants.length && (await aSecondFacteur() || !(await estMembre()))) manquants = [];
+    if (MODULE && manquants.includes(MODULE)) {
+      await secondFacteur();
+      try { ({data: {session}} = await sb.auth.getSession()); } catch {}
+      acces = await lireAcces();
+      manquants = [];
+    }
+
+    async function secondFacteur() {
+      const ecranMfa = document.getElementById("mfa"), form = document.getElementById("mfa-form"),
+            msgMfa = document.getElementById("mfa-msg"), champ = document.getElementById("mfa-code"),
+            go = document.getElementById("mfa-go"), nouveau = document.getElementById("mfa-nouveau");
+      const echec = () => {
+        ecranMfa.hidden = true; attente.hidden = false;
+        attente.textContent = "Double authentification impossible pour le moment, réessayez.";
+        attente.appendChild(bouton("Recharger", () => location.reload(), "btn small"));
+        attente.appendChild(bouton("Se déconnecter", () => deconnecter(), "btn small"));
+        return Object.assign(new Error("double authentification impossible"), {affiche: true});
+      };
+      let factorId = null;
+      try {
+        const {data: l, error} = await sb.auth.mfa.listFactors();
+        if (error || !l) throw echec();
+        const verifie = (l.totp || []).find(f => f && f.status === "verified");
+        if (verifie) factorId = verifie.id;
+        else {
+          // première fois : une application d'authentification à enregistrer (les essais abandonnés sont retirés)
+          for (const f of (l.all || []).filter(f => f && f.factor_type === "totp" && f.status !== "verified")) {
+            await sb.auth.mfa.unenroll({factorId: f.id});
+          }
+          const {data: e, error: ee} = await sb.auth.mfa.enroll({factorType: "totp", friendlyName: "Almavision"});
+          if (ee || !e || !e.id || !e.totp) throw echec();
+          factorId = e.id;
+          const qr = document.getElementById("mfa-qr");
+          if (/^data:image\/svg\+xml[;,]/.test(String(e.totp.qr_code || ""))) { qr.src = e.totp.qr_code; qr.hidden = false; } else qr.hidden = true;
+          document.getElementById("mfa-secret").textContent = String(e.totp.secret || "");
+          nouveau.hidden = false;
+        }
+      } catch (x) { throw x && x.affiche ? x : echec(); }
+      attente.hidden = true; ecranMfa.hidden = false; msgMfa.textContent = ""; champ.value = ""; champ.focus();
+      document.getElementById("mfa-x").onclick = () => deconnecter();
+      await new Promise(fin => {
+        form.onsubmit = async e => {
+          e.preventDefault();
+          const code = champ.value.replace(/\s/g, "");
+          if (!/^\d{6}$/.test(code)) { msgMfa.textContent = "Code à 6 chiffres attendu (application d'authentification)."; return; }
+          go.disabled = true; msgMfa.textContent = "";
+          let error = null;
+          try { ({error} = await sb.auth.mfa.challengeAndVerify({factorId, code})); } catch (x) { error = x || new Error("réseau"); }
+          go.disabled = false;
+          if (error) { champ.value = ""; msgMfa.textContent = "Code incorrect ou expiré : saisissez le code affiché maintenant."; return; }
+          champ.value = "";
+          fin();
+        };
+      });
+      ecranMfa.hidden = true; nouveau.hidden = true; attente.hidden = false;
+    }
+
     const refuser = texte => {
       attente.textContent = texte;
       attente.appendChild(bouton("Se déconnecter", () => deconnecter(), "btn small"));
       throw Object.assign(new Error(texte), {affiche: true});
     };
+    if (acces === null && await veille()) throw affiche("plateforme en veille");
     if (acces === null) {
       attente.textContent = "Connexion impossible, réessayez.";
       attente.appendChild(bouton("Recharger", () => location.reload(), "btn small"));
@@ -132,16 +302,22 @@
       throw Object.assign(new Error("connexion impossible"), {affiche: true});
     }
     const roles = new Map(acces.map(a => [a.id, a.role]));
-    const modules = (CONF.modules || []).filter(m => roles.has(m.id)).map(m => ({...m, role: roles.get(m.id)}));
+    // modules à double authentification pas encore ouverts (membre, jeton « aal1 ») : dans le menu, leur page demande le code
+    const modules = (CONF.modules || []).filter(m => roles.has(m.id) || manquants.includes(m))
+      .map(m => roles.has(m.id) ? {...m, role: roles.get(m.id)} : {...m, role: null, statut: "double authentification"});
     if (!modules.length) refuser("Ce compte n'a accès à aucun module de la plateforme. Demandez à Géry.");
     if (MODULE && !roles.has(MODULE.id)) refuser(`Ce compte n'a pas accès au module « ${MODULE.nom} ».`);
-    if (membre === null) { try { membre = (await sb.rpc("est_membre")).data === true; } catch { membre = false; } }
+    await estMembre();
+    // un invité (acquéreur) ne reste jamais connecté sur l'appareil : sa session vit dans l'onglet seulement, même si la
+    // case « Rester connecté » a été cochée (préférence retirée, jetons déplacés de localStorage vers sessionStorage)
+    if (!membre) ongletSeulement();
 
     // accès retiré en cours de journée : la page se vide et la session se ferme
     setInterval(async () => {
       if (sortie) return;
+      if (enVeille) return;
       const a = await lireAcces();
-      if (a === null) return;   // erreur passagère : nouvelle question au prochain tour
+      if (a === null) { if (await veille()) couper(); return; }   // erreur passagère : nouvelle question au prochain tour
       if (MODULE ? a.some(x => x.id === MODULE.id) : a.length) return;
       couper();
       document.body.textContent = "";
@@ -213,6 +389,7 @@
     return {
       sb, session, esc, telecharger, changerMdp, menuModules,
       moi: {user_id: session.user.id, prenom, type: membre ? "interne" : "invite"},
+      appareil: membre && rester(),   // session gardée sur l'appareil (« Rester connecté », membres seulement)
       module: MODULE ? {id: MODULE.id, nom: MODULE.nom, role: roles.get(MODULE.id)} : null,
       modules,
       cle: nom => `${MODULE ? MODULE.id : "accueil"}:${nom}`,
@@ -221,7 +398,8 @@
     };
   }
 
-  demarrer().then(resoudre, e => {
+  demarrer().then(resoudre, async e => {
+    if (!e.affiche && await veille()) e.affiche = true;
     if (!e.affiche) {
       const attente = document.getElementById("chargement");
       if (attente) { attente.hidden = false; attente.textContent = "Connexion impossible : " + e.message + ". Rechargez la page."; }

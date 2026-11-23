@@ -1,5 +1,5 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Plateforme Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=87d1f7a01f"></head><body>
-<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "accueil", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service"}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction"}]}</script>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Plateforme Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"></head><body>
+<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "accueil", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service", "double_auth": false}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true}]}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
   <form class="cnx-box" id="cnx-form" autocomplete="on">
@@ -12,7 +12,42 @@
     <label class="cnx-case" for="cnx-rester"><input id="cnx-rester" type="checkbox"> Rester connecté sur cet appareil</label>
     <button class="btn primary" type="submit" id="cnx-go">Se connecter</button>
     <p class="cnx-msg" id="cnx-msg" role="alert"></p>
-    <p class="cnx-aide">Sans la case, la connexion s'arrête à la fermeture de l'onglet. Mot de passe oublié ou compte à créer : demandez à Géry.</p>
+    <p class="cnx-aide">Sans la case, la connexion s'arrête à la fermeture de l'onglet. Mot de passe oublié ou compte à
+      créer : demandez à Géry.</p>
+    <button class="btn small" type="button" id="cnx-vers-code">Acquéreur : recevoir un code de connexion par email</button>
+  </form>
+  <form class="cnx-box" id="cnx-code-form" hidden autocomplete="on" novalidate>
+    <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <h1>Connexion par code</h1>
+    <p class="cnx-aide">Saisissez l'adresse à laquelle Almavision vous a donné accès : un code de connexion vous est envoyé
+      par email. La connexion s'arrête à la fermeture de l'onglet.</p>
+    <label for="cnx-code-email">Email</label>
+    <input id="cnx-code-email" type="email" autocomplete="username" maxlength="254">
+    <button class="btn" type="button" id="cnx-code-demander">Recevoir un code</button>
+    <label for="cnx-code" id="cnx-code-lib" hidden>Code reçu par email</label>
+    <input id="cnx-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" hidden>
+    <button class="btn primary" type="submit" id="cnx-code-go" hidden>Se connecter</button>
+    <p class="cnx-msg" id="cnx-code-msg" role="alert"></p>
+    <button class="btn small" type="button" id="cnx-vers-mdp">Équipe Almavision : connexion par mot de passe</button>
+  </form>
+</div>
+<div id="mfa" class="cnx" hidden>
+  <form class="cnx-box" id="mfa-form" autocomplete="off" novalidate>
+    <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <h1>Double authentification</h1>
+    <div id="mfa-nouveau" hidden>
+      <p class="cnx-aide">Ce module demande, en plus du mot de passe, le code d'une application d'authentification
+        (Google Authenticator, Microsoft Authenticator…). Une seule fois : scannez ce QR code avec l'application, ou
+        saisissez-y la clé ci-dessous.</p>
+      <img id="mfa-qr" alt="QR code à scanner avec l'application d'authentification" width="180" height="180" hidden>
+      <p class="cnx-aide">Clé : <code id="mfa-secret"></code></p>
+    </div>
+    <label for="mfa-code">Code à 6 chiffres affiché par l'application</label>
+    <input id="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8">
+    <button class="btn primary" type="submit" id="mfa-go">Valider</button>
+    <p class="cnx-msg" id="mfa-msg" role="alert"></p>
+    <p class="cnx-aide">Téléphone perdu ou changé : demandez à Géry de retirer l'ancienne application.</p>
+    <button class="btn small" type="button" id="mfa-x">Se déconnecter</button>
   </form>
 </div>
 <div id="mdp" class="cnx voile" hidden role="dialog" aria-modal="true" aria-labelledby="mdp-titre">
@@ -31,6 +66,6 @@
   <p class="cq-intro">Les modules de la plateforme Almavision auxquels vous avez accès.</p>
   <div class="cq-tuiles" id="accueil-tuiles"></div>
 </main>
-<script src="plateforme/coquille.js?v=aba07f2478"></script>
+<script src="plateforme/coquille.js?v=aba80e61d5"></script>
 <script src="plateforme/accueil.js?v=8b62ea2745"></script>
 </body></html>
