@@ -1,12 +1,11 @@
 
 (async () => {
-// la page n'existe que dans le site de l'équipe : la coquille et l'adaptateur du module (prospection.js) préparent la
-// connexion, les données, le suivi partagé et Claude ; window.__pret attend tout cela
-try { await window.__pret; } catch (e) { if (!e.affiche) document.getElementById("chargement").textContent = "Connexion impossible : " + e.message + ". Rechargez la page."; return; }
-// données de l'application (base, leads, projets) : lues après connexion dans la table app_data (window.__lireDonnees)
+if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) document.getElementById("chargement").textContent = "Connexion impossible : " + e.message + ". Rechargez la page."; return; } }
+// les données sont publiées à côté de la page (data-base.json, data-leads.json, data-projets.json)
 let DATA;
 try {
-  const lire = f => window.__lireDonnees(f);
+  const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
+    fetch(`${f}?v=202611201716`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -305,7 +304,7 @@ async function appliquerFiches(fiches, st, go, apres){
   if (!fiches.length || go.disabled) return;
   if (!db || canWrite === false) { toast("Le suivi partagé n'est pas disponible ici : rien n'a été enregistré."); return; }
   if (fiches.length > MAX_LOT) { toast(`${fmt(fiches.length)} fiches sélectionnées : ${fmt(MAX_LOT)} au plus par envoi. Affinez la recherche.`); return; }
-  // confirmation dans la barre (plutôt qu'une fenêtre du navigateur)
+  // confirmation dans la barre (les fenêtres de confirmation du navigateur sont bloquées dans claude.ai)
   const signe = fiches.length + "|" + st;
   if (fiches.length > CONFIRMER_DES && go.dataset.conf !== signe) {
     go.dataset.conf = signe; go.textContent = `Confirmer : ${fmt(fiches.length)} fiches en « ${ST[st]} »`; return;
@@ -360,11 +359,12 @@ function saveSuivi(k, patch){ const next = {...(suivi[k] || {}), ...patch, maj: 
   suiviDocs[k] = next; suivi[k] = next; write("suivi", k, next); renderAll(); }
 async function connect(){
   const C = window.claude;
+  if (!C || !C.use) { setSync("Consultation seule (hors claude.ai)"); renderTodo(); return; }
   [db, user] = await Promise.all([C.use("db"), C.use("user")]);
   if (user) { try { myId = await user.id(); canWrite = await user.can("data.write"); } catch {} }
   if (!db) { setSync("Consultation seule"); renderTodo(); return; }
   setSync(canWrite === false ? "Lecture seule" : "Suivi partagé connecté");
-  if (!$("deco")) { const b = document.createElement("button"); b.id = "deco"; b.className = "btn small deco"; b.type = "button";
+  if (window.__site && !$("deco")) { const b = document.createElement("button"); b.id = "deco"; b.className = "btn small deco"; b.type = "button";
     b.textContent = `${window.__site.prenom} · Se déconnecter`; b.onclick = window.__site.deconnexion; $("sync").after(b);
     const c = document.createElement("button"); c.id = "chmdp"; c.className = "btn small deco"; c.type = "button";
     c.textContent = "Changer mon mot de passe"; c.onclick = window.__site.changerMdp; b.after(c); }
@@ -1186,8 +1186,9 @@ function creBloc(p){
   </dl></div>`;
 }
 async function exporterProjets(){
-  const dl = await window.claude.use("downloads");
-  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = window.__lib.xlsx; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
+  const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+  if (!dl) { toast("L'export n'est disponible que dans claude.ai."); return; }
+  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.xlsx) || "vendor/xlsx.full.min.js"; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
   if (!window.XLSX) { toast("Export impossible pour le moment."); return; }
   const rows = pcur.map(p => ({"Priorité": p.pr, "Score": p.sc, "Projet": p.n, "Type": TP[p.t], "Étape": ETP[p.et] || "", "Puissance (kW)": p.kw || "", "Commune": p.com || "", "Département": p.dep || "", "Région": p.regn || "",
     "Mise en service": p.ms || "", "Date de l'avis": p.dt || "", "Fin de contrat": p.fc || "", "Appel d'offres": p.ao ? aoTxt(p.ao) : p.lao || "", "Propriétaire": p.owner || "", "Porteur cité": p.por || "",
@@ -1242,7 +1243,7 @@ async function psearch(){
   const q = $("q").value.trim();
   noterRecherche(q, "projets");
   if (!q) { PF.q = ""; paiNote = ""; showNote(); prefresh(); return; }
-  if (!phrase(q)) { PF = {...PF0(), sort: PF.sort, q}; paiNote = ""; showNote(); prefresh(); return; }
+  if (!phrase(q) || !sample) { PF = {...PF0(), sort: PF.sort, q}; paiNote = !sample && phrase(q) ? "La recherche en langage naturel n'est disponible que dans claude.ai ; recherche par mots." : ""; showNote(); prefresh(); return; }
   $("go").disabled = true; $("ai-note").hidden = false; $("ai-note").innerHTML = `<span class="spin"></span> Claude analyse votre demande…`;
   try {
     const j = await sample.json(pconsigne(q), {modelTier: "default"});
@@ -1258,7 +1259,8 @@ async function psearch(){
 /* ---------------- recherche en langage naturel (Claude) ---------------- */
 let sample = null;
 async function initAI(){
-  sample = await window.claude.use("sample");
+  const C = window.claude;
+  sample = C && C.use ? await C.use("sample") : null;
 }
 function consigne(question){
   return `Tu transformes une demande de prospection en filtres pour un moteur de recherche de leads (base de propriétaires et développeurs de centrales photovoltaïques en France). Almavision est un cabinet de conseil M&A qui cherche des actifs et des projets À VENDRE chez des propriétaires et développeurs indépendants ou de taille moyenne ; les grands énergéticiens, IPP et fonds sont des acheteurs, pas des cibles. Les priorités P1 > P2 > P3 mesurent cette pertinence. Nous sommes le ${new Date().toLocaleDateString("fr-FR")}.
@@ -1313,8 +1315,8 @@ async function search(){
   const q = $("q").value.trim();
   noterRecherche(q, "recherche");
   if (!q) { F.q = ""; aiNote = ""; refresh(); return; }
-  if (!phrase(q)) {   // nom, SIREN, ville : recherche directe
-    F = {...F0(), sort: F.sort, q}; aiNote = "";
+  if (!phrase(q) || !sample) {   // nom, SIREN, ville : recherche directe
+    F = {...F0(), sort: F.sort, q}; aiNote = !sample && phrase(q) ? "La recherche en langage naturel n'est disponible que dans claude.ai ; recherche par mots." : "";
     showNote(); refresh(); return; }
   $("go").disabled = true; $("ai-note").hidden = false; $("ai-note").innerHTML = `<span class="spin"></span> Claude analyse votre demande…`;
   try {
@@ -1345,8 +1347,9 @@ function setHero(){
 
 /* ---------------- export ---------------- */
 async function exporter(){
-  const dl = await window.claude.use("downloads");
-  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = window.__lib.xlsx; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
+  const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+  if (!dl) { toast("L'export n'est disponible que dans claude.ai."); return; }
+  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.xlsx) || "vendor/xlsx.full.min.js"; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
   if (!window.XLSX) { toast("Export impossible pour le moment."); return; }
   const rows = current.map(l => ({"Priorité": l.pr, "Société": l.s, "SIREN": l.sn || "", "Type": SEG[l.seg] || l.seg, "Groupe": l.dv || l.gr || "", "Type de propriétaire": l.dr || "",
     "Statut": ST[l.st] || l.st, "Responsable": l.re || "", "Projets (centrales + en développement)": l.np, "Centrales": l.nc, "Puissance (kW)": l.kw || "", "Fin de contrat": l.fc || "", "Fin d'OA": l.foa ? l.foa.fin : "",
@@ -1665,9 +1668,9 @@ async function initGoogle(){
   return g;
 }
 
-/* Carte simple (sans clé Google) : contours des départements dessinés par d3 */
+/* Carte simple (sans clé Google, ou page hors du site) : contours des départements dessinés par d3 */
 async function carteD3(pts){
-  if (!window.d3) await new Promise(ok => { const s = document.createElement("script"); s.src = window.__lib.d3; s.onload = ok; s.onerror = ok; document.head.appendChild(s); });
+  if (!window.d3) await new Promise(ok => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.d3) || "vendor/d3.min.js"; s.onload = ok; s.onerror = ok; document.head.appendChild(s); });
   if (!window.d3 || !DATA.deps || !DATA.deps.length) { $("m-info").textContent = "La carte n'est pas disponible dans cette vue."; return; }
   $("map").hidden = false;
   if (!MAP) MAP = initMap();

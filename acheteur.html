@@ -1,0 +1,182 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=92e8974737"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=5c5ecb137a"></head><body>
+<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}], "vue": "invites"}</script>
+<header class="cq-entete" id="cq-entete"></header>
+<div id="connexion" class="cnx" hidden>
+  <form class="cnx-box" id="cnx-form" autocomplete="on">
+    <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <h1>Connexion</h1>
+    <label for="cnx-email">Email</label>
+    <input id="cnx-email" type="email" autocomplete="username" required>
+    <label for="cnx-mdp">Mot de passe</label>
+    <input id="cnx-mdp" type="password" autocomplete="current-password" required>
+    <label class="cnx-case" for="cnx-rester"><input id="cnx-rester" type="checkbox"> Rester connecté sur cet appareil</label>
+    <button class="btn primary" type="submit" id="cnx-go">Se connecter</button>
+    <p class="cnx-msg" id="cnx-msg" role="alert"></p>
+    <p class="cnx-aide">Sans la case, la connexion s'arrête à la fermeture de l'onglet. Mot de passe oublié ou compte à
+      créer : demandez à Géry.</p>
+    <button class="btn small" type="button" id="cnx-vers-code">Acquéreur : recevoir un code de connexion par email</button>
+  </form>
+  <form class="cnx-box" id="cnx-code-form" hidden autocomplete="on" novalidate>
+    <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <h1>Connexion par code</h1>
+    <p class="cnx-aide">Saisissez l'adresse à laquelle Almavision vous a donné accès : un code de connexion vous est envoyé
+      par email. La connexion s'arrête à la fermeture de l'onglet.</p>
+    <label for="cnx-code-email">Email</label>
+    <input id="cnx-code-email" type="email" autocomplete="username" maxlength="254">
+    <button class="btn" type="button" id="cnx-code-demander">Recevoir un code</button>
+    <label for="cnx-code" id="cnx-code-lib" hidden>Code reçu par email</label>
+    <input id="cnx-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" hidden>
+    <button class="btn primary" type="submit" id="cnx-code-go" hidden>Se connecter</button>
+    <p class="cnx-msg" id="cnx-code-msg" role="alert"></p>
+    <button class="btn small" type="button" id="cnx-vers-mdp">Équipe Almavision : connexion par mot de passe</button>
+  </form>
+</div>
+<div id="mfa" class="cnx" hidden>
+  <form class="cnx-box" id="mfa-form" autocomplete="off" novalidate>
+    <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <h1>Double authentification</h1>
+    <div id="mfa-nouveau" hidden>
+      <p class="cnx-aide">Ce module demande, en plus du mot de passe, le code d'une application d'authentification
+        (Google Authenticator, Microsoft Authenticator…). Une seule fois : scannez ce QR code avec l'application, ou
+        saisissez-y la clé ci-dessous.</p>
+      <img id="mfa-qr" alt="QR code à scanner avec l'application d'authentification" width="180" height="180" hidden>
+      <p class="cnx-aide">Clé : <code id="mfa-secret"></code></p>
+    </div>
+    <label for="mfa-code">Code à 6 chiffres affiché par l'application</label>
+    <input id="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8">
+    <button class="btn primary" type="submit" id="mfa-go">Valider</button>
+    <p class="cnx-msg" id="mfa-msg" role="alert"></p>
+    <p class="cnx-aide">Téléphone perdu ou changé : demandez à Géry de retirer l'ancienne application.</p>
+    <button class="btn small" type="button" id="mfa-x">Se déconnecter</button>
+  </form>
+</div>
+<div id="mdp" class="cnx voile" hidden role="dialog" aria-modal="true" aria-labelledby="mdp-titre">
+  <form class="cnx-box" id="mdp-form" autocomplete="off">
+    <h1 id="mdp-titre">Changer mon mot de passe</h1>
+    <label for="mdp-1">Nouveau mot de passe (10 caractères au moins)</label>
+    <input id="mdp-1" type="password" autocomplete="new-password" minlength="10" required>
+    <label for="mdp-2">Le même, une seconde fois</label>
+    <input id="mdp-2" type="password" autocomplete="new-password" minlength="10" required>
+    <div class="cnx-btns"><button class="btn" type="button" id="mdp-x">Annuler</button><button class="btn primary" type="submit" id="mdp-go">Enregistrer</button></div>
+    <p class="cnx-msg" id="mdp-msg" role="alert"></p>
+  </form>
+</div>
+<main class="cq-page ach" id="ach" hidden>
+  <header class="ach-entete" id="ach-entete">
+    <h1>Projets proposés par Almavision</h1>
+    <p class="cq-intro">Les projets à vendre présentés par l'équipe Almavision. Ceux auxquels vous êtes invité portent le
+      badge « Vos projets » : leur fiche donne accès aux documents de la data room, selon l'étape atteinte.</p>
+  </header>
+  <p class="dr-msg" id="ach-msg" role="status"></p>
+  <p class="dr-lecteur" id="ach-annonce" role="status" aria-live="polite"></p>
+
+  <section class="ach-marche" id="ach-marche" aria-labelledby="ach-marche-titre">
+    <h2 class="dr-lecteur" id="ach-marche-titre">Liste des projets</h2>
+    <form class="ach-filtres" id="ach-filtres" autocomplete="off" novalidate role="search" aria-label="Filtrer les projets">
+      <label>Technologie <select id="ach-f-techno"><option value="">Toutes</option></select></label>
+      <label>Stade <select id="ach-f-stade"><option value="">Tous</option></select></label>
+      <label>Mot-clé <input id="ach-f-texte" type="search" maxlength="80" spellcheck="false"></label>
+      <label class="ach-case" for="ach-f-miens"><input type="checkbox" id="ach-f-miens"> Vos projets seulement</label>
+      <button class="btn small" type="button" id="ach-f-effacer">Effacer</button>
+    </form>
+    <p class="dr-msg calme" id="ach-compte" role="status" aria-live="polite"></p>
+    <ul class="ach-grille" id="ach-grille" aria-label="Projets"></ul>
+  </section>
+
+  <article class="ach-fiche" id="ach-fiche" hidden aria-labelledby="ach-fiche-titre">
+    <button class="btn small" type="button" id="ach-retour">← Tous les projets</button>
+    <div class="ach-fiche-tete">
+      <div id="ach-fiche-visuel"></div>
+      <div class="ach-fiche-infos">
+        <p class="ach-badge-zone" id="ach-fiche-badge"></p>
+        <h2 id="ach-fiche-titre" tabindex="-1"></h2>
+        <dl class="dr-ach-infos" id="ach-fiche-infos"></dl>
+      </div>
+    </div>
+    <p class="ach-resume" id="ach-fiche-resume"></p>
+    <ul class="dr-v-points" id="ach-fiche-points"></ul>
+    <p class="dr-aide">Les visuels sont des illustrations générées par la plateforme, pas des photos des projets.</p>
+
+    <!-- projet où l'organisation participe -->
+    <div id="ach-projet" hidden>
+      <p class="ach-bandeau" id="ach-bandeau" role="note"></p>
+
+      <section class="cq-carte" id="ach-nda" hidden aria-labelledby="ach-nda-titre">
+        <h3 id="ach-nda-titre">Clause de confidentialité</h3>
+        <p class="dr-aide">Avant d'ouvrir les documents de ce projet, lisez et acceptez la clause ci-dessous. Votre
+          acceptation est enregistrée à votre nom, avec la version du texte.</p>
+        <div class="dr-nda-texte" id="ach-nda-texte"></div>
+        <label class="dr-case" for="ach-nda-ok"><input type="checkbox" id="ach-nda-ok"> J'ai lu la clause et je
+          l'accepte.</label>
+        <div class="dr-boutons"><button class="btn primary small" type="button" id="ach-nda-go">Accepter et
+          continuer</button></div>
+        <p class="dr-msg" id="ach-nda-msg" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="cq-carte" id="ach-docs-carte" hidden aria-labelledby="ach-docs-titre">
+        <h3 id="ach-docs-titre">Documents</h3>
+        <p class="dr-aide">Tous les documents publiés du projet sont listés. Ceux qui vous sont ouverts s'affichent dans la
+          plateforme, avec votre nom en filigrane ; les autres portent un cadenas et l'étape à laquelle ils s'ouvriront.
+          Chaque ouverture est enregistrée à votre nom.</p>
+        <p class="dr-msg" id="ach-docs-msg" role="status" aria-live="polite"></p>
+        <div class="ach-docs" id="ach-docs"></div>
+      </section>
+
+      <section class="cq-carte" id="ach-assistant" hidden aria-labelledby="ach-assistant-titre">
+        <div class="dr-tete">
+          <h3 id="ach-assistant-titre">Interroger Claude sur ce projet</h3>
+          <button class="btn small" type="button" id="ach-nouvelle">Nouvelle conversation</button>
+        </div>
+        <p class="dr-aide">L'assistant répond à partir des seuls documents qui vous sont ouverts, en citant le document et
+          la page de chaque passage utilisé. Il peut se tromper : vérifiez dans les documents cités. Il ne donne aucun avis
+          juridique, fiscal ou d'investissement.</p>
+        <form class="dr-form dr-poser" id="ach-form-question" autocomplete="off" novalidate>
+          <label for="ach-question">Question</label>
+          <textarea id="ach-question" rows="3" maxlength="2000"></textarea>
+          <div class="dr-boutons"><button class="btn primary small" type="submit" id="ach-q-go">Poser la
+            question</button></div>
+        </form>
+        <p class="dr-msg" id="ach-q-msg" role="status" aria-live="polite"></p>
+        <ol class="dr-fil" id="ach-fil"></ol>
+        <details class="dr-confidentialite">
+          <summary>Confidentialité</summary>
+          <p>Pour chaque question, la plateforme envoie à Claude (Anthropic, États-Unis) la question et, au plus, 8 extraits
+            des documents qui vous sont ouverts ; jamais un document entier. Anthropic n'utilise pas ces données pour
+            entraîner ses modèles et ne les garde pas plus de 30 jours. Vos questions, les réponses et les références
+            citées sont gardées par Almavision pour le suivi de l'opération.</p>
+        </details>
+      </section>
+      <p class="ach-assistant-absent" id="ach-assistant-absent" hidden>Assistant pas encore activé pour ce projet.</p>
+    </div>
+
+    <!-- fiche de découverte : aucun document -->
+    <div id="ach-decouverte" hidden>
+      <p class="dr-aide">Fiche de présentation non confidentielle, préparée par l'équipe Almavision. Elle ne donne ni
+        invitation, ni accès aux documents, ni accès à l'assistant.</p>
+      <form class="dr-form" id="ach-form-demande" autocomplete="off" novalidate>
+        <label for="ach-message">Demander l'accès à la data room de ce projet (message facultatif)</label>
+        <textarea id="ach-message" rows="3" maxlength="500"></textarea>
+        <div class="dr-boutons"><button class="btn primary small" type="submit" id="ach-demander">Demander l'accès</button></div>
+      </form>
+      <p class="dr-msg" id="ach-d-msg" role="status" aria-live="polite"></p>
+    </div>
+  </article>
+
+  <div class="dr-vis" id="dr-vis" hidden role="dialog" aria-modal="true" aria-labelledby="dr-vis-titre">
+    <div class="dr-vis-barre">
+      <h2 id="dr-vis-titre"></h2>
+      <span class="dr-vis-pages" id="dr-vis-pages" hidden>
+        <button class="btn small" type="button" id="dr-vis-prec">Page précédente</button>
+        <span id="dr-vis-num" aria-live="polite"></span>
+        <button class="btn small" type="button" id="dr-vis-suiv">Page suivante</button>
+      </span>
+      <button class="btn small" type="button" id="dr-vis-fermer">Fermer</button>
+    </div>
+    <p class="dr-msg" id="dr-vis-msg" role="status" aria-live="polite"></p>
+    <div class="dr-vis-zone" id="dr-vis-zone"><canvas id="dr-vis-toile" width="0" height="0"></canvas></div>
+  </div>
+</main>
+<script src="plateforme/coquille.js?v=cff860c8a7"></script>
+<script src="modules/dataroom/visionneuse.js?v=008f04577c"></script>
+<script src="modules/dataroom/acheteur.js?v=da66027d09"></script>
+</body></html>

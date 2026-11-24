@@ -134,14 +134,8 @@
 .dr-doc-actions { display: inline-flex; gap: .3rem; margin-left: .4rem; flex-wrap: wrap; }
 .dr-doc-msg { margin-left: .4rem; font-size: .85em; color: var(--texte-doux, #555); }
 
-/* catalogue et fiche de l'opération (acheteur) */
-.dr-ach-operations { list-style: none; padding: 0; margin: .6rem 0 0; display: grid; gap: .7rem;
-                     grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
-.dr-ach-operation { border: 1px solid var(--bord, #ddd); border-radius: 10px; padding: .8rem .9rem; background: #fff;
-                    display: flex; flex-direction: column; gap: .25rem; align-items: flex-start; }
-.dr-ach-operation.choisie { border-color: var(--forest, #00352F); box-shadow: 0 0 0 1px var(--forest, #00352F); }
+/* cartes et fiches (Vitrine, aperçu « Voir comme cet acheteur ») */
 .dr-ach-op-nom { margin: 0; font-weight: 600; }
-.dr-ach-op-code { margin: 0; font-size: .85em; color: var(--texte-doux, #555); }
 .dr-ach-op-infos { margin: 0 0 .3rem; font-size: .9em; }
 .dr-ach-infos { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; margin: .4rem 0 0; }
 .dr-ach-infos dt { color: var(--texte-doux, #555); }
@@ -177,20 +171,12 @@
 .dr-visuel.grand { width: min(22rem, 100%); }
 .dr-visuel-mention { position: absolute; left: 6px; bottom: 6px; line-height: 1.4; font-size: 11px; font-weight: 600;
                      color: #fff; background: rgba(0, 53, 47, .78); border-radius: 999px; padding: 1px 8px; }
-.dr-ach-fiche-corps { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; }
-.dr-ach-fiche-corps .dr-ach-infos { flex: 1 1 16rem; }
-.dr-ach-operation { align-items: stretch; }
-.dr-ach-operation > .btn { align-self: flex-start; }
-.dr-ach-operation > .dr-badge { align-self: flex-start; }
 
 /* accès à l'assistant : bouton bien visible et contexte du projet (21/11/2026) */
 .dr-contexte { margin: .4rem 0 .6rem; padding: .5rem .75rem; border-left: 4px solid var(--forest, #00352F);
                background: var(--accent-weak, #e2eeeb); border-radius: 4px; }
 .dr-contexte:empty { display: none; }
 .dr-claude { font-weight: 600; }
-.dr-ach-fiche-actions { margin-top: .8rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
-.dr-claude-absent { font-size: .9em; color: var(--muted, #7d8e91); }
-.dr-ach-operation > .dr-claude, .dr-ach-operation > .dr-claude-absent { align-self: flex-start; }
 .dr-poser textarea { padding: .45rem .6rem; box-sizing: border-box; }
 .dr-trouver{display:flex;gap:6px;align-items:center}
 .dr-trouver input{flex:1;min-width:0}
@@ -202,21 +188,15 @@
 .dr-form .dr-portee{grid-column:1/-1}
 #dr-form-portee{max-width:900px}
 
-/* ---- Marketplace (vitrine) : onglets de l'acquéreur, cartes, fiche ; équipe : préparation */
-.dr-onglets{display:flex;gap:6px;margin:0 0 12px;border-bottom:1px solid #d5dfdc;flex-wrap:wrap}
-.dr-onglet{background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;font:inherit;font-weight:600;color:#4b5f5c;cursor:pointer}
-.dr-onglet[aria-selected="true"]{color:#00352F;border-bottom-color:#00352F}
-.dr-onglet:focus-visible{outline:2px solid #00352F;outline-offset:2px}
-.dr-v-filtres{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end;margin:10px 0}
-.dr-v-filtres label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:#4b5f5c}
-.dr-v-filtres select,.dr-v-filtres input{font:inherit;padding:6px 8px;border:1px solid #c9d4d1;border-radius:6px;min-width:0}
+/* ---- Marketplace (vitrine) : cartes et fiche ; équipe : préparation */
 .dr-v-liste{list-style:none;padding:0;margin:10px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
 .dr-v-carte{border:1px solid #dbe4e1;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;background:#fff}
 .dr-v-carte .btn{align-self:flex-start;margin-top:auto}
 .dr-v-extrait{margin:0;color:#3b4a48;font-size:.9rem}
 .dr-v-resume{white-space:pre-line}
+/* clause de confidentialité (jusqu'à 50 000 caractères) : retours à la ligne gardés, zone défilante */
+.dr-nda-texte{white-space:pre-line;max-height:24rem;overflow:auto;border:1px solid var(--line,#dbe4e1);border-radius:8px;padding:10px 12px;background:var(--bg,#fff);overflow-wrap:anywhere}
 .dr-v-points{margin:6px 0;padding-left:1.2em}
-.dr-v-fiche .btn:first-child{margin-bottom:8px}
 .dr-vit-grille{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
 .dr-vit-fiches,.dr-vit-demandes{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
 .dr-vit-fiche,.dr-vit-demande{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border:1px solid #dbe4e1;border-radius:8px;padding:8px}
@@ -235,5 +215,39 @@
 @media (max-width:700px){
   .dr-vit-grille{grid-template-columns:1fr}
   .dr-v-liste{grid-template-columns:1fr}
-  .dr-onglet{flex:1;text-align:center}
 }
+
+/* ---- page de l'équipe simplifiée (24/11/2026) : historique replié, carte « Acheteurs », aperçu « Voir comme » */
+.dr-historique{margin:6px 0 4px}
+.dr-historique>summary{cursor:pointer;font-size:13.5px;color:var(--forest);font-weight:600;margin-bottom:10px}
+.dr-ae{margin-top:16px;display:grid;gap:6px}
+.dr-ae h2{font-size:18px;margin:0;color:var(--forest)}
+.dr-ae h3{font-size:16px;margin:0;color:var(--forest)}
+.dr-ae-liste,.dr-ae-projets{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.dr-ae-org{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--bg)}
+.dr-ae-org.choisie{border-color:var(--forest);box-shadow:0 0 0 1px var(--forest)}
+.dr-ae-nom{font-weight:600;color:var(--ink)}
+.dr-ae-infos{font-size:13px;color:var(--ink2);flex:1 1 16rem}
+.dr-ae-panneau{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--soft);display:grid;gap:8px;margin-top:6px}
+.dr-ae-panneau h3:focus,.dr-ae-apercu h4:focus,.dr-ae-bandeau p:focus{outline:2px solid var(--accent);outline-offset:2px}
+.dr-ae-projet{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);display:grid;gap:4px}
+.dr-ae-projet.preparation{border-style:dashed}
+.dr-ae-projet p{margin:0;font-size:13.5px}
+.dr-ae-projet-titre{color:var(--forest)}
+.dr-ae-etape{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13px;color:var(--ink2)}
+.dr-ae-etape select{height:32px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--bg);max-width:100%}
+.dr-ae-apercu{border:2px solid var(--forest);border-radius:12px;padding:0 14px 12px;margin-top:8px;display:grid;gap:6px;background:var(--bg)}
+.dr-ae-bandeau{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin:0 -14px;padding:10px 14px;background:var(--forest);color:#fff;border-radius:9px 9px 0 0}
+.dr-ae-bandeau p{margin:0;font-weight:600}
+.dr-ae-bandeau .btn{background:#fff}
+.dr-v-carte.dr-ae-prepa{border-style:dashed;opacity:.92}
+.dr-ae-bandeau-prepa{margin:0;font-size:12.5px;font-weight:600;color:#7A4F00;background:#FFF4DD;border-radius:6px;padding:3px 8px}
+.dr-ae-a-fiche{display:grid;gap:6px}
+.dr-ae-a-fiche h4{margin:4px 0 0;font-size:16px;color:var(--forest)}
+.dr-ae-a-fiche .btn{justify-self:start}
+.dr-ae-dossier{margin:8px 0 0;font-weight:600;color:var(--forest)}
+.dr-ae-docs{list-style:none;padding-left:0;margin:2px 0}
+.dr-ae-docs li.ferme .dr-nom{color:var(--muted)}
+.dr-badge.ferme{background:#eef1f0;color:#4b5f5c}
+.dr-ae-cadenas{display:inline-block;position:relative;width:9px;height:7px;margin:0 7px 0 2px;background:var(--muted);border-radius:1px;vertical-align:-1px}
+.dr-ae-cadenas::before{content:"";position:absolute;left:1.5px;top:-5px;width:6px;height:6px;box-sizing:border-box;border:1.5px solid var(--muted);border-bottom:0;border-radius:4px 4px 0 0}

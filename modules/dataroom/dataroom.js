@@ -1,6 +1,10 @@
 /* Module Data Room Access (en co-construction, docs/DATAROOM_PLAN.md).
 
-   Toute personne qui a accès au module voit la présentation (ce que le module fera, où on en est).
+   Page de l'ÉQUIPE. Un acheteur (rôle « invite ») est renvoyé dès le démarrage vers sa page, acheteur.html (même
+   dossier, module.json : page_invites) ; l'aperçu de ce qu'il voit se fait ici, par « Voir comme cet acheteur ».
+   Carte « Acheteurs » (sql/09_marche.sql) : organisations acheteuses (dr_acheteurs), accès d'une organisation à ses seuls
+   projets (dr_acces_organisation), aperçu en lecture seule (dr_apercu_marche, dr_apercu_documents) ; bouton « Créer la
+   fiche marketplace » d'une salle (dr_vitrine_depuis_salle).
    L'équipe (rôle « equipe » ou plus sur le module) voit en plus l'écran « Synchronisation » du lot a (plan §6) :
    - les bibliothèques SharePoint suivies, avec leur dernier passage (compteurs, erreurs, alertes), la date d'expiration
      du secret Microsoft (notée ici, alerte 30 jours avant) et un bouton « Synchroniser maintenant », qui appelle la
@@ -23,15 +27,18 @@
   "use strict";
   let P;
   try { P = await window.plateforme.pret; } catch { return; }   // refus ou erreur : la coquille l'a déjà affiché
-  document.getElementById("dr").hidden = false;
 
   // rangs des rôles du module, les mêmes que dans module.json (acces.roles) : contrôlé par tests/test_plateforme.py
   const RANGS = {invite: 10, equipe: 20, admin: 30};
   const role = P.module ? P.module.role : null;
-  // un acheteur (rôle « invite ») a son écran ; la présentation interne n'est montrée qu'à l'équipe
-  const vueAcheteur = role === "invite";
-  if (!vueAcheteur) document.getElementById("dr-presentation").hidden = false;
-  if (!vueAcheteur && (RANGS[role] || 0) < RANGS.equipe) return;   // présentation seulement
+  // un acheteur (rôle « invite ») a sa page, acheteur.html, dans le même dossier : il y est renvoyé sans rien voir ici
+  if (role === "invite") {
+    window.location.replace(new URL("acheteur.html", window.location.href).href);
+    return;
+  }
+  document.getElementById("dr-presentation").hidden = false;
+  document.getElementById("dr").hidden = false;
+  if ((RANGS[role] || 0) < RANGS.equipe) return;   // présentation seulement
 
   const sb = P.sb, conf = window.plateforme.conf;
   const $ = id => document.getElementById(id);
@@ -550,7 +557,7 @@
     else if (r.erreurs.length) t += ` Erreur : ${r.erreurs.slice(0, 3).join(" ; ")}.`;
     if (r.statut === "interrompu") t += " Temps permis atteint : le passage s'est arrêté proprement.";
     if (etat.attente.has(b.id)) {
-      t += " La lecture n'est pas finie : la suite au prochain passage (automatique toutes les 15 minutes, ou nouveau clic).";
+      t += " La lecture n'est pas finie : la suite au prochain « Synchroniser maintenant ».";
     }
     return t;
   }
@@ -1199,6 +1206,8 @@
                          "reglages:" + s.id);
         r.setAttribute("aria-expanded", String(ouvert));
         li.appendChild(r);
+        li.appendChild(bouton("Créer la fiche marketplace", ev => ficheDepuisSalle(s, ev.currentTarget), "btn small",
+                              `Créer ou ouvrir la fiche marketplace de la salle ${s.code}`, "fiche:" + s.id));
         if (ouvert) li.appendChild(formReglages(s));
         ul.appendChild(li);
       }
@@ -1537,22 +1546,14 @@
   }
 
 
-  // ------------------------------------------------------------------ écran de l'acheteur (lot c)
-  // Un acheteur (rôle « invite ») ne voit jamais la présentation interne ni les écrans de l'équipe. Il n'appelle que ses
-  // fonctions (dr_mes_salles, dr_accepter_nda, dr_arborescence, dr_recherche_acheteur, dr_autoriser, dr_suivre, et pour la
-  // Marketplace dr_vitrine_liste, dr_vitrine_fiche, dr_vitrine_demander) et les
-  // fonctions serveur « assistant » et « fichiers » (visionneuse.js) ; la base revérifie ses droits à chaque appel et refuse toujours de la même façon (« accès refusé »).
-  const ach = {salles: [], salle: null, choisie: null, conversation: null, onglet: "vitrine", fiche: null};
-  const achMsg = (t, erreur = false) => ecrire($("dr-ach-msg"), t, erreur ? "erreur" : "");
-  const achAnnoncer = t => { const a = $("dr-ach-annonce"); a.textContent = ""; setTimeout(() => { a.textContent = t; }, 60); };
+  // ------------------------------------------------------------------ outils communs (aperçus et documents)
+  // L'écran de l'acheteur a sa page, acheteur.html (acheteur.js) ; restent ici ce dont l'équipe se sert : libellés des
+  // étapes, visionneuse pour l'aperçu d'un document de l'arborescence, illustrations et libellés de la Marketplace.
   const ETAPES_ACHETEUR = ["Teaser et mémo d'information", "Offre indicative", "Offre ferme et due diligence", "Confirmatoire"];
-  const refusAcheteur = e => e && e.code === "42501"
-    ? "Accès à cette opération fermé ou suspendu. Rapprochez-vous de votre contact chez Almavision."
-    : `Lecture impossible : ${messageBase(e)}.`;
 
   // documents (lot b, visionneuse.js) : dr_autoriser ouvre une consultation (contrôle complet, journal) ; les octets
   // passent ensuite plage par plage par la fonction serveur « fichiers », qui appelle dr_plage avec le jeton de la
-  // personne ; dr_suivre note les pages vues. Aussi pour l'aperçu de l'équipe, dans l'arborescence.
+  // personne ; dr_suivre note les pages vues. Ici : aperçu de l'équipe, dans l'arborescence.
   const consultable = mime => /^(application\/pdf|image\/)/.test(mime || "");
   const jetonActuel = async () => {
     try { const {data} = await sb.auth.getSession(); if (data && data.session) return data.session.access_token; } catch {}
@@ -1573,39 +1574,6 @@
     if (error || !data) { dire(refusOuverture(error)); return; }
     if (action === "telecharger") await visionneuse.telecharger(data, dire);
     else { dire(""); await visionneuse.consulter(data); }
-  }
-
-  async function demarrerAcheteur() {
-    $("dr-acheteur").hidden = false;
-    $("dr-ach-onglet-vitrine").addEventListener("click", () => ongletAcheteur("vitrine"));
-    $("dr-ach-onglet-ops").addEventListener("click", () => ongletAcheteur("ops"));
-    $("dr-v-filtres").addEventListener("submit", ev => { ev.preventDefault(); chargerVitrine(); });
-    $("dr-v-effacer").addEventListener("click", () => { $("dr-v-filtres").reset(); chargerVitrine(); });
-    for (const id of ["dr-v-f-techno", "dr-v-f-stade", "dr-v-f-zone"]) $(id).addEventListener("change", () => chargerVitrine());
-    $("dr-v-retour").addEventListener("click", () => { $("dr-v-fiche").hidden = true; $("dr-v-catalogue").hidden = false; });
-    $("dr-v-form-demande").addEventListener("submit", demanderAcces);
-    await chargerVitrine();
-    $("dr-ach-nda-go").addEventListener("click", accepterClause);
-    $("dr-ach-form-chercher").addEventListener("submit", chercherAcheteur);
-    $("dr-ach-form-question").addEventListener("submit", questionAcheteur);
-    $("dr-ach-nouvelle").addEventListener("click", () => { ach.conversation = null; $("dr-ach-fil").textContent = "";
-                                                           ecrire($("dr-ach-q-msg"), "Nouvelle conversation."); });
-    await chargerSallesAcheteur();
-  }
-
-  async function chargerSallesAcheteur() {
-    const {data, error} = await appel("dr_mes_salles", {});
-    if (error) { achMsg(refusAcheteur(error), true); return; }
-    ach.salles = Array.isArray(data) ? data : [];
-    $("dr-ach-onglet-ops").textContent = `Mes opérations (${ach.salles.length})`;
-    if (!ach.salles.length) {
-      if (ach.onglet === "ops") achMsg("Aucune opération ne vous est ouverte pour le moment. Les projets proposés sont dans « Marketplace » ; vous pouvez y demander l'accès.");
-      for (const id of ["dr-ach-catalogue", "dr-ach-fiche", "dr-ach-nda", "dr-ach-contenu"]) $(id).hidden = true;
-      return;
-    }
-    if (!ach.salles.some(s => s.salle_id === ach.choisie)) ach.choisie = ach.salles[0].salle_id;
-    catalogue();
-    await ouvrirSalle();
   }
 
   // Visuel d'une opération : ILLUSTRATION générée dans la page (SVG), jamais une photo du projet. Aucune image n'est
@@ -1662,8 +1630,8 @@
     return cadre;
   }
 
-  // ---------------- Marketplace (sql/08_vitrine.sql) : fiches publiées, liste blanche construite par la base. Une fiche
-  // ne donne aucun document : ni lien, ni identifiant de document, ni dossier ; la demande d'accès n'ouvre rien.
+  // ---------------- Marketplace (sql/08_vitrine.sql) : libellés et dessin des fiches, pour la Vitrine et l'aperçu
+  // « Voir comme cet acheteur »
   const TECHNOS = {pv_sol: "Photovoltaïque au sol", pv_toiture: "Photovoltaïque en toiture", pv_ombriere: "Ombrières",
                    agrivoltaisme: "Agrivoltaïsme", portefeuille_pv: "Portefeuille photovoltaïque", eolien: "Éolien",
                    stockage: "Stockage", hybride: "Hybride"};
@@ -1675,318 +1643,6 @@
   const visuelFiche = (f, classe) => visuelOperation({code: f.id, type_actif: ILLUSTRATIONS[f.illustration] || "exploitation"}, classe);
   const infosFiche = f => [TECHNOS[f.technologie] || f.technologie, `${NOMBRE.format(Number(f.puissance_mwc))} MWc`,
                            f.zone, STADES[f.stade] || f.stade].filter(Boolean);
-  function ongletAcheteur(nom) {
-    ach.onglet = nom;
-    for (const [n, panneau] of [["vitrine", "dr-ach-vitrine"], ["ops", "dr-ach-ops"]]) {
-      const actif = n === nom;
-      $(panneau).hidden = !actif;
-      $(n === "vitrine" ? "dr-ach-onglet-vitrine" : "dr-ach-onglet-ops").setAttribute("aria-selected", String(actif));
-    }
-    achMsg("");
-    if (nom === "ops" && !ach.salles.length) chargerSallesAcheteur();
-  }
-  function filtresVitrine() {
-    const f = {};
-    for (const [cle, id] of [["technologie", "dr-v-f-techno"], ["stade", "dr-v-f-stade"], ["zone", "dr-v-f-zone"],
-                             ["puissance_min", "dr-v-f-min"], ["puissance_max", "dr-v-f-max"], ["texte", "dr-v-f-texte"]]) {
-      const v = $(id).value.trim();
-      if (v) f[cle] = v;
-    }
-    return f;
-  }
-  async function chargerVitrine() {
-    const ul = $("dr-v-liste"), compte = $("dr-v-compte");
-    ecrire(compte, "Lecture des projets…");
-    const {data, error} = await appel("dr_vitrine_liste", {p_filtres: filtresVitrine()});
-    ul.textContent = "";
-    if (error) { ecrire(compte, error.code === "42501" ? "Marketplace réservée aux acquéreurs connectés." : `Lecture impossible : ${messageBase(error)}.`, "erreur"); return; }
-    const fiches = (data && Array.isArray(data.fiches)) ? data.fiches : [];
-    const filtre = Object.keys(filtresVitrine()).length > 0;
-    ecrire(compte, !fiches.length ? (filtre ? "Aucun projet ne correspond à ces critères." : "Aucun projet proposé pour le moment.")
-                                  : `${data.total} projet${data.total > 1 ? "s" : ""} proposé${data.total > 1 ? "s" : ""}.`);
-    for (const f of fiches) {
-      const li = el("li", "dr-v-carte");
-      li.appendChild(visuelFiche(f, "petit"));
-      li.appendChild(el("p", "dr-ach-op-nom", f.nom_de_code));
-      li.appendChild(el("p", "dr-ach-op-infos", infosFiche(f).join(" · ")));
-      if (f.resume) li.appendChild(el("p", "dr-v-extrait", f.resume.length > 140 ? f.resume.slice(0, 140) + "…" : f.resume));
-      li.appendChild(bouton("Voir la fiche", () => ouvrirFiche(f.id), "btn small", `Voir la fiche du projet ${f.nom_de_code}`));
-      ul.appendChild(li);
-    }
-  }
-  async function ouvrirFiche(id) {
-    ecrire($("dr-v-d-msg"), "");
-    const {data: f, error} = await appel("dr_vitrine_fiche", {p_id: id});
-    if (error || !f) {
-      await chargerVitrine();                         // la liste à jour, puis le motif (même message pour toute fiche absente)
-      ecrire($("dr-v-compte"), error && error.code === "P0002" ? "Ce projet n'est plus proposé." : `Lecture impossible : ${messageBase(error)}.`, "erreur");
-      return;
-    }
-    ach.fiche = f;
-    $("dr-v-fiche-titre").textContent = f.nom_de_code;
-    const place = $("dr-v-visuel");
-    place.textContent = "";
-    place.appendChild(visuelFiche(f, "grand"));
-    const dl = $("dr-v-infos");
-    dl.textContent = "";
-    for (const [t, v] of [["Technologie", TECHNOS[f.technologie] || f.technologie],
-                          ["Stade", STADES[f.stade] || f.stade],
-                          ["Puissance", `${NOMBRE.format(Number(f.puissance_mwc))} MWc`],
-                          ["Zone", f.zone],
-                          ["Mise en service", f.annee_mise_en_service ? String(f.annee_mise_en_service) : "non précisée"],
-                          ["Proposé depuis le", f.publie_le ? jourDe(f.publie_le) : ""]]) {
-      dl.append(el("dt", null, t), el("dd", null, v));
-    }
-    $("dr-v-resume").textContent = f.resume || "";
-    const pts = $("dr-v-points");
-    pts.textContent = "";
-    for (const p of Array.isArray(f.points_cles) ? f.points_cles : []) pts.appendChild(el("li", null, String(p)));
-    etatDemande(f.ma_demande);
-    $("dr-v-catalogue").hidden = true;
-    $("dr-v-fiche").hidden = false;
-    $("dr-v-fiche-titre").setAttribute("tabindex", "-1");
-    $("dr-v-fiche-titre").focus();
-    achAnnoncer(`Fiche du projet ${f.nom_de_code}.`);
-  }
-  function etatDemande(statut) {
-    const deja = statut === "en_attente";
-    $("dr-v-demander").disabled = deja;
-    $("dr-v-message").disabled = deja;
-    ecrire($("dr-v-d-msg"), deja ? "Votre demande d'accès est enregistrée ; l'équipe Almavision vous recontactera. Aucun accès n'est ouvert automatiquement."
-      : statut === "traitee" ? "Votre précédente demande a été traitée par l'équipe Almavision."
-      : statut === "refusee" ? "Votre précédente demande n'a pas été retenue ; vous pouvez en faire une nouvelle." : "");
-  }
-  async function demanderAcces(ev) {
-    ev.preventDefault();
-    if (!ach.fiche) return;
-    $("dr-v-demander").disabled = true;
-    const {data, error} = await appel("dr_vitrine_demander", {p_id: ach.fiche.id, p_message: $("dr-v-message").value.trim()});
-    if (error) {
-      $("dr-v-demander").disabled = false;
-      ecrire($("dr-v-d-msg"), error.code === "P0002" ? "Ce projet n'est plus proposé." : error.code === "54000"
-        ? "Trop de demandes aujourd'hui : réessayez demain." : `Demande non enregistrée : ${messageBase(error)}.`, "erreur");
-      return;
-    }
-    $("dr-v-message").value = "";
-    etatDemande(data && data.statut);
-    achAnnoncer(data && data.deja ? "Demande déjà enregistrée." : "Demande d'accès enregistrée.");
-  }
-
-  // « Interroger ce projet avec Claude » : seulement si l'équipe a activé l'assistant pour la salle (dr_mes_salles), et
-  // après la clause ; sinon une mention, jamais de contournement (la base revérifie tout à chaque question).
-  function boutonClaude(s) {
-    if (!s.assistant_actif) return el("span", "dr-claude-absent", "Assistant non activé pour ce projet");
-    return bouton("Interroger ce projet avec Claude", () => interrogerProjet(s.salle_id), "btn primary small dr-claude",
-                  `Interroger le projet ${s.nom_de_code} avec Claude`);
-  }
-  async function interrogerProjet(id) {
-    if (ach.choisie !== id) {
-      ach.choisie = id; ach.conversation = null; $("dr-ach-fil").textContent = "";
-      catalogue();
-      await ouvrirSalle();
-    }
-    const s = ach.salle;
-    if (!s || s.salle_id !== id) return;
-    if (!s.nda_acceptee) {
-      achMsg("Acceptez d'abord la clause de confidentialité de ce projet pour l'interroger avec Claude.");
-      $("dr-ach-nda").scrollIntoView({block: "start"});
-      return;
-    }
-    if (!s.assistant_actif || $("dr-ach-assistant").hidden) return;
-    $("dr-ach-assistant").scrollIntoView({block: "start"});
-    $("dr-ach-question").focus();
-    achAnnoncer(`Interroger ${s.nom_de_code} avec Claude.`);
-  }
-
-  // catalogue des opérations ouvertes (dr_mes_salles : rien de plus que ce que la base rend à l'acheteur)
-  const infosSalle = s => [
-    s.type_actif ? TYPES[s.type_actif] || s.type_actif : "",
-    s.puissance_mw != null ? `${NOMBRE.format(Number(s.puissance_mw))} MW` : "",
-    `étape : ${ETAPES_ACHETEUR[s.etape] || s.etape}`,
-    s.fin ? `accès jusqu'au ${jourDe(s.fin)}` : ""].filter(Boolean);
-  function catalogue() {
-    const ul = $("dr-ach-operations");
-    ul.textContent = "";
-    for (const s of ach.salles) {
-      const li = el("li", "dr-ach-operation" + (s.salle_id === ach.choisie ? " choisie" : ""));
-      li.appendChild(visuelOperation(s, "petit"));
-      li.appendChild(el("p", "dr-ach-op-nom", s.nom_de_code));
-      li.appendChild(el("p", "dr-ach-op-code", s.code));
-      li.appendChild(el("p", "dr-ach-op-infos", infosSalle(s).join(" · ")));
-      if (!s.nda_acceptee) li.appendChild(el("span", "dr-badge", "clause à accepter"));
-      const b = bouton(s.salle_id === ach.choisie ? "Ouverte" : "Ouvrir", async () => {
-        if (ach.choisie === s.salle_id) return;
-        ach.choisie = s.salle_id; ach.conversation = null; $("dr-ach-fil").textContent = "";
-        catalogue();
-        await ouvrirSalle();
-      }, "btn small", `Ouvrir l'opération ${s.nom_de_code}`);
-      if (s.salle_id === ach.choisie) b.setAttribute("aria-current", "true");
-      li.appendChild(b);
-      li.appendChild(boutonClaude(s));
-      ul.appendChild(li);
-    }
-    $("dr-ach-catalogue").hidden = false;
-  }
-
-  async function ouvrirSalle() {
-    const s = ach.salles.find(x => x.salle_id === ach.choisie) || null;
-    ach.salle = s;
-    $("dr-ach-docs").textContent = ""; $("dr-ach-resultats").textContent = ""; ecrire($("dr-ach-c-msg"), "");
-    if (!s) return;
-    achMsg("");
-    if (!s.nda_acceptee) {
-      $("dr-ach-contenu").hidden = true; $("dr-ach-fiche").hidden = true;
-      $("dr-ach-nda").hidden = false;
-      $("dr-ach-nda-texte").textContent = s.nda_texte || "";
-      $("dr-ach-nda-ok").checked = false;
-      return;
-    }
-    $("dr-ach-nda").hidden = true;
-    $("dr-ach-contenu").hidden = false;
-    $("dr-ach-assistant").hidden = !s.assistant_actif;
-    // fiche de l'opération
-    $("dr-ach-fiche-titre").textContent = `${s.nom_de_code} · ${s.code}`;
-    const place = $("dr-ach-fiche-visuel");
-    place.textContent = "";
-    place.appendChild(visuelOperation(s, "grand"));
-    const dl = $("dr-ach-infos");
-    dl.textContent = "";
-    for (const [t, v] of [["Type d'actif", s.type_actif ? TYPES[s.type_actif] || s.type_actif : "non précisé"],
-                          ["Puissance", s.puissance_mw != null ? `${NOMBRE.format(Number(s.puissance_mw))} MW` : "non précisée"],
-                          ["Étape ouverte pour vous", ETAPES_ACHETEUR[s.etape] || String(s.etape)],
-                          ["Accès jusqu'au", s.fin ? jourDe(s.fin) : ""],
-                          ["Assistant", s.assistant_actif ? "activé pour cette opération" : "non activé"]]) {
-      dl.append(el("dt", null, t), el("dd", null, v));
-    }
-    const actions = $("dr-ach-fiche-actions");
-    actions.textContent = "";
-    actions.appendChild(boutonClaude(s));
-    $("dr-ach-q-contexte").textContent = `Projet : ${s.nom_de_code} · ${s.code} · étape ouverte pour vous : ${
-      ETAPES_ACHETEUR[s.etape] || s.etape}. Claude ne lit que les documents de ce projet qui vous sont ouverts à cette étape ; vos questions sont enregistrées à votre nom.`;
-    $("dr-ach-fiche").hidden = false;
-    await documentsAcheteur();
-  }
-
-  async function accepterClause() {
-    if (!ach.salle) return;
-    if (!$("dr-ach-nda-ok").checked) { achMsg("Cochez la case pour accepter la clause.", true); return; }
-    $("dr-ach-nda-go").disabled = true;
-    const {error} = await appel("dr_accepter_nda", {p_salle: ach.salle.salle_id});
-    $("dr-ach-nda-go").disabled = false;
-    if (error) { achMsg(refusAcheteur(error), true); return; }
-    achAnnoncer("Clause acceptée.");
-    await chargerSallesAcheteur();
-  }
-
-  async function documentsAcheteur() {
-    const zone = $("dr-ach-docs");
-    const {data, error} = await appel("dr_arborescence", {p_salle: ach.salle.salle_id});
-    zone.textContent = "";
-    if (error) { achMsg(refusAcheteur(error), true); $("dr-ach-contenu").hidden = true; return; }
-    const docs = Array.isArray(data) ? data : [];
-    if (!docs.length) { zone.appendChild(el("p", "dr-vide", "Aucun document ne vous est encore ouvert dans cette opération.")); return; }
-    const parDossier = new Map();
-    for (const d of docs) { if (!parDossier.has(d.dossier)) parDossier.set(d.dossier, []); parDossier.get(d.dossier).push(d); }
-    for (const [dossier, liste] of [...parDossier].sort((a, b) => TRI.compare(a[0] || "", b[0] || ""))) {
-      zone.appendChild(el("h3", null, dossier || "Documents"));
-      const ul = el("ul", "dr-ach-liste");
-      for (const d of liste) {
-        const li = el("li", null, d.nom);
-        if (d.taille != null) li.appendChild(el("span", "dr-taille", taille(Number(d.taille))));
-        if (d.publie_le) li.appendChild(el("span", "dr-lieu", `publié le ${jourDe(d.publie_le)}`));
-        const actions = el("span", "dr-doc-actions"), msgDoc = el("span", "dr-doc-msg");
-        msgDoc.setAttribute("role", "status");
-        const dire = t => { msgDoc.textContent = t; };
-        if (consultable(d.mime)) {
-          actions.appendChild(bouton("Consulter", () => ouvrirDocument(d.element_id, "consulter", dire), "btn small",
-                                     `Consulter « ${d.nom} »`));
-        }
-        if (d.telecharger) {
-          actions.appendChild(bouton("Télécharger", () => ouvrirDocument(d.element_id, "telecharger", dire), "btn small",
-                                     `Télécharger « ${d.nom} »`));
-        }
-        li.append(actions, msgDoc);
-        ul.appendChild(li);
-      }
-      zone.appendChild(ul);
-    }
-  }
-
-  async function chercherAcheteur(ev) {
-    ev.preventDefault();
-    const liste = $("dr-ach-resultats"), msg = $("dr-ach-c-msg"), mots = motsDe($("dr-ach-mots").value);
-    liste.textContent = "";
-    if (!ach.salle) return;
-    if (!mots.length) { ecrire(msg, "Tapez au moins un mot de deux lettres.", "erreur"); return; }
-    $("dr-ach-c-go").disabled = true;
-    ecrire(msg, "Recherche…");
-    const {data, error} = await appel("dr_recherche_acheteur", {p_salle: ach.salle.salle_id, p_groupes: mots.map(m => [m])});
-    $("dr-ach-c-go").disabled = false;
-    if (error) {
-      ecrire(msg, error.code === "DRJ02" ? "Nombre de recherches du jour atteint : reprenez demain." : refusAcheteur(error), "erreur");
-      return;
-    }
-    const res = data && Array.isArray(data.resultats) ? data.resultats : [];
-    if (!res.length) { ecrire(msg, "Aucun passage trouvé."); return; }
-    ecrire(msg, `${compte(res.length, "passage")}` + (data.mode === "un_des_mots"
-      ? " contenant l'un des mots (aucun ne les contient tous)." : " contenant tous les mots."));
-    for (const x of res) {
-      const li = el("li");
-      const ou = [x.page != null ? `page ${x.page}` : "", x.feuille ? `feuille « ${x.feuille} »` : ""].filter(Boolean).join(", ");
-      li.appendChild(el("p", "dr-res-titre", x.nom + (ou ? ` · ${ou}` : "")));
-      li.appendChild(extraitMarque(x.extrait));
-      liste.appendChild(li);
-    }
-    achAnnoncer(msg.textContent);
-  }
-
-  async function questionAcheteur(ev) {
-    ev.preventDefault();
-    const msg = $("dr-ach-q-msg"), question = $("dr-ach-question").value.trim();
-    if (!ach.salle) return;
-    if (question.length < 2) { ecrire(msg, "Tapez une question.", "erreur"); return; }
-    $("dr-ach-q-go").disabled = true;
-    ecrire(msg, "L'assistant cherche dans les documents et rédige sa réponse…");
-    let jeton = P.session.access_token;
-    try { const {data} = await sb.auth.getSession(); if (data && data.session) jeton = data.session.access_token; } catch {}
-    const arret = new AbortController(), minuterie = setTimeout(() => arret.abort(), 150000);
-    let rep, corps = null;
-    try {
-      rep = await fetch(`${conf.url}/functions/v1/assistant`, {
-        method: "POST", redirect: "error", credentials: "omit", cache: "no-store", signal: arret.signal,
-        headers: {"Authorization": `Bearer ${jeton}`, "apikey": conf.cle, "Content-Type": "application/json"},
-        body: JSON.stringify({salle: ach.salle.salle_id, etape: 0, question, conversation: ach.conversation}),
-      });
-      try { corps = await rep.json(); } catch { corps = null; }
-    } catch {
-      ecrire(msg, "Pas de réponse du serveur : réessayez dans un moment.", "erreur");
-      $("dr-ach-q-go").disabled = false;
-      return;
-    } finally { clearTimeout(minuterie); }
-    $("dr-ach-q-go").disabled = false;
-    if (!rep.ok || !corps || typeof corps.reponse !== "string") {
-      ecrire(msg, rep.status === 429 ? "Nombre de questions du jour atteint : reprenez demain."
-        : rep.status === 401 ? "Accès à l'assistant fermé pour cette opération." : "L'assistant n'a pas pu répondre : réessayez.", "erreur");
-      return;
-    }
-    ach.conversation = corps.conversation;
-    $("dr-ach-question").value = "";
-    const li = el("li", "dr-echange");
-    li.appendChild(el("p", "dr-q", question));
-    li.appendChild(el("p", "dr-r", corps.reponse));
-    const cits = Array.isArray(corps.citations) ? corps.citations : [];
-    if (cits.length) {
-      const ul = el("ul", "dr-citations");
-      for (const c of cits) {
-        const ou = c.feuille ? `feuille « ${c.feuille} »` : c.page != null ? `page ${c.page}` : "";
-        ul.appendChild(el("li", null, `[${c.n}] ${c.nom}${ou ? `, ${ou}` : ""}`));
-      }
-      li.appendChild(ul);
-    }
-    $("dr-ach-fil").appendChild(li);
-    ecrire(msg, "");
-    achAnnoncer("Réponse de l'assistant reçue.");
-  }
 
   // ------------------------------------------------------------------ « Acquéreurs » (équipe, lot c)
   // Organisations, comptes invités (rattacher, détacher), invitations dans une salle (étape, fin, suspension), droits
@@ -2016,6 +1672,7 @@
     if (error) { acqMsg(messageBase(error), true); return false; }
     acqMsg(reussite);
     await chargerAcquereurs();
+    await rafraichirAcheteurs();
     return true;
   };
 
@@ -2187,6 +1844,339 @@
       "Organisation invitée.");
   }
 
+  // ------------------------------------------------------------------ « Acheteurs » (équipe, sql/09_marche.sql)
+  // Une ligne par organisation acheteuse (dr_acheteurs) ; son panneau (dr_acces_organisation) ne montre QUE les salles où
+  // elle participe : étape (réglée par dr_regler_participation, identifiant de la participation lu dans dr_participation),
+  // statut et fin de l'accès, clause, droits accordés par dossier, documents ouverts sur listés. « Voir comme cet
+  // acheteur » : aperçu en LECTURE SEULE de sa page (dr_apercu_marche, dr_apercu_documents, calculés par la base comme si
+  // on était cette organisation, salles en préparation comprises) ; aucun bouton d'ouverture, aucune fonction de
+  // l'acheteur (ni dr_autoriser, ni l'assistant), rien au journal. Tout texte venu de la base passe par textContent.
+  const NIVEAUX = {consulter: "consulter", telecharger: "consulter et télécharger"};
+  const STATUTS_SALLE_ACHETEUR = {preparation: "en préparation : pas encore visible de l'acheteur", ouverte: "ouverte",
+                                  close: "close : plus visible de l'acheteur"};
+  const ae = {orgs: [], choisie: null, projets: [], apercu: null, apercuFiche: null};
+  const aeMsg = (t, classe = "") => ecrire($("dr-ae-msg"), t, classe);
+  const aePMsg = (t, erreur = false) => ecrire($("dr-ae-p-msg"), t, erreur ? "erreur" : "");
+  const pluriel = (n, mot, pl = mot + "s") => `${NOMBRE.format(n || 0)} ${(n || 0) > 1 ? pl : mot}`;
+  const orgChoisie = () => ae.orgs.find(o => o.organisation_id === ae.choisie) || null;
+  const fonctionAbsente = e => ["PGRST202", "42883"].includes(e && e.code);
+
+  async function chargerAcheteurs() {
+    const {data, error} = await appel("dr_acheteurs", {});
+    $("dr-ae").hidden = false;
+    const ul = $("dr-ae-liste");
+    ul.textContent = "";
+    if (error) {
+      if (fonctionAbsente(error)) {
+        aeMsg("Carte « Acheteurs » pas encore installée dans la base (sql/09_marche.sql, installé par une personne : " +
+              "python etl/droits.py --installer).", "calme");
+      } else aeMsg(`Lecture impossible : ${messageBase(error)}.`, "erreur");
+      ae.orgs = [];
+      fermerAcheteur(false);
+      return;
+    }
+    aeMsg("");
+    ae.orgs = (Array.isArray(data) ? data : []).slice().sort((a, b) => TRI.compare(a.nom || "", b.nom || ""));
+    if (!ae.orgs.length) ul.appendChild(el("li", "dr-vide", "Aucune organisation acheteuse : créez-en une dans « Acquéreurs »."));
+    for (const o of ae.orgs) {
+      const choisie = o.organisation_id === ae.choisie;
+      const li = el("li", "dr-ae-org" + (choisie ? " choisie" : ""));
+      li.appendChild(el("span", "dr-ae-nom", o.nom));
+      li.appendChild(el("span", "dr-ae-infos", [CATEGORIES[o.categorie] || o.categorie, pluriel(o.comptes, "compte"),
+        pluriel(o.salles, "projet"), o.derniere_activite ? `dernière activité le ${date(o.derniere_activite)}` : "aucune activité"]
+        .filter(Boolean).join(" · ")));
+      const b = bouton(choisie ? "Ouvert" : "Voir ses accès", () => ouvrirAcheteur(o.organisation_id), "btn small",
+                       `Voir les accès de ${o.nom}`, "ae-org:" + o.organisation_id);
+      b.setAttribute("aria-expanded", String(choisie));
+      li.appendChild(b);
+      ul.appendChild(li);
+    }
+    if (ae.choisie && !orgChoisie()) fermerAcheteur(false);
+  }
+
+  // après une action (ici ou dans « Acquéreurs ») : liste et panneau ouvert relus, focus gardé
+  async function rafraichirAcheteurs() {
+    const voulu = focusDe($("dr-ae"));
+    await chargerAcheteurs();
+    if (ae.choisie) await ouvrirAcheteur(ae.choisie, false);
+    rendreFocus($("dr-ae"), voulu);
+  }
+
+  function fermerAcheteur(focus = true) {
+    const avant = ae.choisie;
+    ae.choisie = null; ae.projets = [];
+    fermerApercu(false);
+    $("dr-ae-panneau").hidden = true;
+    $("dr-ae-projets").textContent = "";
+    aePMsg("");
+    for (const li of $("dr-ae-liste").children) {
+      li.classList.remove("choisie");
+      const b = li.querySelector("button");
+      if (b) { b.setAttribute("aria-expanded", "false"); b.textContent = "Voir ses accès"; }
+    }
+    if (focus && avant) rendreFocus($("dr-ae"), {cle: "ae-org:" + avant});
+  }
+
+  async function ouvrirAcheteur(id, focus = true) {
+    if (ae.choisie !== id) fermerApercu(false);
+    ae.choisie = id;
+    const o = orgChoisie();
+    if (!o) return;
+    for (const li of $("dr-ae-liste").children) {
+      const b = li.querySelector("button");
+      const ici = !!b && b.dataset.cle === "ae-org:" + id;
+      if (ici) li.classList.add("choisie"); else li.classList.remove("choisie");
+      if (b) { b.setAttribute("aria-expanded", String(ici)); b.textContent = ici ? "Ouvert" : "Voir ses accès"; }
+    }
+    $("dr-ae-panneau").hidden = false;
+    $("dr-ae-p-titre").textContent = `${o.nom} · ${CATEGORIES[o.categorie] || o.categorie || "acheteur"}`;
+    if (focus) { aePMsg("Lecture des accès…"); $("dr-ae-p-titre").focus(); }
+    const [acc, parts] = await Promise.all([appel("dr_acces_organisation", {p_organisation: id}),
+                                            lire("dr_participation", "id,salle_id", r => r.eq("organisation_id", id))]);
+    if (ae.choisie !== id) return;                      // autre organisation choisie entre-temps
+    const ul = $("dr-ae-projets");
+    ul.textContent = "";
+    if (acc.error) { ae.projets = []; aePMsg(`Accès illisibles : ${messageBase(acc.error)}.`, true); return; }
+    if (focus) aePMsg("");
+    ae.projets = (Array.isArray(acc.data) ? acc.data : []).slice().sort((a, b) => TRI.compare(a.code || "", b.code || ""));
+    const participation = new Map(((parts && !parts.error && parts.data) || []).map(p => [p.salle_id, p.id]));
+    if (!ae.projets.length) {
+      ul.appendChild(el("li", "dr-vide", "Aucun projet : cette organisation n'est invitée dans aucune salle. « Inviter sur un " +
+        "autre projet » pour l'inviter."));
+    }
+    ae.projets.forEach((p, i) => ul.appendChild(ligneProjet(o, p, participation.get(p.salle_id), i)));
+  }
+
+  function ligneProjet(o, p, participationId, i) {
+    const li = el("li", "dr-ae-projet" + (p.salle_statut === "preparation" ? " preparation" : ""));
+    const titre = el("p", "dr-ae-projet-titre");
+    titre.append(el("b", null, p.code), ` ${p.nom_de_code || ""}`);
+    li.appendChild(titre);
+    li.appendChild(el("p", p.salle_statut === "ouverte" ? "dr-note" : "dr-avert",
+                      `Salle ${STATUTS_SALLE_ACHETEUR[p.salle_statut] || p.salle_statut}`));
+    const echue = p.participation_statut === "echue" || (!!p.fin && Date.parse(p.fin) < Date.now());
+    const actif = p.participation_statut === "active" && !echue;
+    // documents « ouverts » : ceux de son étape et de ses droits ; ils ne s'ouvrent vraiment qu'avec un accès actif, une
+    // salle ouverte et la clause acceptée (dr_autoriser) : sinon, on le dit à côté du nombre
+    const bloque = !actif ? (echue ? "accès échu" : "accès suspendu") : p.salle_statut !== "ouverte" ? "salle pas ouverte"
+      : !p.nda_acceptee ? "clause pas encore acceptée" : "";
+    li.appendChild(el("p", "dr-note", [
+      `Accès ${actif ? "actif" : echue ? "échu" : "suspendu"}` + (p.fin ? ` jusqu'au ${jourDe(p.fin)}` : ""),
+      p.nda_acceptee ? "clause acceptée" : "clause pas encore acceptée",
+      `${pluriel(p.documents_ouverts, "document ouvert", "documents ouverts")} à son étape sur ` +
+        `${pluriel(p.documents_listes, "listé", "listés")}` + (bloque ? ` (rien ne s'ouvre pour lui : ${bloque})` : ""),
+      p.derniere_activite ? `dernière activité le ${date(p.derniere_activite)}` : "aucune activité"].join(" · ")));
+    // étape : réglée comme dans « Acquéreurs » (dr_regler_participation)
+    const ligne = el("div", "dr-ae-etape");
+    const choix = el("select", "dr-etape");
+    choix.id = `dr-ae-etape-${i}`;
+    choix.dataset.cle = "ae-etape:" + p.salle_id;
+    ETAPES_ACHETEUR.forEach((t, n) => { const x = el("option", null, `Étape ${n} · ${t}`); x.value = String(n); choix.appendChild(x); });
+    choix.value = String(p.etape);
+    const l = el("label", null, "Étape atteinte");
+    l.htmlFor = choix.id;
+    ligne.append(l, choix);
+    if (!participationId) {
+      choix.disabled = true;
+      ligne.appendChild(el("span", "dr-avert", "participation introuvable : rechargez"));
+    }
+    choix.addEventListener("change", () => reglerEtape(o, p, participationId, choix));
+    li.appendChild(ligne);
+    const droits = Array.isArray(p.droits) ? p.droits : [];
+    if (!droits.length) {
+      li.appendChild(el("p", "dr-note", "Droits par dossier : aucun accordé (dossiers non réservés, en consultation)."));
+    } else {
+      li.appendChild(el("p", "dr-note", "Droits par dossier accordés :"));
+      const ud = el("ul", "dr-liste");
+      for (const d of droits) {
+        ud.appendChild(el("li", null, `${d.dossier} : ${NIVEAUX[d.niveau] || d.niveau}${d.reserve ? " · dossier réservé" : ""}`));
+      }
+      li.appendChild(ud);
+    }
+    return li;
+  }
+
+  async function reglerEtape(o, p, participationId, choix) {
+    const v = Number(choix.value);
+    if (!participationId || !(v >= 0 && v <= 3)) return;
+    choix.disabled = true;
+    const {error} = await appel("dr_regler_participation", {p_participation: participationId, p_reglages: {etape: v}});
+    choix.disabled = false;
+    if (error) { choix.value = String(p.etape); aePMsg(messageBase(error), true); return; }
+    const texte = `${o.nom} · ${p.code} : étape ${v} (${ETAPES_ACHETEUR[v]}).`;
+    await chargerAcquereurs();
+    await chargerAcheteurs();
+    await ouvrirAcheteur(o.organisation_id, false);
+    aePMsg(texte);
+    rendreFocus($("dr-ae"), {cle: "ae-etape:" + p.salle_id});
+  }
+
+  // « Inviter sur un autre projet » : le formulaire d'invitation de « Acquéreurs », prérempli (organisation, une salle
+  // où elle n'est pas encore) ; la fin de l'accès et l'étape restent à choisir, l'invitation part par « Inviter »
+  async function inviterAutreProjet() {
+    const o = orgChoisie();
+    if (!o) return;
+    const deja = new Set(ae.projets.map(p => p.salle_id));
+    const libres = acq.salles.filter(s => !deja.has(s.id));
+    if (!libres.length) { aePMsg(`${o.nom} est déjà invitée dans toutes les salles.`); return; }
+    const salle = $("dr-acq-salle");
+    if (!salle.value || deja.has(salle.value)) {
+      salle.value = libres[0].id;
+      await chargerSalleAcquereurs();
+    }
+    $("dr-acq-inv-org").value = o.organisation_id;
+    acqMsg(`Invitation de ${o.nom} : vérifiez la salle, choisissez la fin de l'accès et l'étape, puis « Inviter ».`);
+    aePMsg(`Formulaire d'invitation prérempli pour ${o.nom}, dans la carte « Acquéreurs ».`);
+    $("dr-acq-form-inviter").scrollIntoView({block: "center"});
+    $("dr-acq-inv-fin").focus();
+  }
+
+  // ---------------- aperçu « Voir comme cet acheteur » (lecture seule)
+  function fermerApercu(focus = true) {
+    const ouvert = !!ae.apercu;
+    ae.apercu = null;
+    $("dr-ae-apercu").hidden = true;
+    $("dr-ae-a-grille").textContent = "";
+    $("dr-ae-a-f-docs").textContent = "";
+    $("dr-ae-a-fiche").hidden = true;
+    $("dr-ae-voir").setAttribute("aria-expanded", "false");
+    if (focus && ouvert && !$("dr-ae-panneau").hidden) $("dr-ae-voir").focus();
+  }
+
+  // mêmes unités que la page de l'acheteur : MWc avec une fiche vitrine (publiée), MW pour une salle sans fiche
+  const infosApercu = l => [l.technologie ? TECHNOS[l.technologie] || l.technologie : l.type_actif ? TYPES[l.type_actif] || l.type_actif : "",
+    l.puissance_mw != null ? `${NOMBRE.format(Number(l.puissance_mw))} ${l.fiche_id ? "MWc" : "MW"}` : "", l.zone || "",
+    l.stade ? STADES[l.stade] || l.stade : ""].filter(Boolean);
+  // même dessin que la page de l'acheteur : illustration de la fiche vitrine si elle existe, sinon type d'actif de la salle
+  const visuelApercu = (l, classe) => l.illustration
+    ? visuelOperation({code: l.fiche_id || l.cle, type_actif: ILLUSTRATIONS[l.illustration] || "exploitation"}, classe)
+    : visuelOperation({code: l.code || l.cle, type_actif: l.type_actif}, classe);
+  const etapeDite = n => `étape ${n}${ETAPES_ACHETEUR[n] ? ` (${ETAPES_ACHETEUR[n]})` : ""}`;
+  // salle en préparation : l'acheteur ne la voit pas encore ; si elle a une fiche vitrine PUBLIÉE (fiche_id n'est rendu
+  // que pour une fiche publiée), il en voit seulement la fiche publique, en carte de découverte, sans document
+  const prepaDite = (l, fiche) => (fiche ? "Salle en préparation : " : "En préparation : ") + (l.fiche_id
+    ? "cet acheteur n'en voit que la fiche publique de la Marketplace (« Demander l'accès »), sans aucun document."
+    : fiche ? "cet acheteur ne voit pas encore ce projet ni ses documents." : "cet acheteur ne voit pas encore ce projet");
+
+  async function voirCommeAcheteur() {
+    const o = orgChoisie();
+    if (!o) return;
+    const jeton = {org: o.organisation_id};
+    ae.apercu = jeton;
+    $("dr-ae-apercu").hidden = false;
+    $("dr-ae-a-fiche").hidden = true;
+    $("dr-ae-a-grille").hidden = false;
+    $("dr-ae-a-grille").textContent = "";
+    $("dr-ae-voir").setAttribute("aria-expanded", "true");
+    $("dr-ae-a-bandeau").textContent = `Aperçu : vous voyez ce que voit ${o.nom}`;
+    $("dr-ae-a-bandeau").focus();
+    ecrire($("dr-ae-a-msg"), "Lecture…");
+    const {data, error} = await appel("dr_apercu_marche", {p_organisation: o.organisation_id});
+    if (ae.apercu !== jeton) return;
+    if (error) { ecrire($("dr-ae-a-msg"), `Aperçu impossible : ${messageBase(error)}.`, "erreur"); return; }
+    const lignes = Array.isArray(data) ? data : [];
+    const projets = lignes.filter(l => l.participe), prepa = projets.filter(l => l.salle_statut === "preparation").length;
+    ecrire($("dr-ae-a-msg"), !lignes.length ? "Rien à montrer : aucun projet pour cet acheteur, et aucune fiche publiée dans la Marketplace."
+      : `${pluriel(projets.length, "projet")} de l'acheteur${prepa ? ` (dont ${prepa} en préparation, pas encore visible${prepa > 1 ? "s" : ""} de lui)` : ""}` +
+        ` · ${pluriel(lignes.length - projets.length, "autre fiche publiée", "autres fiches publiées")}, sans document.`);
+    const ul = $("dr-ae-a-grille");
+    for (const l of lignes) {
+      const li = el("li", "dr-v-carte" + (l.participe && l.salle_statut === "preparation" ? " dr-ae-prepa" : ""));
+      if (l.participe && l.salle_statut === "preparation") {
+        li.appendChild(el("p", "dr-ae-bandeau-prepa", prepaDite(l, false)));
+      }
+      li.appendChild(visuelApercu(l, "petit"));
+      li.appendChild(el("p", "dr-ach-op-nom", l.nom_de_code));
+      li.appendChild(el("p", "dr-ach-op-infos", infosApercu(l).join(" · ")));
+      if (l.participe) {
+        li.appendChild(el("p", "dr-v-extrait", [`Son projet · ${etapeDite(l.etape)}`, l.fin ? `accès jusqu'au ${jourDe(l.fin)}` : "",
+          l.nda_a_accepter ? "clause à accepter" : "", l.assistant_actif ? "Claude activé" : "Claude non activé"].filter(Boolean).join(" · ")));
+      } else {
+        li.appendChild(el("p", "dr-v-extrait", "Fiche de présentation : aucun document."));
+      }
+      if (l.resume) li.appendChild(el("p", "dr-v-extrait", l.resume.length > 140 ? l.resume.slice(0, 140) + "…" : l.resume));
+      if (l.participe && l.salle_id) {
+        li.appendChild(bouton("Voir sa fiche", () => ficheApercu(l, jeton), "btn small",
+                              `Voir la fiche de ${l.nom_de_code} comme ${o.nom}`, "ae-apercu:" + l.cle));
+      }
+      ul.appendChild(li);
+    }
+  }
+
+  async function ficheApercu(l, jeton) {
+    const o = orgChoisie();
+    if (!o || ae.apercu !== jeton) return;
+    ae.apercuFiche = l.cle;
+    $("dr-ae-a-grille").hidden = true;
+    $("dr-ae-a-fiche").hidden = false;
+    $("dr-ae-a-f-titre").textContent = `${l.nom_de_code} (${l.code})`;
+    // ce qui sépare l'aperçu de sa vraie page : salle en préparation, clause pas encore acceptée (il ne voit alors que
+    // la clause, pas cette liste)
+    $("dr-ae-a-f-prepa").textContent = [l.salle_statut === "preparation" ? prepaDite(l, true) : "",
+      l.nda_a_accepter ? "Clause de confidentialité pas encore acceptée : l'acheteur voit d'abord la clause, et cette " +
+        "liste seulement après l'avoir acceptée." : ""].filter(Boolean).join(" ");
+    $("dr-ae-a-f-infos").textContent = [...infosApercu(l), etapeDite(l.etape)].join(" · ");
+    $("dr-ae-a-f-resume").textContent = l.resume || "";
+    const zone = $("dr-ae-a-f-docs");
+    zone.textContent = "";
+    $("dr-ae-a-f-titre").focus();
+    ecrire($("dr-ae-a-f-msg"), "Lecture des documents…");
+    const {data, error} = await appel("dr_apercu_documents", {p_salle: l.salle_id, p_organisation: o.organisation_id});
+    if (ae.apercu !== jeton) return;
+    if (error) { ecrire($("dr-ae-a-f-msg"), `Documents illisibles : ${messageBase(error)}.`, "erreur"); return; }
+    const docs = Array.isArray(data) ? data : [];
+    const ouverts = docs.filter(d => d.accessible).length;
+    ecrire($("dr-ae-a-f-msg"), docs.length ? `${pluriel(ouverts, "document ouvert", "documents ouverts")} sur ` +
+      `${pluriel(docs.length, "document listé", "documents listés")} pour ${o.nom}.` : "Aucun document publié visible de cet acheteur.");
+    const parDossier = new Map();
+    for (const d of docs) {
+      if (!parDossier.has(d.dossier)) parDossier.set(d.dossier, []);
+      parDossier.get(d.dossier).push(d);
+    }
+    for (const [dossier, liste] of [...parDossier].sort((a, b) => TRI.compare(a[0] || "", b[0] || ""))) {
+      zone.appendChild(el("p", "dr-ae-dossier", dossier || "Dossier"));
+      const ul = el("ul", "dr-ach-liste dr-ae-docs");
+      for (const d of liste.sort((a, b) => TRI.compare(a.nom || "", b.nom || ""))) {
+        const li = el("li", d.accessible ? "ouvert" : "ferme");
+        if (!d.accessible) {
+          const c = el("span", "dr-ae-cadenas");
+          c.setAttribute("aria-hidden", "true");
+          li.appendChild(c);
+        }
+        li.appendChild(el("span", "dr-nom", d.nom));
+        if (d.taille != null) li.appendChild(el("span", "dr-taille", taille(Number(d.taille))));
+        if (d.publie_le) li.appendChild(el("span", "dr-lieu", `publié le ${jourDe(d.publie_le)}`));
+        li.appendChild(el("span", "dr-badge" + (d.accessible ? "" : " ferme"), d.accessible
+          ? (d.telecharger ? "ouvert · téléchargeable" : "ouvert")
+          : d.etape > l.etape ? `fermé : accessible à l'étape ${d.etape}` +
+            (!consultable(d.mime) && !d.telecharger ? ", avec le niveau « télécharger » (ni PDF ni image)" : "")
+          : "fermé : niveau « télécharger » nécessaire (ni PDF ni image)"));
+        ul.appendChild(li);
+      }
+      zone.appendChild(ul);
+    }
+  }
+
+  // ---------------- « Créer la fiche marketplace » d'une salle (dr_vitrine_depuis_salle) : brouillon lié à la salle,
+  // prérempli par la base (ou fiche déjà liée), ouvert ensuite en édition dans la carte « Vitrine »
+  async function ficheDepuisSalle(s, b) {
+    if (b) b.disabled = true;
+    const {data, error} = await appel("dr_vitrine_depuis_salle", {p_salle: s.id});
+    if (b) b.disabled = false;
+    if (error || !data) {
+      arbreMsg(`Fiche marketplace de la salle ${s.code} : ${error ? messageBase(error) : "pas de réponse de la base"}.`, true);
+      return;
+    }
+    vit.choisie = data;
+    await chargerVitrineEquipe();
+    const f = vit.fiches.find(x => x.id === data) || null;
+    remplirFormulaire(f);
+    arbreMsg(`Salle ${s.code} : fiche marketplace « ${f ? f.nom_de_code : s.nom_de_code} » ouverte dans « Vitrine » ` +
+      (f && f.statut !== "brouillon" ? `(${STATUTS_FICHE[f.statut] || f.statut}).` : "(brouillon, invisible des acheteurs)."));
+    $("dr-vit").scrollIntoView({block: "start"});
+    $("dr-vit-nom").focus();
+  }
+
   // ------------------------------------------------------------------ « Vitrine » (équipe, sql/08_vitrine.sql)
   // Préparation des fiches NON CONFIDENTIELLES de la Marketplace : brouillon, aperçu (exactement ce que voit un acquéreur,
   // rendu par la base), publication avec validation de diffusion, retrait, vente ; demandes d'accès (classées, aucun
@@ -2211,7 +2201,9 @@
       const li = el("li", "dr-vit-fiche" + (f.id === vit.choisie ? " choisie" : ""));
       li.appendChild(el("span", "dr-badge statut-" + f.statut, STATUTS_FICHE[f.statut] || f.statut));
       li.appendChild(el("span", "dr-vit-nom", f.nom_de_code));
+      const liee = f.salle_id ? etat.salleDe.get(f.salle_id) : null;
       li.appendChild(el("span", "dr-vit-infos", `${NOMBRE.format(Number(f.puissance_mwc))} MWc · ${f.zone}` +
+                                                  (liee ? ` · salle ${liee.code}` : "") +
                                                   (f.demandes_en_attente ? ` · ${f.demandes_en_attente} demande(s)` : "")));
       li.appendChild(bouton("Ouvrir", () => choisirFiche(f.id), "btn small", `Ouvrir la fiche ${f.nom_de_code}`));
       ul.appendChild(li);
@@ -2408,7 +2400,6 @@
   }
 
   // ------------------------------------------------------------------ démarrage
-  if (vueAcheteur) { await demarrerAcheteur(); return; }
   $("dr-synchro").hidden = false;
   $("dr-recharger").addEventListener("click", () => recharger());
   $("dr-form-biblio").addEventListener("submit", declarer);
@@ -2428,6 +2419,18 @@
   $("dr-a-salle").addEventListener("change", contexteEquipe);
   $("dr-a-etape").addEventListener("change", contexteEquipe);
   $("dr-acq-recharger").addEventListener("click", () => chargerAcquereurs());
+  $("dr-ae-recharger").addEventListener("click", () => rafraichirAcheteurs());
+  $("dr-ae-voir").addEventListener("click", () => voirCommeAcheteur());
+  $("dr-ae-inviter").addEventListener("click", () => inviterAutreProjet());
+  $("dr-ae-fermer").addEventListener("click", () => fermerAcheteur());
+  $("dr-ae-a-fermer").addEventListener("click", () => fermerApercu());
+  $("dr-ae-a-retour").addEventListener("click", () => {
+    $("dr-ae-a-fiche").hidden = true; $("dr-ae-a-grille").hidden = false;
+    // le focus revient sur la carte du projet quitté (comme acheteur.js), sinon sur la première
+    const boutons = [...$("dr-ae-a-grille").querySelectorAll("button")];
+    const b = boutons.find(x => x.dataset.cle === "ae-apercu:" + ae.apercuFiche) || boutons[0];
+    if (b) b.focus();
+  });
   $("dr-acq-salle").addEventListener("change", () => chargerSalleAcquereurs());
   $("dr-acq-form-org").addEventListener("submit", creerOrganisation);
   $("dr-acq-form-inviter").addEventListener("submit", inviterOrganisation);
@@ -2442,6 +2445,7 @@
   await chargerTexte();
   await chargerConso();
   await chargerAcquereurs();
+  await chargerAcheteurs();
   await chargerVitrineEquipe();
   await chargerTableau();
 })();

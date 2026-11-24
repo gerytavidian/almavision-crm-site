@@ -24,8 +24,16 @@
    P.telecharger(nom, donnees)   enregistre un fichier sur l'ordinateur
    P.deconnecter(), P.changerMdp(), P.menuModules(), P.surArret(f) (f appelée à la déconnexion ; renvoie de quoi l'oublier)
 
+   P.vue           "invites" sur la page des invités d'un module (« page_invites » de module.json : acheteur.html de la
+                   Data Room), "equipe" ailleurs
+
    Droits : tant que le socle des droits (db/plateforme.sql, fonction mes_modules) n'est pas en base, un membre actif
-   de l'équipe (est_membre) a accès à tous les modules et personne d'autre n'a accès à rien. */
+   de l'équipe (est_membre) a accès à tous les modules et personne d'autre n'a accès à rien.
+
+   Aiguillage (décision de Géry du 24/11/2026) : un invité connecté va tout droit à la page des invités de son module
+   (depuis l'accueil ou la page principale du module), sans accueil ni menu des modules ; un membre de l'équipe qui
+   ouvre une page des invités est renvoyé vers la page principale du module (l'aperçu « Voir comme » s'y trouve). La
+   page des invités ne cite dans sa configuration que les modules ouverts aux invités (etl/site.py). */
 (() => {
   "use strict";
   const CONF = JSON.parse(document.getElementById("plateforme-config").textContent);
@@ -42,6 +50,7 @@
   }
 
   const MODULE = CONF.module === "accueil" ? null : (CONF.modules || []).find(m => m.id === CONF.module) || null;
+  const PAGE_INVITES = CONF.vue === "invites";   // page des invités d'un module (acheteur.html)
   const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
   const charger = src => new Promise((ok, ko) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => ko(new Error("chargement de " + src)); document.head.appendChild(s); });
   const domPret = () => new Promise(ok => document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", ok, {once: true}) : ok());
@@ -149,6 +158,8 @@
         // la même chose ; le code est vérifié par Supabase Auth ; la session reste dans l'onglet (préférence retirée)
         const formMdp = document.getElementById("cnx-form"), formCode = document.getElementById("cnx-code-form");
         const msgCode = document.getElementById("cnx-code-msg"), champCode = document.getElementById("cnx-code");
+        // page des acheteurs : la connexion par code d'abord (le mot de passe reste à un clic, pour l'équipe)
+        if (PAGE_INVITES) { formMdp.hidden = true; formCode.hidden = false; }
         document.getElementById("cnx-vers-code").onclick = () => { formMdp.hidden = true; formCode.hidden = false; msgCode.textContent = ""; };
         document.getElementById("cnx-vers-mdp").onclick = () => { formCode.hidden = true; formMdp.hidden = false; };
         document.getElementById("cnx-code-demander").onclick = async () => {
@@ -219,6 +230,29 @@
     };
     let acces = await lireAcces();
     const estMembre = async () => { if (membre === null) { try { membre = (await sb.rpc("est_membre")).data === true; } catch { membre = false; } } return membre; };
+
+    // Aiguillage entre la page de l'équipe et la page des invités d'un module, avant tout second facteur (un membre
+    // n'a pas à saisir son code sur la page des acheteurs). Seulement sur une réponse franche de la base : si
+    // est_membre ne répond pas, la page reste où elle est (les droits de la base décident de toute façon).
+    const typeSur = async () => {
+      if (membre !== null) return membre;
+      try { const {data, error} = await sb.rpc("est_membre"); if (error) return null; membre = data === true; return membre; }
+      catch { return null; }
+    };
+    const aiguiller = cible => { location.replace(cible); throw affiche("redirection vers " + cible); };
+    if (acces !== null) {
+      const type = (PAGE_INVITES || !MODULE || MODULE.page_invites) ? await typeSur() : null;
+      if (type === true && PAGE_INVITES && MODULE) aiguiller(MODULE.page);
+      if (type === false && !PAGE_INVITES) {
+        if (MODULE && MODULE.page_invites) aiguiller(MODULE.page_invites);
+        if (!MODULE) {
+          // accueil : vers la page des invités du premier module accessible qui en a une, sinon vers ce module
+          const ouverts = (CONF.modules || []).filter(m => acces.some(a => a.id === m.id));
+          const cible = ouverts.find(m => m.page_invites) || ouverts[0];
+          if (cible) aiguiller(cible.page_invites || cible.page);
+        }
+      }
+    }
 
     // Double authentification de l'équipe : un module marqué « double_auth » (module.json, acces.double_auth_equipe)
     // n'est ouvert par la base à un membre qu'avec un jeton « aal2 » (mot de passe + code de l'application
@@ -360,9 +394,11 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     };
 
-    // menu des modules : un lien par module accessible, celui de la page marqué ; l'accueil en premier
+    // menu des modules : un lien par module accessible, celui de la page marqué ; l'accueil en premier. Un invité n'a
+    // pas de menu (il n'a qu'une page : celle des invités de son module)
     const menuModules = () => {
       const nav = document.createElement("nav"); nav.className = "cq-modules"; nav.setAttribute("aria-label", "Modules de la plateforme");
+      if (!membre) return nav;
       const lien = (texte, href, courant) => { const a = document.createElement("a"); a.href = href; a.textContent = texte; if (courant) a.setAttribute("aria-current", "page"); nav.appendChild(a); };
       lien("Accueil", "index.html#accueil", !MODULE);
       for (const m of modules) lien(m.nom, m.page, MODULE && m.id === MODULE.id);
@@ -373,7 +409,7 @@
     const entete = document.getElementById("cq-entete");
     if (entete) {
       const barre = document.createElement("div"); barre.className = "cq-barre";
-      const marque = document.createElement("a"); marque.className = "cq-marque"; marque.href = "index.html#accueil";
+      const marque = document.createElement("a"); marque.className = "cq-marque"; marque.href = membre || !MODULE ? "index.html#accueil" : (PAGE_INVITES && MODULE.page_invites) || MODULE.page;
       marque.innerHTML = '<svg width="28" height="32" viewBox="0 0 30 34" aria-hidden="true"><path d="M15 1 29 9v16L15 33 1 25V9z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 23l6-13 6 13M11.5 18h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
       const nom = document.createElement("div"); nom.textContent = MODULE ? MODULE.nom : "Plateforme";
       const petit = document.createElement("small"); petit.textContent = "ALMAVISION"; nom.appendChild(petit); marque.appendChild(nom);
@@ -384,7 +420,8 @@
       entete.appendChild(barre);
     }
 
-    if (MODULE) { try { localStorage.setItem("plateforme:dernier", MODULE.page); } catch {} }
+    // dernier module ouvert (accueil sans « #accueil ») : membres seulement, jamais la page des invités
+    if (MODULE && membre && !PAGE_INVITES) { try { localStorage.setItem("plateforme:dernier", MODULE.page); } catch {} }
     if (attentePropre) attente.hidden = true;
     return {
       sb, session, esc, telecharger, changerMdp, menuModules,
@@ -393,6 +430,7 @@
       module: MODULE ? {id: MODULE.id, nom: MODULE.nom, role: roles.get(MODULE.id)} : null,
       modules,
       cle: nom => `${MODULE ? MODULE.id : "accueil"}:${nom}`,
+      vue: PAGE_INVITES ? "invites" : "equipe",
       deconnecter: () => deconnecter(),
       surArret: f => { arrets.add(f); return () => arrets.delete(f); },
     };

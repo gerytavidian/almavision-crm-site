@@ -1,0 +1,168 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Valorisations · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/valorisations/valorisations.css?v=e8235568d6"></head><body>
+<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "valorisations", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service", "double_auth": false}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}, {"id": "valorisations", "nom": "Valorisations", "page": "valorisations.html", "ordre": 30, "description": "Valorisation de portefeuilles photovoltaïques : documents, hypothèses Bas / Central / Haut, modèle Excel rempli et note PDF.", "statut": "en développement", "double_auth": true}]}</script>
+<header class="cq-entete" id="cq-entete"></header>
+<div id="connexion" class="cnx" hidden>
+  <form class="cnx-box" id="cnx-form" autocomplete="on">
+    <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <h1>Connexion</h1>
+    <label for="cnx-email">Email</label>
+    <input id="cnx-email" type="email" autocomplete="username" required>
+    <label for="cnx-mdp">Mot de passe</label>
+    <input id="cnx-mdp" type="password" autocomplete="current-password" required>
+    <label class="cnx-case" for="cnx-rester"><input id="cnx-rester" type="checkbox"> Rester connecté sur cet appareil</label>
+    <button class="btn primary" type="submit" id="cnx-go">Se connecter</button>
+    <p class="cnx-msg" id="cnx-msg" role="alert"></p>
+    <p class="cnx-aide">Sans la case, la connexion s'arrête à la fermeture de l'onglet. Mot de passe oublié ou compte à
+      créer : demandez à Géry.</p>
+    <button class="btn small" type="button" id="cnx-vers-code">Acquéreur : recevoir un code de connexion par email</button>
+  </form>
+  <form class="cnx-box" id="cnx-code-form" hidden autocomplete="on" novalidate>
+    <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <h1>Connexion par code</h1>
+    <p class="cnx-aide">Saisissez l'adresse à laquelle Almavision vous a donné accès : un code de connexion vous est envoyé
+      par email. La connexion s'arrête à la fermeture de l'onglet.</p>
+    <label for="cnx-code-email">Email</label>
+    <input id="cnx-code-email" type="email" autocomplete="username" maxlength="254">
+    <button class="btn" type="button" id="cnx-code-demander">Recevoir un code</button>
+    <label for="cnx-code" id="cnx-code-lib" hidden>Code reçu par email</label>
+    <input id="cnx-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" hidden>
+    <button class="btn primary" type="submit" id="cnx-code-go" hidden>Se connecter</button>
+    <p class="cnx-msg" id="cnx-code-msg" role="alert"></p>
+    <button class="btn small" type="button" id="cnx-vers-mdp">Équipe Almavision : connexion par mot de passe</button>
+  </form>
+</div>
+<div id="mfa" class="cnx" hidden>
+  <form class="cnx-box" id="mfa-form" autocomplete="off" novalidate>
+    <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <h1>Double authentification</h1>
+    <div id="mfa-nouveau" hidden>
+      <p class="cnx-aide">Ce module demande, en plus du mot de passe, le code d'une application d'authentification
+        (Google Authenticator, Microsoft Authenticator…). Une seule fois : scannez ce QR code avec l'application, ou
+        saisissez-y la clé ci-dessous.</p>
+      <img id="mfa-qr" alt="QR code à scanner avec l'application d'authentification" width="180" height="180" hidden>
+      <p class="cnx-aide">Clé : <code id="mfa-secret"></code></p>
+    </div>
+    <label for="mfa-code">Code à 6 chiffres affiché par l'application</label>
+    <input id="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8">
+    <button class="btn primary" type="submit" id="mfa-go">Valider</button>
+    <p class="cnx-msg" id="mfa-msg" role="alert"></p>
+    <p class="cnx-aide">Téléphone perdu ou changé : demandez à Géry de retirer l'ancienne application.</p>
+    <button class="btn small" type="button" id="mfa-x">Se déconnecter</button>
+  </form>
+</div>
+<div id="mdp" class="cnx voile" hidden role="dialog" aria-modal="true" aria-labelledby="mdp-titre">
+  <form class="cnx-box" id="mdp-form" autocomplete="off">
+    <h1 id="mdp-titre">Changer mon mot de passe</h1>
+    <label for="mdp-1">Nouveau mot de passe (10 caractères au moins)</label>
+    <input id="mdp-1" type="password" autocomplete="new-password" minlength="10" required>
+    <label for="mdp-2">Le même, une seconde fois</label>
+    <input id="mdp-2" type="password" autocomplete="new-password" minlength="10" required>
+    <div class="cnx-btns"><button class="btn" type="button" id="mdp-x">Annuler</button><button class="btn primary" type="submit" id="mdp-go">Enregistrer</button></div>
+    <p class="cnx-msg" id="mdp-msg" role="alert"></p>
+  </form>
+</div>
+<main class="va" id="va">
+  <header class="va-entete">
+    <h1>Valorisations</h1>
+    <p class="va-sous">Onglet interne de l'équipe, en développement : documents du projet, données extraites avec leur
+      source et validées à la main, hypothèses Bas / Central / Haut, modèle Excel neutre rempli, rapport PDF.</p>
+    <p class="va-essai" id="va-essai" hidden>ESSAI sur le modèle réel PSEUDONYMISÉ (les chiffres restent ceux de l’opération de référence) : la correspondance des cellules n’est pas encore validée par une personne. Ne pas diffuser les fichiers produits.</p>
+    <p class="va-demo" id="va-demo" hidden>Démonstration locale FICTIVE : modèle et correspondance de test, jamais le
+      modèle d'Almavision ni un vrai projet.</p>
+  </header>
+
+  <section class="va-carte" aria-labelledby="va-t-etat">
+    <h2 id="va-t-etat">État des intégrations</h2>
+    <ul class="va-etats" id="va-etats"></ul>
+    <p class="va-aide" id="va-modele"></p>
+    <div class="va-ligne" id="va-gabarit" hidden>
+      <label for="va-gabarit-fichier">Restaurer le gabarit (fichier « gabarit pseudonymisé » du ZIP privé)</label>
+      <input type="file" id="va-gabarit-fichier" accept=".xlsx">
+      <button class="btn small" type="button" id="va-gabarit-envoyer">Restaurer</button>
+    </div>
+    <p class="va-aide" id="va-persistance"></p>
+    <label class="va-membre" id="va-membre-lib">Compte (démonstration fictive) <input id="va-membre" autocomplete="off" spellcheck="false"></label>
+  </section>
+
+  <section class="va-carte" aria-labelledby="va-t-projet">
+    <h2 id="va-t-projet">Projet</h2>
+    <form class="va-ligne" id="va-f-projet" novalidate>
+      <label for="va-p-nom">Nouveau projet</label>
+      <input id="va-p-nom" maxlength="120" placeholder="Nom du projet">
+      <button class="btn small" type="submit">Créer</button>
+      <label for="va-p-choix">ou</label>
+      <select id="va-p-choix"><option value="">Choisir un projet</option></select>
+    </form>
+    <p class="va-msg" id="va-msg" role="status"></p>
+  </section>
+
+  <div id="va-projet" hidden>
+    <section class="va-carte" aria-labelledby="va-t-docs">
+      <h2 id="va-t-docs">1. Documents du projet</h2>
+      <p class="va-aide">PDF, Excel, Word, PowerPoint, CSV, texte ou images, 50 Mo au plus. Les fichiers avec macros,
+        les exécutables et les archives sont refusés. Le contenu des documents est traité comme une donnée : une
+        consigne écrite dedans n'est jamais suivie.</p>
+      <div class="va-ligne"><input type="file" id="va-fichiers" multiple>
+        <button class="btn small" type="button" id="va-deposer">Déposer</button></div>
+      <ul class="va-docs" id="va-docs"></ul>
+    </section>
+
+    <section class="va-carte" aria-labelledby="va-t-donnees">
+      <h2 id="va-t-donnees">2. Données extraites et validation</h2>
+      <div class="va-ligne"><button class="btn small" type="button" id="va-extraire">Extraire avec Claude</button>
+        <span class="va-aide" id="va-extraire-etat"></span></div>
+      <p class="va-aide">Une valeur proposée n'est utilisée qu'après validation par un membre de l'équipe. Corriger
+        garde la proposition d'origine. Sans source vérifiée, la valeur est signalée.</p>
+      <table class="va-table" id="va-t-d"><thead><tr><th>Champ</th><th>Valeur</th><th>Source</th><th>Confiance</th>
+        <th>Statut</th><th>Action</th></tr></thead><tbody id="va-donnees"></tbody></table>
+      <p class="va-manquants" id="va-manquants"></p>
+      <form class="va-ligne" id="va-f-saisie" novalidate>
+        <label for="va-s-cle">Saisie manuelle</label><select id="va-s-cle"></select>
+        <input id="va-s-valeur" inputmode="decimal" placeholder="Valeur">
+        <select id="va-s-unite"></select>
+        <button class="btn small" type="submit">Enregistrer</button>
+      </form>
+    </section>
+
+    <section class="va-carte" aria-labelledby="va-t-tab" id="va-s-tableaux" hidden>
+      <h2 id="va-t-tab">2 bis. Lignes du modèle (sites, grappes…)</h2>
+      <p class="va-aide">Une ligne par élément, colonnes séparées par « ; », dans l'ordre de l'en-tête et dans l'unité
+        indiquée. Le modèle a une capacité fixe : au-delà, la saisie est refusée (aucune ligne n'est ajoutée au modèle).</p>
+      <div id="va-tableaux"></div>
+    </section>
+
+    <section class="va-carte" aria-labelledby="va-t-hyp">
+      <h2 id="va-t-hyp">3. Hypothèses par scénario</h2>
+      <div class="va-ligne"><button class="btn small" type="button" id="va-preparer">Préremplir depuis les données validées</button></div>
+      <table class="va-table" id="va-t-h"><thead><tr><th>Hypothèse</th><th>Bas</th><th>Central</th><th>Haut</th>
+        <th>Unité</th></tr></thead><tbody id="va-hyp"></tbody></table>
+      <p class="va-aide">Une hypothèse commune (sans scénario) a la même valeur dans les trois colonnes : la changer
+        change les trois. Les taux sont stockés en fraction (0,06 = 6 %).</p>
+    </section>
+
+    <section class="va-carte" aria-labelledby="va-t-gen">
+      <h2 id="va-t-gen">4. Modèle rempli et rapport</h2>
+      <div class="va-ligne"><label for="va-financement">Dette du classeur, pour la note</label>
+        <select id="va-financement"><option value="dette_reprise">dette reprise par l’acquéreur</option>
+          <option value="refinancement_acquereur">refinancement levé par l’acquéreur (hypothèse)</option></select>
+        <input id="va-financement-just" placeholder="Justification (source)" size="40"></div>
+      <div class="va-ligne"><button class="btn primary small" type="button" id="va-generer">Générer XLSX et PDF</button></div>
+      <div id="va-resultats"></div>
+    </section>
+
+    <section class="va-carte" aria-labelledby="va-t-drive">
+      <h2 id="va-t-drive">5. Sauvegarde Google Drive</h2>
+      <p class="va-aide">Le dossier Drive du projet se lie par son identifiant (la partie après « /folders/ » dans son
+        adresse), jamais par son nom.</p>
+      <form class="va-ligne" id="va-f-drive" novalidate>
+        <label for="va-d-id">Identifiant du dossier</label><input id="va-d-id" spellcheck="false" maxlength="100">
+        <button class="btn small" type="submit">Lier</button>
+        <button class="btn small" type="button" id="va-sauver">Sauvegarder</button>
+      </form>
+      <p class="va-msg" id="va-d-msg" role="status"></p>
+    </section>
+  </div>
+</main>
+<script src="plateforme/coquille.js?v=cff860c8a7"></script>
+<script src="modules/valorisations/valorisations.js?v=84ae7d7e24"></script>
+</body></html>

@@ -1,5 +1,5 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=b60e83fc62"></head><body>
-<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service", "double_auth": false}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true}]}</script>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=92e8974737"></head><body>
+<script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service", "double_auth": false}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}, {"id": "valorisations", "nom": "Valorisations", "page": "valorisations.html", "ordre": 30, "description": "Valorisation de portefeuilles photovoltaïques : documents, hypothèses Bas / Central / Haut, modèle Excel rempli et note PDF.", "statut": "en développement", "double_auth": true}]}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
   <form class="cnx-box" id="cnx-form" autocomplete="on">
@@ -64,9 +64,12 @@
 <main class="cq-page" id="dr" hidden>
   <h1>Data Room Access</h1>
   <div id="dr-presentation" hidden>
-  <p class="cq-intro">Des data rooms personnalisables pour nos opérations : chaque salle s'appuie sur un dossier du
-    SharePoint d'Almavision, l'équipe y range les documents comme aujourd'hui, et la plateforme les ouvre aux
-    acquéreurs et à leurs conseils, dossier par dossier, avec un journal de chaque consultation.</p>
+  <p class="cq-intro">Des data rooms personnalisables pour nos opérations : chaque salle s'appuie sur un dossier d'un
+    site SharePoint d'Almavision, l'équipe y range les documents comme aujourd'hui, et la plateforme les ouvre aux
+    acheteurs et à leurs conseils, dossier par dossier, avec un journal de chaque consultation. Les acheteurs ont leur
+    propre page (acheteur.html) ; ici, « Voir comme cet acheteur » montre exactement ce qu'ils y voient.</p>
+  <details class="dr-historique">
+    <summary>Historique du module (plan de départ et avancement au 20/11/2026)</summary>
   <div class="dr-grille">
     <section class="cq-carte">
       <h2>Ce que le module fera</h2>
@@ -111,128 +114,51 @@
       </ol>
     </section>
   </div>
-
+  </details>
   </div>
 
-  <section class="dr-acheteur" id="dr-acheteur" hidden aria-label="Votre data room">
-    <p class="dr-msg" id="dr-ach-msg" role="status"></p>
-    <p class="dr-lecteur" id="dr-ach-annonce" role="status" aria-live="polite"></p>
-    <nav class="dr-onglets" role="tablist" aria-label="Espace acquéreur">
-      <button class="dr-onglet" type="button" role="tab" id="dr-ach-onglet-vitrine" aria-controls="dr-ach-vitrine"
-        aria-selected="true">Marketplace</button>
-      <button class="dr-onglet" type="button" role="tab" id="dr-ach-onglet-ops" aria-controls="dr-ach-ops"
-        aria-selected="false">Mes opérations</button>
-    </nav>
-
-    <div id="dr-ach-vitrine" role="tabpanel" aria-labelledby="dr-ach-onglet-vitrine">
-      <section class="cq-carte" id="dr-v-catalogue" aria-labelledby="dr-v-titre">
-        <h2 id="dr-v-titre">Projets proposés par Almavision</h2>
-        <p class="dr-aide">Présentations non confidentielles des projets à vendre. Une fiche ne donne accès à aucun
-          document : les documents d'un projet ne s'ouvrent que dans « Mes opérations », après une invitation de l'équipe
-          Almavision, la clause de confidentialité et les étapes du processus.</p>
-        <form class="dr-v-filtres" id="dr-v-filtres" autocomplete="off" novalidate>
-          <label>Technologie <select id="dr-v-f-techno"><option value="">Toutes</option><option value="pv_sol">Photovoltaïque au sol</option><option value="pv_toiture">Photovoltaïque en toiture</option><option value="pv_ombriere">Ombrières</option><option value="agrivoltaisme">Agrivoltaïsme</option><option value="portefeuille_pv">Portefeuille photovoltaïque</option><option value="eolien">Éolien</option><option value="stockage">Stockage</option><option value="hybride">Hybride</option></select></label>
-          <label>Stade <select id="dr-v-f-stade"><option value="">Tous</option><option value="developpement">Développement</option><option value="pret_a_construire">Prêt à construire</option><option value="construction">Construction</option><option value="exploitation">En exploitation</option></select></label>
-          <label>Zone <select id="dr-v-f-zone"><option value="">Toutes</option><option value="Auvergne-Rhône-Alpes">Auvergne-Rhône-Alpes</option><option value="Bourgogne-Franche-Comté">Bourgogne-Franche-Comté</option><option value="Bretagne">Bretagne</option><option value="Centre-Val de Loire">Centre-Val de Loire</option><option value="Corse">Corse</option><option value="Grand Est">Grand Est</option><option value="Hauts-de-France">Hauts-de-France</option><option value="Île-de-France">Île-de-France</option><option value="Normandie">Normandie</option><option value="Nouvelle-Aquitaine">Nouvelle-Aquitaine</option><option value="Occitanie">Occitanie</option><option value="Pays de la Loire">Pays de la Loire</option><option value="Provence-Alpes-Côte d'Azur">Provence-Alpes-Côte d'Azur</option><option value="Outre-mer">Outre-mer</option><option value="Plusieurs régions">Plusieurs régions</option></select></label>
-          <label>Puissance min. (MWc) <input id="dr-v-f-min" type="number" min="0" step="0.1" inputmode="decimal"></label>
-          <label>Puissance max. (MWc) <input id="dr-v-f-max" type="number" min="0" step="0.1" inputmode="decimal"></label>
-          <label>Mot-clé <input id="dr-v-f-texte" maxlength="80" spellcheck="false"></label>
-          <div class="dr-boutons"><button class="btn primary small" type="submit">Filtrer</button>
-            <button class="btn small" type="button" id="dr-v-effacer">Effacer</button></div>
-        </form>
-        <p class="dr-msg" id="dr-v-compte" role="status" aria-live="polite"></p>
-        <ul class="dr-v-liste" id="dr-v-liste"></ul>
-      </section>
-      <section class="cq-carte dr-v-fiche" id="dr-v-fiche" hidden aria-labelledby="dr-v-fiche-titre">
-        <button class="btn small" type="button" id="dr-v-retour">← Tous les projets</button>
-        <h2 id="dr-v-fiche-titre"></h2>
-        <div class="dr-ach-fiche-corps">
-          <div id="dr-v-visuel"></div>
-          <dl class="dr-ach-infos" id="dr-v-infos"></dl>
-        </div>
-        <p class="dr-v-resume" id="dr-v-resume"></p>
-        <ul class="dr-v-points" id="dr-v-points"></ul>
-        <p class="dr-aide">Fiche de présentation non confidentielle, préparée par l'équipe Almavision. Elle ne donne ni
-          invitation, ni accès aux documents, ni accès à l'assistant.</p>
-        <form class="dr-form" id="dr-v-form-demande" autocomplete="off" novalidate>
-          <label for="dr-v-message">Demander l'accès à la data room de ce projet (message facultatif)</label>
-          <textarea id="dr-v-message" rows="3" maxlength="500"></textarea>
-          <div class="dr-boutons"><button class="btn primary small" type="submit" id="dr-v-demander">Demander l'accès</button></div>
-        </form>
-        <p class="dr-msg" id="dr-v-d-msg" role="status" aria-live="polite"></p>
-      </section>
+  <section class="cq-carte dr-ae" id="dr-ae" hidden aria-labelledby="dr-ae-titre">
+    <div class="dr-tete">
+      <h2 id="dr-ae-titre">Acheteurs</h2>
+      <button class="btn small" type="button" id="dr-ae-recharger">Recharger</button>
     </div>
+    <p class="dr-aide">Une ligne par organisation acheteuse. Ouvrez-la pour voir ses projets, et seulement ceux-là : étape,
+      accès, clause, droits par dossier et documents ouverts. « Voir comme cet acheteur » montre, en lecture seule, ce que
+      l'organisation voit sur sa page (salles en préparation comprises, signalées comme pas encore visibles).</p>
+    <p class="dr-msg" id="dr-ae-msg" role="status" aria-live="polite"></p>
+    <ul class="dr-ae-liste" id="dr-ae-liste"></ul>
 
-    <div id="dr-ach-ops" role="tabpanel" aria-labelledby="dr-ach-onglet-ops" hidden>
-    <section class="cq-carte" id="dr-ach-catalogue" hidden aria-labelledby="dr-ach-cat-titre">
-      <h2 id="dr-ach-cat-titre">Vos opérations</h2>
-      <p class="dr-aide">Les opérations auxquelles Almavision vous a invité. Ouvrez-en une pour voir sa fiche et ses
-        documents.</p>
-      <ul class="dr-ach-operations" id="dr-ach-operations"></ul>
-    </section>
-    <section class="cq-carte dr-ach-fiche" id="dr-ach-fiche" hidden aria-labelledby="dr-ach-fiche-titre">
-      <h2 id="dr-ach-fiche-titre"></h2>
-      <div class="dr-ach-fiche-corps">
-        <div id="dr-ach-fiche-visuel"></div>
-        <dl class="dr-ach-infos" id="dr-ach-infos"></dl>
+    <section class="dr-ae-panneau" id="dr-ae-panneau" hidden aria-labelledby="dr-ae-p-titre">
+      <div class="dr-tete">
+        <h3 id="dr-ae-p-titre" tabindex="-1"></h3>
+        <div class="dr-boutons">
+          <button class="btn primary small" type="button" id="dr-ae-voir">Voir comme cet acheteur</button>
+          <button class="btn small" type="button" id="dr-ae-inviter">Inviter sur un autre projet</button>
+          <button class="btn small" type="button" id="dr-ae-fermer">Fermer</button>
+        </div>
       </div>
-      <div class="dr-ach-fiche-actions" id="dr-ach-fiche-actions"></div>
-      <p class="dr-aide">Les visuels sont des illustrations générées par la plateforme, pas des photos des projets.</p>
+      <p class="dr-msg" id="dr-ae-p-msg" role="status" aria-live="polite"></p>
+      <ul class="dr-ae-projets" id="dr-ae-projets"></ul>
     </section>
-    <section class="cq-carte" id="dr-ach-nda" hidden aria-labelledby="dr-ach-nda-titre">
-      <h2 id="dr-ach-nda-titre">Clause de confidentialité</h2>
-      <p class="dr-aide">Avant d'ouvrir les documents de cette opération, lisez et acceptez la clause ci-dessous. Votre
-        acceptation est enregistrée à votre nom, avec la version du texte.</p>
-      <div class="dr-nda-texte" id="dr-ach-nda-texte"></div>
-      <label class="dr-case" for="dr-ach-nda-ok"><input type="checkbox" id="dr-ach-nda-ok"> J'ai lu la clause et je
-        l'accepte.</label>
-      <div class="dr-boutons"><button class="btn primary small" type="button" id="dr-ach-nda-go">Accepter et
-        continuer</button></div>
+
+    <section class="dr-ae-apercu" id="dr-ae-apercu" hidden aria-labelledby="dr-ae-a-bandeau">
+      <div class="dr-ae-bandeau">
+        <p id="dr-ae-a-bandeau" tabindex="-1"></p>
+        <button class="btn small" type="button" id="dr-ae-a-fermer">Fermer l'aperçu</button>
+      </div>
+      <p class="dr-aide">Lecture seule : rien ne s'ouvre, rien n'est demandé à Claude ni noté au journal de l'acheteur.</p>
+      <p class="dr-msg" id="dr-ae-a-msg" role="status" aria-live="polite"></p>
+      <ul class="dr-v-liste" id="dr-ae-a-grille"></ul>
+      <div class="dr-ae-a-fiche" id="dr-ae-a-fiche" hidden>
+        <button class="btn small" type="button" id="dr-ae-a-retour">← Tous ses projets</button>
+        <h4 id="dr-ae-a-f-titre" tabindex="-1"></h4>
+        <p class="dr-avert" id="dr-ae-a-f-prepa"></p>
+        <p class="dr-ach-op-infos" id="dr-ae-a-f-infos"></p>
+        <p class="dr-v-resume" id="dr-ae-a-f-resume"></p>
+        <p class="dr-msg" id="dr-ae-a-f-msg" role="status" aria-live="polite"></p>
+        <div id="dr-ae-a-f-docs"></div>
+      </div>
     </section>
-    <div id="dr-ach-contenu" hidden>
-      <section class="cq-carte" aria-labelledby="dr-ach-docs-titre">
-        <h2 id="dr-ach-docs-titre">Documents</h2>
-        <p class="dr-aide">Les documents s'ouvrent dans la plateforme, avec votre nom en filigrane ; ceux de votre
-          dossier « téléchargeable » peuvent aussi être enregistrés. Chaque ouverture est enregistrée à votre nom.</p>
-        <div class="dr-ach-docs" id="dr-ach-docs"></div>
-      </section>
-      <section class="cq-carte" aria-labelledby="dr-ach-chercher-titre">
-        <h2 id="dr-ach-chercher-titre">Rechercher dans les documents</h2>
-        <form class="dr-form" id="dr-ach-form-chercher" autocomplete="off" novalidate>
-          <label for="dr-ach-mots">Mots cherchés</label>
-          <input id="dr-ach-mots" maxlength="200" spellcheck="false">
-          <div class="dr-boutons"><button class="btn primary small" type="submit" id="dr-ach-c-go">Chercher</button></div>
-        </form>
-        <p class="dr-msg" id="dr-ach-c-msg" role="status" aria-live="polite"></p>
-        <ol class="dr-resultats" id="dr-ach-resultats"></ol>
-      </section>
-      <section class="cq-carte" id="dr-ach-assistant" hidden aria-labelledby="dr-ach-assistant-titre">
-        <div class="dr-tete">
-          <h2 id="dr-ach-assistant-titre">Interroger ce projet avec Claude</h2>
-          <button class="btn small" type="button" id="dr-ach-nouvelle">Nouvelle conversation</button>
-        </div>
-        <p class="dr-aide">L'assistant répond à partir des seuls documents qui vous sont ouverts, en citant le document et
-          la page de chaque passage utilisé. Il peut se tromper : vérifiez dans les documents cités. Il ne donne aucun avis
-          juridique, fiscal ou d'investissement.</p>
-        <p class="dr-contexte" id="dr-ach-q-contexte" aria-live="polite"></p>
-        <form class="dr-form dr-poser" id="dr-ach-form-question" autocomplete="off" novalidate>
-          <label for="dr-ach-question">Question</label>
-          <textarea id="dr-ach-question" rows="3" maxlength="2000"></textarea>
-          <div class="dr-boutons"><button class="btn primary small" type="submit" id="dr-ach-q-go">Poser la
-            question</button></div>
-        </form>
-        <p class="dr-msg" id="dr-ach-q-msg" role="status" aria-live="polite"></p>
-        <ol class="dr-fil" id="dr-ach-fil"></ol>
-        <details class="dr-confidentialite">
-          <summary>Confidentialité</summary>
-          <p>Pour chaque question, la plateforme envoie à Claude (Anthropic, États-Unis) la question et, au plus, 8 extraits
-            des documents qui vous sont ouverts ; jamais un document entier. Anthropic n'utilise pas ces données pour
-            entraîner ses modèles et ne les garde pas plus de 30 jours. Vos questions, les réponses et les références
-            citées sont gardées par Almavision pour le suivi de l'opération.</p>
-        </details>
-      </section>
-    </div>
-    </div>
   </section>
 
   <section class="cq-carte dr-synchro" id="dr-synchro" hidden aria-labelledby="dr-synchro-titre">
@@ -240,8 +166,8 @@
       <h2 id="dr-synchro-titre">Synchronisation</h2>
       <button class="btn small" type="button" id="dr-recharger">Recharger</button>
     </div>
-    <p class="dr-aide">La plateforme lit le site SharePoint « Data rooms » toutes les 15 minutes, ou à la demande. Elle
-      garde un index des dossiers, des fichiers et de leurs versions, jamais les fichiers eux-mêmes. Un document n'est
+    <p class="dr-aide">La plateforme lit les sites SharePoint des data rooms déclarés ci-dessous (une carte par
+      bibliothèque), à la demande : bouton « Synchroniser maintenant » de chaque carte. Elle garde un index des dossiers, des fichiers et de leurs versions, jamais les fichiers eux-mêmes. Un document n'est
       visible d'un acquéreur qu'une fois publié par l'équipe, ou d'office dans une salle en publication automatique. La
       date d'expiration du secret Microsoft se note sur la carte de la bibliothèque : l'écran prévient 30 jours avant.</p>
     <p class="dr-msg" id="dr-msg" role="status"></p>
@@ -515,7 +441,7 @@
     <div class="dr-vis-zone" id="dr-vis-zone"><canvas id="dr-vis-toile" width="0" height="0"></canvas></div>
   </div>
 </main>
-<script src="plateforme/coquille.js?v=aba80e61d5"></script>
+<script src="plateforme/coquille.js?v=cff860c8a7"></script>
 <script src="modules/dataroom/visionneuse.js?v=008f04577c"></script>
-<script src="modules/dataroom/dataroom.js?v=3a98108934"></script>
+<script src="modules/dataroom/dataroom.js?v=5e1c3d7817"></script>
 </body></html>

@@ -1,0 +1,62 @@
+/* Page de l'acquéreur (acheteur.html) : grille de projets façon marketplace et fiche produit. S'appuie sur dataroom.css
+   (messages, visuels, visionneuse, assistant) et sur les couleurs de la coquille (charte Almavision). */
+.ach-entete{margin-bottom:8px}
+.ach-entete h1{margin-bottom:4px}
+
+/* filtres */
+.ach-filtres{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 16px;margin:6px 0 10px}
+.ach-filtres label{display:grid;gap:3px;font-size:13px;color:var(--ink2)}
+.ach-filtres select,.ach-filtres input[type="search"]{height:36px;border:1px solid var(--line);border-radius:8px;padding:0 10px;background:var(--bg);min-width:12rem;font:inherit}
+.ach-filtres select:focus,.ach-filtres input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.ach-filtres .ach-case{display:flex;align-items:center;gap:6px;height:36px}
+.ach-case input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
+
+/* grille de cartes */
+.ach-grille{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr))}
+.ach-carte{position:relative;display:flex;flex-direction:column;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:12px 14px 14px;cursor:pointer;transition:box-shadow .15s,border-color .15s}
+.ach-carte:hover{border-color:var(--mint);box-shadow:0 6px 18px rgba(0,53,47,.08)}
+.ach-carte:focus-within{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.ach-carte.miens{border-color:var(--forest);box-shadow:0 0 0 1px var(--forest)}
+.ach-carte-nom{margin:2px 0 0;font-size:16px;color:var(--forest)}
+.ach-carte-infos{margin:0;font-size:13px;color:var(--ink2)}
+.ach-carte-etat{margin:0;font-size:12.5px;color:var(--accent);font-weight:600}
+.ach-carte-extrait{margin:2px 0 6px;font-size:13px;color:var(--muted)}
+.ach-carte-voir{align-self:flex-start;margin-top:auto}
+.ach-badge{align-self:flex-start;font-size:12px;border-radius:999px;padding:1px 10px;background:var(--forest);color:#fff;font-weight:600;white-space:nowrap}
+.ach-carte .ach-badge{position:absolute;top:20px;left:22px}
+
+/* fiche produit */
+.ach-fiche{display:grid;gap:12px}
+.ach-fiche > .btn{justify-self:start}
+.ach-fiche-tete{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.ach-fiche-infos{flex:1 1 18rem;display:grid;gap:6px}
+.ach-fiche-infos h2{margin:0;font-size:22px;color:var(--forest)}
+.ach-fiche-infos h2:focus{outline:none}
+.ach-badge-zone{margin:0}
+.ach-badge-zone:empty{display:none}
+.ach-resume{margin:0;max-width:80ch;color:var(--ink);white-space:pre-line}
+.ach-resume:empty{display:none}
+#ach-projet,#ach-decouverte{display:grid;gap:12px}
+#ach-projet[hidden],#ach-decouverte[hidden]{display:none}
+.ach-bandeau{margin:0;background:var(--accent-weak);color:var(--forest);border-radius:10px;padding:10px 14px;font-weight:600}
+.ach-fiche h3{margin:0 0 6px;font-size:17px;color:var(--forest)}
+
+/* documents */
+.ach-dossier{margin-top:10px}
+.ach-dossier h4{margin:0 0 4px;font-size:14.5px;color:var(--forest)}
+.ach-liste{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.ach-doc{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:6px 8px;border-radius:8px;font-size:13.5px}
+.ach-doc:hover{background:var(--soft)}
+.ach-doc-nom{overflow-wrap:anywhere;font-weight:500}
+.ach-doc.ferme{color:var(--muted)}
+.ach-doc.ferme .ach-doc-nom{font-weight:400}
+.ach-cadenas{flex:none;color:var(--muted)}
+.ach-raison{font-size:12.5px;font-style:italic;color:var(--ink2)}
+.ach-doc .dr-doc-actions{display:inline-flex;gap:6px;margin-left:auto}
+.ach-assistant-absent{margin:0;color:var(--muted);font-size:13.5px;background:var(--soft);border:1px dashed var(--line);border-radius:10px;padding:10px 14px}
+
+@media (max-width:600px){
+  .ach-filtres select,.ach-filtres input[type="search"]{min-width:0;width:100%}
+  .ach-filtres label{flex:1 1 100%}
+  .ach-doc .dr-doc-actions{margin-left:0}
+}
