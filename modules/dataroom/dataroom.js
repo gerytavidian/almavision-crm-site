@@ -253,6 +253,7 @@
     passages.forEach((p, i) => { if (p.error) throw p.error; etat.passages.set(etat.biblios[i].id, p.data || []); });
     etat.salles = (await toutes(() => sb.from("dr_salle").select(COL_SALLE).order("id"))).lignes;
     etat.salleDe = new Map(etat.salles.map(s => [s.id, s]));
+    remplirSalleGlobale();
     if (!etat.biblios.some(b => b.id === etat.choisie)) {
       etat.choisie = etat.biblios.length ? etat.biblios[0].id : null;
       oublierArbre();
@@ -283,6 +284,8 @@
     $("dr-biblios").textContent = "";
     $("dr-declarer").hidden = $("dr-portee").hidden = true;
     $("dr-arbre-zone").hidden = true;
+    $("dr-docs-vide").hidden = false;
+    $("dr-docs-vide-texte").textContent = texte;
     ecrire($("dr-msg"), texte, "calme");
     msgLecture = true;
   }
@@ -741,6 +744,14 @@
         if (p) etat.contientSalle.add(p.id);
       }
     }
+    // numéros 1, 1.2, 1.2.3 dans chaque salle (dossiers d'abord, puis fichiers, par nom : l'ordre de l'arborescence)
+    etat.numeros = new Map();
+    const numeroter = (item, prefixe, n) => (etat.enfants.get(item) || []).forEach((e, i) => {
+      const num = prefixe ? `${prefixe}.${i + 1}` : String(i + 1);
+      etat.numeros.set(e.id, num);
+      if (e.type !== "fichier" && n < 64) numeroter(e.item_id, num, n + 1);
+    });
+    for (const racine of etat.sallesIci.keys()) numeroter(racine, "", 0);
     // la racine de la bibliothèque n'est pas affichée : ses enfants forment le premier niveau ; un élément dont le
     // dossier parent n'est pas lu (lecture en cours) est montré au premier niveau
     const racines = new Set(lignes.filter(e => e.type === "racine").map(e => e.item_id));
@@ -1064,6 +1075,7 @@
       pli.disabled = !enfants.length;
       ligne.appendChild(pli);
     }
+    if (etat.numeros && etat.numeros.has(e.id)) ligne.appendChild(el("span", "dr-num", etat.numeros.get(e.id)));
     ligne.appendChild(el("span", "dr-nom", nomAffiche(e)));
 
     const conteneur = e.type === "dossier" || e.type === "racine";
@@ -1173,6 +1185,9 @@
     const voulu = etat.focusArbre || focusDe(arbre);
     etat.focusArbre = null;
     zone.hidden = !etat.biblios.length;
+    $("dr-docs-vide").hidden = !!etat.biblios.length;
+    $("dr-docs-vide-texte").textContent = "Aucune bibliothèque SharePoint déclarée : la plateforme ne connaît encore aucun document.";
+    majEtatSalle();
     if (!etat.biblios.length) return;
     choix.textContent = "";
     for (const b of etat.biblios) { const o = el("option", null, b.nom); o.value = b.id; choix.appendChild(o); }
@@ -1459,6 +1474,10 @@
       arbreMsg(`Assistant indisponible pour la salle ${salle.code} : la recherche n'est pas encore installée, ou la salle n'est pas encore connue d'elle (Recharger).`, true);
       return;
     }
+    ouvrirOnglet("interroger");
+    $("dr-salle").value = salle.id;
+    majEtatSalle();
+    appliquerSalle();
     $("dr-a-salle").value = salle.id;
     nouvelleConversation(false);
     contexteEquipe();
@@ -2026,12 +2045,13 @@
     if (!libres.length) { aePMsg(`${o.nom} est déjà invitée dans toutes les salles.`); return; }
     const salle = $("dr-acq-salle");
     if (!salle.value || deja.has(salle.value)) {
+      if (etat.salleDe.has(libres[0].id)) { $("dr-salle").value = libres[0].id; majEtatSalle(); $("dr").classList.add("dr-une-salle"); }
       salle.value = libres[0].id;
       await chargerSalleAcquereurs();
     }
     $("dr-acq-inv-org").value = o.organisation_id;
     acqMsg(`Invitation de ${o.nom} : vérifiez la salle, choisissez la fin de l'accès et l'étape, puis « Inviter ».`);
-    aePMsg(`Formulaire d'invitation prérempli pour ${o.nom}, dans la carte « Acquéreurs ».`);
+    aePMsg(`Formulaire d'invitation prérempli pour ${o.nom}, dans « Comptes, invitations et droits », plus bas.`);
     $("dr-acq-form-inviter").scrollIntoView({block: "center"});
     $("dr-acq-inv-fin").focus();
   }
@@ -2178,6 +2198,7 @@
     remplirFormulaire(f);
     arbreMsg(`Salle ${s.code} : fiche marketplace « ${f ? f.nom_de_code : s.nom_de_code} » ouverte dans « Vitrine » ` +
       (f && f.statut !== "brouillon" ? `(${STATUTS_FICHE[f.statut] || f.statut}).` : "(brouillon, invisible des acheteurs)."));
+    ouvrirOnglet("vitrine");
     $("dr-vit").scrollIntoView({block: "start"});
     $("dr-vit-nom").focus();
   }
@@ -2586,7 +2607,193 @@
     $("dr-tableau").hidden = false;
   }
 
+  // ------------------------------------------------------------------ navigation (refonte de l'écran, lot 1, 25/11/2026)
+  // Six onglets (Documents, Acheteurs, Interroger, Vitrine, Statistiques, Réglages) et une salle choisie une fois en haut
+  // de page : elle règle les cartes qui avaient chacune leur choix de salle (recherche, assistant, invitations, tableau de
+  // bord), dont les sélecteurs se cachent alors ; « Toutes les salles » les rend visibles. Onglet et salle sont gardés
+  // pour l'onglet du navigateur (sessionStorage : deux réglages d'affichage, aucune donnée).
+  const ONGLETS = ["documents", "acheteurs", "interroger", "vitrine", "statistiques", "reglages"];
+  const memoire = (() => { try { const s = window.sessionStorage; s.length; return s; } catch { return null; } })();
+  const memoriser = (k, v) => { try { if (memoire) memoire.setItem(k, v); } catch { /* stockage refusé : sans effet */ } };
+  const relu = k => { try { return memoire ? memoire.getItem(k) : null; } catch { return null; } };
+  let salleVoulue = relu("dr:salle");
+
+  function ouvrirOnglet(nom, focus = false) {
+    if (!ONGLETS.includes(nom)) nom = "documents";
+    for (const n of ONGLETS) {
+      const o = $("dr-o-" + n), actif = n === nom;
+      o.setAttribute("aria-selected", String(actif));
+      o.tabIndex = actif ? 0 : -1;
+      if (actif) o.classList.add("actif"); else o.classList.remove("actif");
+      $("dr-p-" + n).hidden = !actif;
+    }
+    memoriser("dr:onglet", nom);
+    if (focus) $("dr-o-" + nom).focus();
+  }
+
+  const STATUT_PASTILLE = {preparation: "En préparation", ouverte: "Ouverte", close: "Close"};
+  const STATUT_EXPLIQUE = {preparation: "pas encore visible des acheteurs", ouverte: "visible des acheteurs invités",
+                           close: "plus visible des acheteurs"};
+  const STATUTS_PLURIEL = {preparation: "en préparation", ouverte: "ouvertes", close: "closes"};
+
+  function remplirSalleGlobale() {
+    const choix = $("dr-salle"), avant = salleVoulue != null ? salleVoulue : choix.value;
+    choix.textContent = "";
+    const tout = el("option", null, "Toutes les salles");
+    tout.value = "";
+    choix.appendChild(tout);
+    for (const s of [...etat.salles].sort((a, b) => TRI.compare(a.code, b.code))) {
+      const o = el("option", null, `${s.code} · ${s.nom_de_code}`);
+      o.value = s.id;
+      choix.appendChild(o);
+    }
+    // une seule salle : choisie d'office (sauf si « Toutes les salles » a été choisi)
+    choix.value = etat.salleDe.has(avant) ? avant : salleVoulue === "" || etat.salles.length !== 1 ? "" : etat.salles[0].id;
+    majEtatSalle();
+  }
+
+  // bandeau de la salle choisie : statut expliqué, documents publiés et à publier, étape suivante
+  function majEtatSalle() {
+    const zone = $("dr-salle-etat"), s = etat.salleDe.get($("dr-salle").value);
+    zone.textContent = "";
+    if (!s) {
+      const n = etat.salles.length;
+      if (!n) {
+        zone.appendChild(el("p", "dr-guide", "Aucune salle pour l'instant : dans « Documents », « Créer une salle ici » sur " +
+          "le dossier SharePoint de l'opération."));
+        return;
+      }
+      const parStatut = Object.keys(STATUTS).map(k => [k, etat.salles.filter(x => x.statut === k).length]).filter(([, c]) => c);
+      zone.appendChild(el("p", null, `${compte(n, "salle")} : ` +
+        parStatut.map(([k, c]) => `${NOMBRE.format(c)} ${c > 1 ? STATUTS_PLURIEL[k] : STATUTS[k]}`).join(", ") + "."));
+      return;
+    }
+    const ligne = el("p", "dr-salle-ligne");
+    ligne.append(el("b", null, s.code), ` ${s.nom_de_code} `, el("span", "dr-pastille " + s.statut, STATUT_PASTILLE[s.statut] || s.statut),
+      ` ${STATUT_EXPLIQUE[s.statut] || ""} · publication ${s.publication === "auto" ? "automatique" : "manuelle"}`);
+    zone.appendChild(ligne);
+    let publies = null;
+    if (s.bibliotheque_id === etat.choisie && etat.elements.length) {
+      const f = etat.elements.filter(e => e.type === "fichier" && e.salle_id === s.id);
+      publies = f.filter(e => e.version_publiee_id).length;
+      const aPublier = f.filter(publiable).length;
+      zone.appendChild(el("p", "dr-salle-chiffres", [compte(f.length, "fichier"), compte(publies, "publié", "publiés"),
+        compte(aPublier, "à publier", "à publier")].join(" · ")));
+    }
+    const guide = s.statut === "preparation"
+      ? publies === 0 ? "Étape suivante : publier les documents (onglet Documents)."
+        : "Étapes suivantes : inviter les acheteurs (onglet Acheteurs), vérifier avec « Voir comme cet acheteur », puis " +
+          "passer la salle en « ouverte » (Réglages de la salle)."
+      : s.statut === "ouverte" ? "Suivre l'activité des acheteurs : onglet Statistiques." : "";
+    if (guide) zone.appendChild(el("p", "dr-guide", guide));
+    const boutons = el("div", "dr-boutons");
+    boutons.append(bouton("Voir ses documents", () => allerAuxDocuments(s), "btn small", `Voir les documents de la salle ${s.code}`,
+                          "bandeau-docs:" + s.id),
+                   bouton("Réglages de la salle", () => allerAuxDocuments(s, true), "btn small", `Réglages de la salle ${s.code}`,
+                          "bandeau-reglages:" + s.id));
+    zone.appendChild(boutons);
+  }
+
+  async function allerAuxDocuments(s, reglages = false) {
+    ouvrirOnglet("documents");
+    if (s.bibliotheque_id !== etat.choisie) {
+      etat.choisie = s.bibliotheque_id;
+      oublierArbre();
+      etat.elements = [];
+      await recharger();
+    }
+    if (reglages) {
+      const b = [...$("dr-arbre").querySelectorAll("button")].find(x => x.dataset.cle === "reglages:" + s.id);
+      if (b && b.getAttribute("aria-expanded") !== "true") b.click(); else if (b) b.focus();
+      return;
+    }
+    const racine = etat.parItem.get(s.racine_item_id);
+    if (racine) montrer(racine);
+  }
+
+  // la salle du haut de page règle les choix de salle des cartes ; une carte qui ne connaît pas la salle (pas encore
+  // indexée, tableau pas installé…) garde son propre choix, montré (classe dr-ecart)
+  async function appliquerSalle() {
+    const id = $("dr-salle").value, travaux = [];
+    if (id) $("dr").classList.add("dr-une-salle"); else $("dr").classList.remove("dr-une-salle");
+    const connue = sel => [...$(sel).querySelectorAll("option")].some(o => o.value === id);
+    const ecart = (sel, oui) => {
+      const cibles = [$(sel), ...[...$(sel).parentNode.querySelectorAll("label")].filter(l => l.htmlFor === sel)];
+      if (sel === "dr-tb-salle") cibles.push($(sel).parentNode);
+      for (const c of cibles) if (oui) c.classList.add("dr-ecart"); else c.classList.remove("dr-ecart");
+    };
+    for (const sel of ["dr-c-salle", "dr-a-salle", "dr-acq-salle", "dr-tb-salle"]) ecart(sel, !!id && !connue(sel));
+    if (!id) {
+      if ($("dr-tb-salle").value) { $("dr-tb-salle").value = ""; travaux.push(chargerTableau()); }
+      await Promise.all(travaux);
+      return;
+    }
+    if (connue("dr-c-salle")) $("dr-c-salle").value = id;
+    if (connue("dr-a-salle") && $("dr-a-salle").value !== id) { $("dr-a-salle").value = id; contexteEquipe(); }
+    if (connue("dr-acq-salle") && $("dr-acq-salle").value !== id) { $("dr-acq-salle").value = id; travaux.push(chargerSalleAcquereurs()); }
+    if (connue("dr-tb-salle") && $("dr-tb-salle").value !== id) { $("dr-tb-salle").value = id; travaux.push(chargerTableau()); }
+    await Promise.all(travaux);
+  }
+
+  // index de la salle choisie (ou de toutes les salles de la bibliothèque affichée) en CSV pour Excel : point-virgule,
+  // BOM UTF-8 ; numéro écrit ="1.2" (sinon Excel en fait une date) ; une cellule qui commencerait comme une formule
+  // (= + - @) est précédée d'une apostrophe
+  function exporterIndex() {
+    const id = $("dr-salle").value, choisie = etat.salleDe.get(id);
+    if (choisie && choisie.bibliotheque_id !== etat.choisie) {
+      arbreMsg(`La salle ${choisie.code} est dans une autre bibliothèque : « Voir ses documents » dans le bandeau, puis exporter.`, true);
+      return;
+    }
+    const salles = [...etat.sallesIci.values()].filter(s => !id || s.id === id).sort((a, b) => TRI.compare(a.code, b.code));
+    if (!salles.length) { arbreMsg("Aucune salle dans cette bibliothèque : rien à exporter.", true); return; }
+    const lignes = [["Salle", "Index", "Type", "Nom dans SharePoint", "Nom vu des acheteurs", "État", "Étape", "Taille (octets)"]];
+    for (const s of salles) {
+      const parcourir = (item, n) => {
+        for (const e of etat.enfants.get(item) || []) {
+          const fichier = e.type === "fichier";
+          lignes.push([s.code, {formule: etat.numeros.get(e.id) || ""}, fichier ? "fichier" : "dossier", e.nom, e.publie_nom || "",
+                       fichier ? etatFichier(e).texte : "", e.etape == null ? "" : e.etape, e.taille == null ? "" : e.taille]);
+          if (!fichier && n < 64) parcourir(e.item_id, n + 1);
+        }
+      };
+      parcourir(s.racine_item_id, 0);
+    }
+    const cellule = v => {
+      if (v && typeof v === "object") return v.formule ? `="${v.formule}"` : "";
+      let x = String(v);
+      if (/^[=+\-@\t\r]/.test(x)) x = "'" + x;
+      return /[";\n\r]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x;
+    };
+    const texte = "﻿" + lignes.map(l => l.map(cellule).join(";")).join("\r\n");
+    P.telecharger(`index-${id ? salles[0].code : "salles"}-${new Date().toISOString().slice(0, 10)}.csv`,
+                  new Blob([texte], {type: "text/csv;charset=utf-8"}));
+    arbreMsg(`Index exporté : ${compte(lignes.length - 1, "ligne")}.`);
+  }
+
   // ------------------------------------------------------------------ démarrage
+  $("dr-pilote").hidden = $("dr-onglets").hidden = $("dr-docs").hidden = false;
+  for (const n of ONGLETS) $("dr-o-" + n).addEventListener("click", () => ouvrirOnglet(n));
+  $("dr-onglets").addEventListener("keydown", ev => {
+    const i = ONGLETS.findIndex(n => $("dr-o-" + n).getAttribute("aria-selected") === "true");
+    const j = {ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: ONGLETS.length - 1}[ev.key];
+    if (j == null) return;
+    ev.preventDefault();
+    ouvrirOnglet(ONGLETS[(j + ONGLETS.length) % ONGLETS.length], true);
+  });
+  $("dr-salle").addEventListener("change", async () => {
+    salleVoulue = $("dr-salle").value;
+    memoriser("dr:salle", salleVoulue);
+    majEtatSalle();
+    await appliquerSalle();
+  });
+  $("dr-docs-recharger").addEventListener("click", () => recharger());
+  $("dr-docs-export").addEventListener("click", exporterIndex);
+  $("dr-docs-vers-reglages").addEventListener("click", () => {
+    ouvrirOnglet("reglages");
+    $("dr-declarer").open = true;
+    $("dr-b-adresse").focus();
+  });
+  ouvrirOnglet(relu("dr:onglet") || "documents");
   $("dr-synchro").hidden = false;
   $("dr-recharger").addEventListener("click", () => recharger());
   $("dr-form-biblio").addEventListener("submit", declarer);
@@ -2637,4 +2844,5 @@
   await chargerAcheteurs();
   await chargerVitrineEquipe();
   await chargerTableau();
+  await appliquerSalle();
 })();
