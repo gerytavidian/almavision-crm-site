@@ -1,4 +1,4 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=92e8974737"></head><body>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=2985721350"></head><body>
 <script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service", "double_auth": false}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}, {"id": "valorisations", "nom": "Valorisations", "page": "valorisations.html", "ordre": 30, "description": "Valorisation de portefeuilles photovoltaïques : documents, hypothèses Bas / Central / Haut, modèle Excel rempli et note PDF.", "statut": "en développement", "double_auth": true}]}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
@@ -359,8 +359,8 @@
       <button class="btn small" type="button" id="dr-vit-recharger">Recharger</button>
     </div>
     <p class="dr-aide">Fiches NON CONFIDENTIELLES montrées à tous les acquéreurs connectés, même sans invitation : nom de
-      code, technologie, stade, puissance, région, année, résumé, points clés et une illustration (jamais une photo ni
-      une image tirée d'un document). Jamais de nom de vendeur ou de société de projet, d'adresse ou de coordonnées, de
+      code, technologie, stade, puissance, région, année, résumé, points clés, une illustration et, s'il y en a, des photos
+      du projet (vues seulement des acquéreurs connectés ; jamais une image tirée d'un document). Jamais de nom de vendeur ou de société de projet, d'adresse ou de coordonnées, de
       chemin SharePoint ni de lien vers un fichier. Une fiche se prépare en brouillon, se prévisualise, puis se publie
       seulement avec la validation de la diffusion. Une demande d'accès n'ouvre rien : inviter reste dans « Acquéreurs ».</p>
     <p class="dr-msg" id="dr-vit-msg" role="status"></p>
@@ -386,6 +386,23 @@
         <p class="dr-msg" id="dr-vit-form-msg" role="status"></p>
       </form>
     </div>
+    <section class="dr-vit-photos" id="dr-vit-photos" hidden aria-labelledby="dr-vit-photos-titre">
+      <h3 id="dr-vit-photos-titre">Photos</h3>
+      <p class="dr-aide">Vraies photos du projet, montrées aux seuls acquéreurs connectés (jamais en accès public) : la
+        première remplace l'illustration sur la carte de la marketplace, toutes sont sur la fiche. JPEG, PNG ou WebP,
+        12 par fiche ; chaque photo est redessinée avant l'envoi (2400 px et 5 Mo au plus) : ses métadonnées, dont la
+        position GPS de la prise de vue, ne partent pas. Ni personne reconnaissable, ni plaque, ni panneau ou nom de société : relisez-les
+        avant de publier. Ajout et réglage sur un brouillon seulement ; retrait à tout moment.</p>
+      <ul class="dr-vit-photos-liste" id="dr-vit-photos-liste" aria-label="Photos de la fiche"></ul>
+      <form class="dr-vit-photo-ajout" id="dr-vit-photo-form" autocomplete="off" novalidate>
+        <label for="dr-vit-photo-fichier">Photo à ajouter<input type="file" id="dr-vit-photo-fichier"
+          accept="image/jpeg,image/png,image/webp"></label>
+        <label for="dr-vit-photo-legende">Légende (120 caractères au plus)<input type="text" id="dr-vit-photo-legende"
+          maxlength="120" spellcheck="true"></label>
+        <button class="btn primary small" type="submit" id="dr-vit-photo-ajouter">Ajouter la photo</button>
+      </form>
+      <p class="dr-msg" id="dr-vit-photos-msg" role="status" aria-live="polite"></p>
+    </section>
     <div class="dr-vit-apercu" id="dr-vit-apercu" hidden>
       <h3>Aperçu : ce que verra un acquéreur</h3>
       <div id="dr-vit-apercu-carte"></div>
@@ -443,5 +460,5 @@
 </main>
 <script src="plateforme/coquille.js?v=cff860c8a7"></script>
 <script src="modules/dataroom/visionneuse.js?v=008f04577c"></script>
-<script src="modules/dataroom/dataroom.js?v=5e1c3d7817"></script>
+<script src="modules/dataroom/dataroom.js?v=ee9002fa5b"></script>
 </body></html>

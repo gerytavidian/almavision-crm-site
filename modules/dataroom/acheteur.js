@@ -13,6 +13,11 @@
      d'ouverture. Puis « Interroger Claude sur ce projet » (fonction serveur « assistant ») si l'équipe l'a activé.
    - Fiche de découverte : informations publiques (dr_vitrine_fiche), aucun document, « Demander l'accès »
      (dr_vitrine_demander).
+   - Photos (sql/11_photos.sql, 25/11/2026) : la première photo de chaque fiche publiée (dr_photos_marche) remplace
+     l'illustration de sa carte ; la fiche produit montre toutes ses photos (dr_photos), la première en grand, avec leur
+     légende. Bucket PRIVÉ « dr-photos » : chaque photo est téléchargée avec le jeton de la personne
+     (sb.storage…download), puis affichée par une adresse blob: locale, libérée dès qu'elle ne sert plus ; en cas
+     d'échec, l'illustration revient. Aucune adresse publique, rien en HTML brut (alt = légende).
    La base revérifie tout à chaque appel (conditions 1 à 4, étape, droits par dossier, dossiers réservés) et refuse
    toujours de la même façon (42501 « accès refusé ») ; la page n'affiche que ce qu'elle a reçu. Tout texte venu de la
    base passe par textContent ou setAttribute ; aucun script extérieur ni en ligne. */
@@ -156,8 +161,60 @@
     return svg;
   }
 
+  // ------------------------------------------------------------------ photos (bucket privé « dr-photos »)
+  // Une adresse blob: par photo téléchargée, gardée tant qu'une carte ou la fiche ouverte s'en sert (garderPhotos) ;
+  // jamais d'adresse publique ni signée dans la page.
+  const BUCKET = "dr-photos";
+  const photosUrl = new Map();   // chemin -> Promise<adresse blob: | null>
+  function urlPhoto(chemin) {
+    if (!photosUrl.has(chemin)) {
+      photosUrl.set(chemin, (async () => {
+        try {
+          const {data, error} = await sb.storage.from(BUCKET).download(chemin);
+          if (error || !data) return null;
+          return URL.createObjectURL(data);
+        } catch { return null; }
+      })());
+    }
+    return photosUrl.get(chemin);
+  }
+  // libère les adresses des photos qui ne servent plus (cartes relues, fiche quittée, fin de session)
+  function garderPhotos(chemins) {
+    for (const [chemin, url] of [...photosUrl]) {
+      if (chemins.has(chemin)) continue;
+      photosUrl.delete(chemin);
+      url.then(u => { if (u) { try { URL.revokeObjectURL(u); } catch {} } });
+    }
+  }
+  const cheminsUtiles = () => new Set([...ach.photosMarche.values(), ...ach.photosFiche.map(x => x.chemin)]);
+  // photo du projet : figure (alt = légende) ; l'illustration (repli) revient si le téléchargement ou l'image échoue
+  function figurePhoto(chemin, legende, classe, repli) {
+    const cadre = el("figure", "dr-visuel dr-photo " + (classe || ""));
+    const img = el("img", "dr-photo-img");
+    img.setAttribute("alt", legende || "Photo du projet");
+    img.setAttribute("decoding", "async");
+    cadre.appendChild(img);
+    cadre.appendChild(el("figcaption", "dr-visuel-mention", "Photo"));
+    let remplacee = false;
+    const remplacer = () => {
+      if (remplacee || !cadre.parentNode) return;
+      remplacee = true;
+      cadre.parentNode.insertBefore(repli(), cadre);
+      cadre.remove();
+    };
+    img.addEventListener("error", remplacer);
+    urlPhoto(chemin).then(url => { if (url) img.setAttribute("src", url); else remplacer(); });
+    return cadre;
+  }
+  // visuel d'une carte ou de l'en-tête : la photo si la fiche en a une, sinon l'illustration
+  function visuelProjet(p, classe) {
+    const chemin = p.fiche_id ? ach.photosMarche.get(p.fiche_id) : null;
+    return chemin ? figurePhoto(chemin, `Photo du projet ${p.nom_de_code || ""}`.trim(), classe, () => visuel(p, classe))
+      : visuel(p, classe);
+  }
+
   // ------------------------------------------------------------------ état
-  const ach = {projets: [], choisi: null, conversation: null};
+  const ach = {projets: [], choisi: null, conversation: null, photosMarche: new Map(), photosFiche: []};
 
   // ------------------------------------------------------------------ marketplace (dr_marche)
   function remplirChoix(select, valeurs, libelles) {
@@ -188,6 +245,11 @@
     }
     ach.projets = (Array.isArray(data) ? data : []).filter(p => p && p.cle)
       .sort((a, b) => (b.participe === true) - (a.participe === true) || TRI.compare(a.nom_de_code || "", b.nom_de_code || ""));
+    // première photo de chaque fiche publiée ; sans réponse (SQL des photos pas installé, refus) : les illustrations
+    const ph = await appel("dr_photos_marche", {});
+    ach.photosMarche = new Map((!ph.error && Array.isArray(ph.data) ? ph.data : [])
+      .filter(x => x && x.fiche_id && typeof x.chemin === "string").map(x => [x.fiche_id, x.chemin]));
+    garderPhotos(cheminsUtiles());
     remplirChoix($("ach-f-techno"), new Set(ach.projets.map(p => p.technologie).filter(Boolean)), TECHNOS);
     remplirChoix($("ach-f-stade"), new Set(ach.projets.map(p => p.stade).filter(Boolean)), STADES);
     afficherGrille();
@@ -206,7 +268,7 @@
         (miens ? ` · ${miens} ouvert${miens > 1 ? "s" : ""} pour vous` : ""), "calme");
     for (const p of liste) {
       const li = el("li", "ach-carte" + (p.participe ? " miens" : ""));
-      li.appendChild(visuel(p, "petit"));
+      li.appendChild(visuelProjet(p, "petit"));
       if (p.participe) li.appendChild(el("span", "ach-badge", "Vos projets"));
       li.appendChild(el("h3", "ach-carte-nom", p.nom_de_code || "Projet"));
       const infos = [techno(p), puissance(p), p.zone, stade(p)].filter(Boolean);
@@ -230,6 +292,9 @@
   function montrerGrille() {
     visionneuse.fermer();
     ach.choisi = null; ach.conversation = null;
+    ach.photosFiche = [];
+    $("ach-galerie").textContent = ""; $("ach-galerie").hidden = true;
+    garderPhotos(cheminsUtiles());
     $("ach-fiche").hidden = true;
     $("ach-marche").hidden = false;
     msg("");
@@ -239,7 +304,22 @@
   function entete(p, f) {
     const place = $("ach-fiche-visuel");
     place.textContent = "";
-    place.appendChild(visuel(p, "grand"));
+    // galerie : la première photo en grand (à la place de l'illustration), les autres en dessous, avec leur légende
+    const photos = ach.photosFiche, galerie = $("ach-galerie");
+    galerie.textContent = "";
+    galerie.hidden = photos.length < 2;
+    if (photos.length) {
+      place.appendChild(figurePhoto(photos[0].chemin, photos[0].legende || `Photo du projet ${p.nom_de_code || ""}`.trim(),
+                                    "grand", () => visuel(p, "grand")));
+      if (photos[0].legende) place.appendChild(el("p", "ach-legende", photos[0].legende));
+      for (const x of photos.slice(1)) {
+        const li = el("li", "ach-galerie-photo");
+        li.appendChild(figurePhoto(x.chemin, x.legende || "Photo du projet", "petit",
+                                   () => el("p", "ach-legende", "Photo indisponible pour le moment.")));
+        if (x.legende) li.appendChild(el("p", "ach-legende", x.legende));
+        galerie.appendChild(li);
+      }
+    } else place.appendChild(visuelProjet(p, "grand"));
     const badge = $("ach-fiche-badge");
     badge.textContent = "";
     if (p.participe) badge.appendChild(el("span", "ach-badge", "Vos projets"));
@@ -283,6 +363,15 @@
         return;
       }
     }
+    // photos de la fiche (publiée) ; sans réponse : l'illustration
+    ach.photosFiche = [];
+    if (p.fiche_id && f) {
+      const ph = await appel("dr_photos", {p_fiche: p.fiche_id});
+      if (ach.choisi !== p) return;
+      ach.photosFiche = (!ph.error && Array.isArray(ph.data) ? ph.data : [])
+        .filter(x => x && typeof x.chemin === "string").slice(0, 12);
+    }
+    garderPhotos(cheminsUtiles());
     entete(p, f);
     $("ach-marche").hidden = true;
     $("ach-fiche").hidden = false;
@@ -418,7 +507,7 @@
     conf, jeton: jetonActuel, enregistrer: P.telecharger,
     suivre: (c, n) => { appel("dr_suivre", {p_consultation: c, p_pages: n}); },
   });
-  if (P.surArret) P.surArret(() => visionneuse.fermer());
+  if (P.surArret) P.surArret(() => { visionneuse.fermer(); ach.photosMarche = new Map(); ach.photosFiche = []; garderPhotos(new Set()); });
   const refusOuverture = e => e && e.code === "DRJ03" ? "Nombre d'ouvertures du jour atteint : reprenez demain."
     : e && e.code === "42501" ? "Ce document ne vous est pas (ou plus) ouvert."
     : e && e.code === "55000" ? "Document indisponible pour le moment : l'équipe Almavision est prévenue."

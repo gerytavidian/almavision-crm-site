@@ -16,6 +16,11 @@
    recherche dans une salle (dr_recherche_texte) et bouton « Indexer maintenant » (fonction serveur « indexer »).
    Lot e : étape de chaque dossier de premier niveau et exception d'un fichier (dr_regler_etape), carte « Tester
    l'assistant » (fonction serveur « assistant », consommation : dr_assistant_etat).
+   Vitrine, photos d'une fiche (sql/11_photos.sql, 25/11/2026) : liste avec aperçus (dr_photos, fichiers téléchargés du
+   bucket PRIVÉ « dr-photos » avec le jeton de la personne, affichés par des adresses blob: locales libérées ensuite),
+   ajout (fichier JPEG, PNG ou WebP de 5 Mo au plus envoyé sous « fiche/<fiche>/<uuid>.<ext> », puis dr_photo_ajouter ;
+   si la base refuse, le fichier est supprimé), légende et ordre (dr_photo_regler), retrait (dr_photo_retirer, puis
+   suppression du fichier).
    L'équipe lit les tables dr_ (la base les réserve au rôle « equipe ») et n'y écrit jamais : chaque action appelle une
    fonction de la base (dr_ajouter_bibliotheque, dr_regler_bibliotheque, dr_creer_salle, dr_regler_salle, dr_publier,
    dr_depublier), qui contrôle tout et explique ses refus ; son message est affiché tel quel. dr_bibliotheque se lit
@@ -2182,7 +2187,7 @@
   // rendu par la base), publication avec validation de diffusion, retrait, vente ; demandes d'accès (classées, aucun
   // droit donné). Aucune table lue directement : seulement les fonctions de l'équipe, qui contrôlent tout.
   const STATUTS_FICHE = {brouillon: "brouillon", publiee: "publiée", retiree: "retirée", vendue: "vendue"};
-  const vit = {fiches: [], choisie: null};
+  const vit = {fiches: [], choisie: null, photos: [], photosDe: null};
   const vitMsg = (t, erreur = false) => ecrire($("dr-vit-msg"), t, erreur ? "erreur" : "");
   async function chargerVitrineEquipe() {
     const [{data, error}, dem] = await Promise.all([appel("dr_vitrine_equipe", {}), appel("dr_vitrine_demandes", {})]);
@@ -2255,13 +2260,18 @@
   }
   async function apercuFiche(id) {
     const f = vit.fiches.find(x => x.id === id);
+    await chargerPhotos(id);
+    if (vit.choisie !== id) return;
     const {data, error} = await appel("dr_vitrine_apercu", {p_id: id});
     const zone = $("dr-vit-apercu-carte"), actions = $("dr-vit-actions");
     zone.textContent = ""; actions.textContent = "";
     if (error || !data || !f) { $("dr-vit-apercu").hidden = true; return; }
     $("dr-vit-apercu").hidden = false;
     const carte = el("div", "dr-v-carte apercu");
-    carte.appendChild(visuelFiche(data, "petit"));                   // même dessin que la Marketplace
+    // comme la carte de la marketplace : la première photo (dans l'ordre), sinon l'illustration
+    const premiere = vit.photosDe === id && vit.photos.length ? vit.photos[0] : null;
+    carte.appendChild(premiere ? figurePhoto(premiere.chemin, `Photo du projet ${data.nom_de_code}`, "petit", () => visuelFiche(data, "petit"))
+      : visuelFiche(data, "petit"));
     carte.appendChild(el("p", "dr-ach-op-nom", data.nom_de_code));
     carte.appendChild(el("p", "dr-ach-op-infos", infosFiche(data).join(" · ")));
     if (data.resume) carte.appendChild(el("p", "dr-v-extrait", data.resume));
@@ -2288,6 +2298,183 @@
     if (f.statut === "publiee") { passer("retiree", "Retirer"); passer("vendue", "Marquer vendue"); }
     if (f.statut === "retiree") passer("brouillon", "Remettre en brouillon");
   }
+  // ---------------- photos d'une fiche (sql/11_photos.sql) : bucket PRIVÉ « dr-photos », lu et écrit avec le jeton de la
+  // personne ; la base contrôle tout (équipe seulement, brouillon seulement pour ajouter et régler, forme du nom, légende)
+  const BUCKET = "dr-photos";
+  const TYPES_PHOTO = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"};
+  const MAX_PHOTO = 5 * 1048576, MAX_ORIGINAL = 30 * 1048576, COTE_MAX = 2400;
+  // photo redessinée sur un canevas puis réencodée : ses métadonnées (EXIF, XMP : position GPS de la prise de vue,
+  // appareil, date, auteur) ne partent jamais vers le bucket ; côté le plus long ramené à 2400 px. Rend {blob, ext} ;
+  // format que le navigateur ne sait pas écrire (WebP sur certains navigateurs) : JPEG. Photo illisible : null.
+  async function nettoyerPhoto(fichier, type) {
+    let image;
+    try { image = await createImageBitmap(fichier); } catch { return null; }   // orientation EXIF appliquée
+    try {
+      const k = Math.min(1, COTE_MAX / Math.max(image.width || 1, image.height || 1));
+      const toile = el("canvas");
+      toile.width = Math.max(1, Math.round(image.width * k));
+      toile.height = Math.max(1, Math.round(image.height * k));
+      toile.getContext("2d").drawImage(image, 0, 0, toile.width, toile.height);
+      const encoder = t => new Promise(r => { try { toile.toBlob(b => r(b), t, 0.9); } catch { r(null); } });
+      let blob = await encoder(type);
+      if (!blob || blob.type !== type) blob = await encoder("image/jpeg");
+      return blob && TYPES_PHOTO[blob.type] ? {blob, ext: TYPES_PHOTO[blob.type]} : null;
+    } finally { try { image.close(); } catch {} }
+  }
+  const photosUrl = new Map();   // chemin -> Promise<adresse blob: | null>
+  const photosMsg = (t, erreur = false) => ecrire($("dr-vit-photos-msg"), t, erreur ? "erreur" : "");
+  function urlPhoto(chemin) {
+    if (!photosUrl.has(chemin)) {
+      photosUrl.set(chemin, (async () => {
+        try {
+          const {data, error} = await sb.storage.from(BUCKET).download(chemin);
+          return error || !data ? null : URL.createObjectURL(data);
+        } catch { return null; }
+      })());
+    }
+    return photosUrl.get(chemin);
+  }
+  function garderPhotos(chemins) {
+    for (const [chemin, url] of [...photosUrl]) {
+      if (chemins.has(chemin)) continue;
+      photosUrl.delete(chemin);
+      url.then(u => { if (u) { try { URL.revokeObjectURL(u); } catch {} } });
+    }
+  }
+  P.surArret(() => garderPhotos(new Set()));
+  function figurePhoto(chemin, legende, classe, repli) {
+    const cadre = el("figure", "dr-visuel dr-photo " + (classe || ""));
+    const img = el("img", "dr-photo-img");
+    img.setAttribute("alt", legende || "Photo du projet");
+    img.setAttribute("decoding", "async");
+    cadre.appendChild(img);
+    cadre.appendChild(el("figcaption", "dr-visuel-mention", "Photo"));
+    let remplacee = false;
+    const remplacer = () => {
+      if (remplacee || !cadre.parentNode) return;
+      remplacee = true;
+      cadre.parentNode.insertBefore(repli(), cadre);
+      cadre.remove();
+    };
+    img.addEventListener("error", remplacer);
+    urlPhoto(chemin).then(url => { if (url) img.setAttribute("src", url); else remplacer(); });
+    return cadre;
+  }
+  const nouvelUuid = () => {
+    const c = globalThis.crypto;
+    if (c && typeof c.randomUUID === "function") return c.randomUUID();
+    const o = c.getRandomValues(new Uint8Array(16));
+    o[6] = (o[6] & 15) | 64; o[8] = (o[8] & 63) | 128;
+    const h = [...o].map(x => x.toString(16).padStart(2, "0")).join("");
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  };
+  const refusPhoto = e => e && e.code === "55000" ? "fiche publiée, retirée ou vendue : la remettre en brouillon pour changer ses photos"
+    : e && e.code === "22023" ? String(e.message || "valeur refusée")
+    : e && e.code === "54000" ? "12 photos au plus par fiche" : messageBase(e);
+  // photos de la fiche choisie : lues par dr_photos (toute fiche pour l'équipe) ; zone cachée pour une nouvelle fiche
+  async function chargerPhotos(id) {
+    const zone = $("dr-vit-photos"), ul = $("dr-vit-photos-liste");
+    if (!id) { zone.hidden = true; vit.photos = []; vit.photosDe = null; garderPhotos(new Set()); return; }
+    const {data, error} = await appel("dr_photos", {p_fiche: id});
+    if (vit.choisie !== id) return;
+    if (error && ["PGRST202", "42883"].includes(error.code)) { zone.hidden = true; return; }   // SQL des photos pas installé
+    zone.hidden = false;
+    vit.photos = !error && Array.isArray(data) ? data.filter(x => x && typeof x.chemin === "string") : [];
+    vit.photosDe = id;
+    garderPhotos(new Set(vit.photos.map(x => x.chemin)));
+    const f = vit.fiches.find(x => x.id === id) || null, brouillon = !!f && f.statut === "brouillon";
+    ul.textContent = "";
+    if (error) photosMsg(`Photos illisibles : ${messageBase(error)}.`, true);
+    if (!vit.photos.length) ul.appendChild(el("li", "dr-vide", "Aucune photo : la carte montre l'illustration."));
+    for (const x of vit.photos) ul.appendChild(lignePhoto(x, brouillon));
+    for (const n of [$("dr-vit-photo-fichier"), $("dr-vit-photo-legende"), $("dr-vit-photo-ajouter")]) n.disabled = !brouillon;
+    if (!brouillon && !error) photosMsg("Fiche publiée, retirée ou vendue : photos en lecture (retrait possible) ; la remettre en brouillon pour en ajouter ou les régler.");
+  }
+  function lignePhoto(x, brouillon) {
+    const li = el("li", "dr-vit-photo");
+    li.appendChild(figurePhoto(x.chemin, x.legende || "Photo du projet", "petit", () => el("p", "dr-vide", "Aperçu indisponible.")));
+    const idL = `dr-vit-ph-l-${x.id}`, idO = `dr-vit-ph-o-${x.id}`;
+    const lab = el("label", null, "Légende"); lab.setAttribute("for", idL);
+    const leg = el("input"); leg.type = "text"; leg.id = idL; leg.value = x.legende || ""; leg.setAttribute("maxlength", "120");
+    const labO = el("label", null, "Ordre (0 en premier)"); labO.setAttribute("for", idO);
+    const ord = el("input"); ord.type = "number"; ord.id = idO; ord.value = String(x.ordre ?? 0);
+    ord.setAttribute("min", "0"); ord.setAttribute("max", "99");
+    leg.disabled = ord.disabled = !brouillon;
+    const boutons = el("div", "dr-boutons");
+    const regler = bouton("Enregistrer", async () => {
+      const o = Number(ord.value);
+      if (!Number.isInteger(o) || o < 0 || o > 99) return photosMsg("Ordre : un nombre entier de 0 à 99.", true);
+      regler.disabled = true;
+      const {error} = await appel("dr_photo_regler", {p_id: x.id, p_legende: leg.value.trim(), p_ordre: o});
+      regler.disabled = false;
+      if (error) return photosMsg(`Photo non modifiée : ${refusPhoto(error)}.`, true);
+      photosMsg("Photo modifiée. Relisez l'aperçu avant de publier.");
+      await rafraichirFiche();
+    }, "btn small", `Enregistrer la légende et l'ordre de la photo ${x.legende || ""}`.trim());
+    regler.disabled = !brouillon;
+    let confirme = false;
+    const retirer = bouton("Retirer", async () => {
+      if (!confirme) { confirme = true; retirer.textContent = "Confirmer le retrait"; return; }
+      retirer.disabled = true;
+      const {data, error} = await appel("dr_photo_retirer", {p_id: x.id});
+      if (error) { retirer.disabled = false; return photosMsg(`Photo non retirée : ${refusPhoto(error)}.`, true); }
+      // la ligne est partie : plus aucun acquéreur ne lit le fichier ; il est ensuite supprimé du bucket
+      let suppr = null;
+      try { suppr = await sb.storage.from(BUCKET).remove([typeof data === "string" ? data : x.chemin]); } catch (e) { suppr = {error: e}; }
+      photosMsg(suppr && suppr.error ? "Photo retirée de la fiche ; le fichier n'a pas pu être supprimé du stockage (à faire depuis Supabase, Storage)."
+        : "Photo retirée.", !!(suppr && suppr.error));
+      await rafraichirFiche();
+    }, "btn small", `Retirer la photo ${x.legende || ""}`.trim());
+    boutons.append(regler, retirer);
+    li.append(lab, leg, labO, ord, boutons);
+    return li;
+  }
+  // fiche relue (maj_le a avancé : la publication porte sur la version relue), puis photos et aperçu
+  async function rafraichirFiche() {
+    const id = vit.choisie;
+    await chargerVitrineEquipe();
+    if (id && vit.choisie === id) remplirFormulaire(vit.fiches.find(f => f.id === id) || null);
+  }
+  async function ajouterPhoto(ev) {
+    ev.preventDefault();
+    const id = vit.choisie, f = vit.fiches.find(x => x.id === id);
+    const entree = $("dr-vit-photo-fichier"), fichier = entree.files && entree.files[0];
+    if (!f || f.statut !== "brouillon") return photosMsg("Photos : sur un brouillon enregistré seulement.", true);
+    if (!fichier) return photosMsg("Choisissez une photo (JPEG, PNG ou WebP).", true);
+    if (!TYPES_PHOTO[fichier.type]) return photosMsg("Format refusé : JPEG, PNG ou WebP seulement.", true);
+    if (!(fichier.size > 0) || fichier.size > MAX_ORIGINAL) return photosMsg("Photo de 30 Mo au plus (envoyée réduite, 5 Mo au plus).", true);
+    const legende = $("dr-vit-photo-legende").value.trim();
+    $("dr-vit-photo-ajouter").disabled = true;
+    photosMsg("Préparation de la photo (métadonnées retirées)…");
+    const propre = await nettoyerPhoto(fichier, fichier.type);
+    if (!propre || propre.blob.size > MAX_PHOTO) {
+      $("dr-vit-photo-ajouter").disabled = false;
+      return photosMsg(!propre ? "Photo illisible par le navigateur : rien n'a été envoyé."
+        : "Photo de plus de 5 Mo même réduite : l'enregistrer en JPEG puis réessayer.", true);
+    }
+    // nom de forme fixe, sans le nom du fichier d'origine (il pourrait trahir un vendeur ou un lieu)
+    const chemin = `fiche/${id}/${nouvelUuid()}.${propre.ext}`;
+    photosMsg("Envoi de la photo…");
+    let envoi;
+    try {
+      envoi = await sb.storage.from(BUCKET).upload(chemin, propre.blob, {contentType: propre.blob.type, upsert: false, cacheControl: "3600"});
+    } catch (e) { envoi = {error: e}; }
+    if (envoi.error) {
+      $("dr-vit-photo-ajouter").disabled = false;
+      return photosMsg(`Photo non envoyée : ${messageBase(envoi.error)}.`, true);
+    }
+    const {error} = await appel("dr_photo_ajouter", {p_fiche: id, p_chemin: chemin, p_legende: legende, p_ordre: null});
+    $("dr-vit-photo-ajouter").disabled = false;
+    if (error) {
+      // refusée par la base : le fichier envoyé ne doit pas rester dans le bucket
+      try { await sb.storage.from(BUCKET).remove([chemin]); } catch {}
+      return photosMsg(`Photo refusée : ${refusPhoto(error)}.`, true);
+    }
+    entree.value = ""; $("dr-vit-photo-legende").value = "";
+    photosMsg("Photo ajoutée. Relisez l'aperçu avant de publier.");
+    await rafraichirFiche();
+  }
+
   async function enregistrerFiche(ev) {
     ev.preventDefault();
     const fiche = {nom_de_code: $("dr-vit-nom").value.trim(), technologie: $("dr-vit-techno").value, stade: $("dr-vit-stade").value,
@@ -2438,7 +2625,9 @@
   $("dr-tb-recharger").addEventListener("click", () => chargerTableau());
   $("dr-vit-recharger").addEventListener("click", () => chargerVitrineEquipe());
   $("dr-vit-form").addEventListener("submit", enregistrerFiche);
-  $("dr-vit-nouvelle").addEventListener("click", () => { vit.choisie = null; remplirFormulaire(null); $("dr-vit-apercu").hidden = true; });
+  $("dr-vit-nouvelle").addEventListener("click", () => { vit.choisie = null; remplirFormulaire(null); $("dr-vit-apercu").hidden = true;
+                                                        chargerPhotos(null); photosMsg(""); });
+  $("dr-vit-photo-form").addEventListener("submit", ajouterPhoto);
   $("dr-tb-salle").addEventListener("change", () => chargerTableau());
   $("dr-tb-sans").addEventListener("change", afficherQuestions);
   await recharger();

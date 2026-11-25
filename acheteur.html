@@ -1,4 +1,4 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=92e8974737"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=7daac11976"></head><body>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=2985721350"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=7129743e49"></head><body>
 <script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}], "vue": "invites"}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
@@ -93,6 +93,7 @@
         <dl class="dr-ach-infos" id="ach-fiche-infos"></dl>
       </div>
     </div>
+    <ul class="ach-galerie" id="ach-galerie" aria-label="Autres photos du projet" hidden></ul>
     <!-- en tête de fiche : interroger la data room (projet où l'organisation participe, assistant activé, clause acceptée) -->
     <section class="cq-carte ach-vedette" id="ach-assistant" hidden aria-labelledby="ach-assistant-titre">
       <div class="dr-tete">
@@ -123,7 +124,8 @@
 
     <p class="ach-resume" id="ach-fiche-resume"></p>
     <ul class="dr-v-points" id="ach-fiche-points"></ul>
-    <p class="dr-aide">Les visuels sont des illustrations générées par la plateforme, pas des photos des projets.</p>
+    <p class="dr-aide">Visuels marqués « Photo » : photos du projet fournies par l'équipe Almavision. Visuels marqués
+      « Illustration » : dessins générés par la plateforme, pas des photos du projet.</p>
 
     <!-- projet où l'organisation participe -->
     <div id="ach-projet" hidden>
@@ -181,5 +183,5 @@
 </main>
 <script src="plateforme/coquille.js?v=cff860c8a7"></script>
 <script src="modules/dataroom/visionneuse.js?v=008f04577c"></script>
-<script src="modules/dataroom/acheteur.js?v=0b4a38bb3c"></script>
+<script src="modules/dataroom/acheteur.js?v=d59b27392b"></script>
 </body></html>

@@ -58,6 +58,10 @@
 .ach-cadenas{flex:none;color:var(--muted)}
 .ach-raison{font-size:12.5px;font-style:italic;color:var(--ink2)}
 .ach-doc .dr-doc-actions{display:inline-flex;gap:6px;margin-left:auto}
+/* photos (cadre commun : dataroom.css) */
+.ach-legende{margin:4px 0 0;font-size:13px;color:var(--ink2);max-width:22rem}
+.ach-galerie{list-style:none;margin:0;padding:0;display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr))}
+.ach-galerie[hidden]{display:none}
 .ach-assistant-absent{margin:0;color:var(--muted);font-size:13.5px;background:var(--soft);border:1px dashed var(--line);border-radius:10px;padding:10px 14px}
 
 @media (max-width:600px){
