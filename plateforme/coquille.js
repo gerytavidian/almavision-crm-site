@@ -22,7 +22,7 @@
    P.esc(t)        échappement HTML (préférer textContent)
    P.cle(nom)      clé de stockage local propre au module (« <id>:<nom> »)
    P.telecharger(nom, donnees)   enregistre un fichier sur l'ordinateur
-   P.deconnecter(), P.changerMdp(), P.menuModules(), P.surArret(f) (f appelée à la déconnexion ; renvoie de quoi l'oublier)
+   P.deconnecter(), P.changerMdp(), P.menuModules(), P.menuCompte(), P.marque(), P.surArret(f) (f appelée à la déconnexion ; renvoie de quoi l'oublier)
 
    P.vue           "invites" sur la page des invités d'un module (« page_invites » de module.json : acheteur.html de la
                    Data Room), "equipe" ailleurs
@@ -55,6 +55,9 @@
   const charger = src => new Promise((ok, ko) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => ko(new Error("chargement de " + src)); document.head.appendChild(s); });
   const domPret = () => new Promise(ok => document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", ok, {once: true}) : ok());
   const bouton = (texte, action, classe = "btn") => { const b = document.createElement("button"); b.type = "button"; b.className = classe; b.textContent = texte; b.onclick = action; return b; };
+  // logo d'almavision.fr (A/V en trois hexagones), pour fond vert ; posé dans chaque élément [data-cq-logo]
+  const LOGO = '<svg viewBox="13 12.5 74 74" aria-hidden="true" focusable="false"><polygon points="50,15 66.45,24.5 66.45,43.5 50,53 33.55,43.5 33.55,24.5" fill="#FFFFFF"/><polygon points="31.8,46.5 48.25,56 48.25,75 31.8,84.5 15.35,75 15.35,56" fill="#2E7D6B"/><polygon points="68.2,48.5 82.9,57 82.9,74 68.2,82.5 53.5,74 53.5,57" fill="none" stroke="#FFFFFF" stroke-width="2.4"/><g><path fill="#00352F" transform="translate(41.054,42.000) scale(0.02523,-0.02523)" d="M178.9757080078125 244.951416015625 192.3255615234375 270.201171875H472.349853515625L479.349853515625 244.951416015625ZM710.6744384765625 12Q715.3994140625 12 715.3994140625 6.0Q715.3994140625 0 710.6744384765625 0Q681.2244873046875 0 649.549560546875 2.0Q617.8746337890625 4 588.69970703125 4Q555.5247802734375 4 531.2123413085938 2.0Q506.89990234375 0 477 0Q473 0 473.0 6.0Q473 12 477 12Q522.1253662109375 12 530.8255615234375 28.08746337890625Q539.5257568359375 44.1749267578125 516.1759033203125 91.249755859375L306.850341796875 515.6268310546875L347.599609375 582.650146484375L150.249755859375 136.7745361328125Q123.7998046875 76.49951171875 148.4246826171875 44.249755859375Q173.049560546875 12 232.349853515625 12Q237.349853515625 12 237.349853515625 6.0Q237.349853515625 0 232.349853515625 0Q202.349853515625 0 177.349853515625 2.0Q152.349853515625 4 114.349853515625 4Q76.449951171875 4 53.5 2.0Q30.550048828125 0 -2.349853515625 0Q-6.349853515625 0 -6.349853515625 6.0Q-6.349853515625 12 -2.349853515625 12Q24.650146484375 12 44.28765869140625 23.08746337890625Q63.9251708984375 34.1749267578125 82.8751220703125 63.43731689453125Q101.8250732421875 92.69970703125 125.449951171875 146.49951171875L340.249755859375 630.650146484375Q341.5247802734375 633.650146484375 348.56219482421875 634.0126342773438Q355.599609375 634.3751220703125 356.599609375 630.650146484375L601.649169921875 137Q625.3741455078125 89.1749267578125 643.0116577148438 61.6749267578125Q660.649169921875 34.1749267578125 676.8367309570312 23.08746337890625Q693.0242919921875 12 710.6744384765625 12Z"/></g><g><path fill="#FFFFFF" transform="translate(61.004,72.186) scale(0.02150,-0.02150)" d="M666.3751220703125 625Q669.3751220703125 625 669.3751220703125 619.0Q669.3751220703125 613 666.3751220703125 613Q631.0252685546875 613 601.00048828125 586.2254638671875Q570.9757080078125 559.450927734375 551.5257568359375 508.4761962890625L356.89990234375 1Q355.89990234375 -3 346.39990234375 -3.0Q336.89990234375 -3 334.89990234375 1L82.10009765625 542Q65.10009765625 578.10009765625 46.8250732421875 595.550048828125Q28.550048828125 613 3.0748291015625 613Q0.0748291015625 613 0.0748291015625 619.0Q0.0748291015625 625 3.0748291015625 625Q15.6248779296875 625 24.3250732421875 624.0Q33.0252685546875 623 45.350341796875 622.5Q57.6754150390625 622 79.3751220703125 622Q126.5743408203125 622 157.448974609375 622.5Q188.3236083984375 623 208.81097412109375 624.0Q229.29833984375 625 245.0233154296875 625Q248.0233154296875 625 248.0233154296875 619.0Q248.0233154296875 613 245.0233154296875 613Q203.3984375 613 188.848388671875 592.1627807617188Q174.29833984375 571.3255615234375 192.748291015625 531.70068359375L386.29931640625 114.2730712890625L344.7998046875 44.649169921875L525.450927734375 512.30126953125Q542.350830078125 557.450927734375 526.9883422851562 585.2254638671875Q511.6258544921875 613 460.70068359375 613Q457.70068359375 613 457.70068359375 619.0Q457.70068359375 625 460.70068359375 625Q488.050537109375 625 512.8129272460938 623.5Q537.5753173828125 622 578.10009765625 622Q606.3751220703125 622 623.8751220703125 623.5Q641.3751220703125 625 666.3751220703125 625Z"/></g></svg>';
+  const poserLogos = () => { for (const el of document.querySelectorAll("[data-cq-logo]")) if (!el.firstChild) el.innerHTML = LOGO; };
 
   // où garder la session : l'onglet par défaut, l'appareil si la personne l'a demandé (préférence dans localStorage)
   const PREF = "almavision-rester", JETON = /^sb-.+-auth-token/, memoire = new Map();
@@ -130,6 +133,7 @@
     const attentePropre = !attente;
     if (!attente) { attente = document.createElement("div"); attente.id = "chargement"; attente.className = "chargement"; attente.setAttribute("role", "status"); attente.textContent = "Chargement…"; document.body.appendChild(attente); }
     for (const el of document.querySelectorAll(".cq-nom-module")) el.textContent = MODULE ? MODULE.nom : "Plateforme";
+    poserLogos();
 
     // déconnexion : session locale fermée, jetons effacés quoi qu'il arrive, page rechargée (écran de connexion)
     let sortie = false;
@@ -405,26 +409,63 @@
       return nav;
     };
 
-    // en-tête commun des pages qui n'ont pas le leur (accueil, modules en fragment)
+    // menu du compte : initiales dans un hexagone ; au clic, nom, changement de mot de passe (équipe), déconnexion
+    const initiales = t => { const mots = String(t).replace(/@.*/, "").split(/[\s._-]+/).filter(Boolean);
+      return (mots.length > 1 ? mots[0][0] + mots[1][0] : (mots[0] || "?")[0]).toUpperCase(); };
+    const menuCompte = () => {
+      const boite = document.createElement("div"); boite.className = "cq-compte";
+      const moi = bouton(initiales(prenom), null, "cq-moi");
+      moi.setAttribute("aria-haspopup", "menu"); moi.setAttribute("aria-expanded", "false"); moi.title = prenom;
+      moi.setAttribute("aria-label", `Compte de ${prenom}`);
+      const menu = document.createElement("div"); menu.className = "cq-menu"; menu.setAttribute("role", "menu"); menu.hidden = true;
+      const qui = document.createElement("div"); qui.className = "cq-qui";
+      const nom = document.createElement("b"); nom.textContent = prenom; qui.append(nom, session.user.email || "");
+      menu.appendChild(qui);
+      const fermer = () => { menu.hidden = true; moi.setAttribute("aria-expanded", "false"); };
+      const entree = (texte, action) => { const b = bouton(texte, () => { fermer(); action(); }, ""); b.setAttribute("role", "menuitem"); menu.appendChild(b); };
+      if (membre) entree("Changer mon mot de passe", changerMdp);   // un acquéreur se connecte par code : pas de mot de passe
+      entree("Se déconnecter", () => deconnecter());
+      moi.onclick = () => { const ouvrir = menu.hidden; menu.hidden = !ouvrir; moi.setAttribute("aria-expanded", String(ouvrir));
+        if (ouvrir) { const b = menu.querySelector("button"); if (b) b.focus(); } };
+      boite.addEventListener("keydown", e => { if (e.key === "Escape" && !menu.hidden) { fermer(); moi.focus(); } });
+      document.addEventListener("click", e => { if (!boite.contains(e.target)) fermer(); });
+      boite.addEventListener("focusout", e => { if (e.relatedTarget && !boite.contains(e.relatedTarget)) fermer(); });
+      boite.append(moi, menu);
+      return boite;
+    };
+
+    // logo d'almavision.fr et nom du module ; vers l'accueil pour un membre, vers sa page pour un invité. Le nom du
+    // module n'est écrit à côté du logo que sans menu des modules (un invité, ou un seul module)
+    const avecMenu = () => !!membre && modules.length > 1;
+    const marque = () => {
+      const a = document.createElement("a"); a.className = "cq-logo";
+      a.href = membre || !MODULE ? "index.html#accueil" : (PAGE_INVITES && MODULE.page_invites) || MODULE.page;
+      a.innerHTML = LOGO + '<span class="cq-mot">ALMA<b>VISION</b></span>';
+      if (!avecMenu()) { const nom = document.createElement("span"); nom.className = "cq-module"; nom.textContent = MODULE ? MODULE.nom : "Plateforme"; a.appendChild(nom); }
+      return a;
+    };
+
+    // en-tête commun des pages qui n'ont pas le leur (accueil, modules en fragment) : logo, modules, compte ; pied de page
     const entete = document.getElementById("cq-entete");
     if (entete) {
       const barre = document.createElement("div"); barre.className = "cq-barre";
-      const marque = document.createElement("a"); marque.className = "cq-marque"; marque.href = membre || !MODULE ? "index.html#accueil" : (PAGE_INVITES && MODULE.page_invites) || MODULE.page;
-      marque.innerHTML = '<svg width="28" height="32" viewBox="0 0 30 34" aria-hidden="true"><path d="M15 1 29 9v16L15 33 1 25V9z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 23l6-13 6 13M11.5 18h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-      const nom = document.createElement("div"); nom.textContent = MODULE ? MODULE.nom : "Plateforme";
-      const petit = document.createElement("small"); petit.textContent = "ALMAVISION"; nom.appendChild(petit); marque.appendChild(nom);
-      const compte = document.createElement("div"); compte.className = "cq-compte";
-      const qui = document.createElement("span"); qui.textContent = prenom;
-      compte.append(qui, bouton("Changer mon mot de passe", changerMdp, "btn small"), bouton("Se déconnecter", () => deconnecter(), "btn small"));
-      barre.append(marque, menuModules(), compte);
+      barre.appendChild(marque());
+      if (avecMenu()) barre.appendChild(menuModules());
+      barre.appendChild(menuCompte());
       entete.appendChild(barre);
+      const pied = document.createElement("footer"); pied.className = "cq-pied";
+      pied.innerHTML = '<div class="cq-pied-in"><span class="cq-mot">ALMA<b>VISION</b></span>' +
+        "<span>Conseil M&amp;A en énergies renouvelables</span><span class=\"cq-vide\"></span>" +
+        "<span>37 boulevard d'Argenson, 92200 Neuilly-sur-Seine</span>" +
+        '<a href="mailto:contact@almavision.fr">contact@almavision.fr</a></div>';
+      document.body.appendChild(pied);
     }
 
     // dernier module ouvert (accueil sans « #accueil ») : membres seulement, jamais la page des invités
     if (MODULE && membre && !PAGE_INVITES) { try { localStorage.setItem("plateforme:dernier", MODULE.page); } catch {} }
     if (attentePropre) attente.hidden = true;
     return {
-      sb, session, esc, telecharger, changerMdp, menuModules,
+      sb, session, esc, telecharger, changerMdp, menuModules, menuCompte, marque,
       moi: {user_id: session.user.id, prenom, type: membre ? "interne" : "invite"},
       appareil: membre && rester(),   // session gardée sur l'appareil (« Rester connecté », membres seulement)
       module: MODULE ? {id: MODULE.id, nom: MODULE.nom, role: roles.get(MODULE.id)} : null,

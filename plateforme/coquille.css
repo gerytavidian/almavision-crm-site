@@ -1,75 +1,167 @@
-/* Coquille commune de la plateforme Almavision : jetons de la charte, écrans de connexion, en-tête et menu des modules.
-   Chargée par toutes les pages AVANT le CSS du module : sur la page Prospection, les règles du module (même valeurs)
-   passent après et gardent la main. Les classes propres à la coquille commencent par « cq- » ; « cnx » et « chargement »
-   sont reprises de l'application de prospection. */
+/* Coquille commune de la plateforme Almavision : jetons de la charte, écrans de connexion, en-tête, menu des modules,
+   menu du compte, pied de page. Chargée par toutes les pages AVANT le CSS du module : sur la page Prospection, les règles
+   du module (mêmes valeurs) passent après et gardent la main. Les classes propres à la coquille commencent par « cq- » ;
+   « cnx » et « chargement » sont reprises de l'application de prospection.
+   Charte : celle du site almavision.fr (assets/style.css du site, relevée le 25/11/2026) : vert sapin, émeraude,
+   anthracite, angles de 4 px, boutons principaux en capitales, sur-titres espacés, hexagones au trait sur le vert. */
 :root{
-  --page:#E9EEF2; --bg:#FFFFFF; --soft:#F3F6F8; --line:#DCE3E9; --ink:#0E2422; --ink2:#46595A; --muted:#7D8E91;
-  --accent:#00594F; --accent-ink:#FFFFFF; --accent-weak:#E2EEEB; --forest:#00352F; --forest2:#0B4740; --mint:#9FC4BB;
-  --coral:#E8613A; --focus:#64879A;
+  /* couleurs du site */
+  --forest:#00352F; --forest2:#0B4A42; --emerald:#2E7D6B; --anthracite:#2B2F2E; --clair:#F4F6F5;
+  /* noms utilisés par les modules */
+  --page:#F4F6F5; --bg:#FFFFFF; --soft:#F4F6F5; --line:#DCE3E0; --ink:#2B2F2E; --ink2:#5E6664; --muted:#8A9391;
+  --accent:#2E7D6B; --accent-ink:#FFFFFF; --accent-weak:#E6EFEC; --mint:#9FD6C6;
+  --coral:#E8613A; --focus:#2E7D6B;
+  --r:4px;
   --font:"DM Sans","Segoe UI",Arial,sans-serif; --mono:"DM Mono",Consolas,monospace;
+  /* hexagones au trait du site (décor des bandeaux verts) */
+  --hex:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 115.5'%3E%3Cpolygon points='50,1 99,29.4 99,86 50,114.4 1,86 1,29.4' fill='none' stroke='%23ffffff' stroke-opacity='.3' stroke-width='1'/%3E%3C/svg%3E");
+  --hex-plein:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 115.5'%3E%3Cpolygon points='50,1 99,29.4 99,86 50,114.4 1,86 1,29.4' fill='%23ffffff' fill-opacity='.05' stroke='%239FD6C6' stroke-opacity='.4' stroke-width='1'/%3E%3C/svg%3E");
   color-scheme:light;
 }
 *{box-sizing:border-box}
-body{background:var(--page);color:var(--ink);font:14.5px/1.5 var(--font);margin:0}
+body{background:var(--page);color:var(--ink);font:14.5px/1.55 var(--font);margin:0;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 [hidden]{display:none!important}
-.btn{border:1px solid var(--line);background:var(--bg);padding:8px 14px;border-radius:9px;cursor:pointer;font-weight:500;white-space:nowrap}
+
+/* boutons : actions d'outil en casse normale ; action principale comme sur le site (capitales, vert sapin) */
+.btn{border:1px solid var(--line);background:var(--bg);padding:8px 14px;border-radius:var(--r);cursor:pointer;font-weight:500;white-space:nowrap;transition:background-color .2s,border-color .2s,color .2s}
 .btn:hover{background:var(--soft)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.btn.primary:hover{filter:brightness(1.07);background:var(--accent)}
+.btn.primary{background:var(--forest);border-color:var(--forest);color:#fff;font-weight:700;font-size:.86em;letter-spacing:.06em;text-transform:uppercase}
+.btn.primary:hover{background:var(--emerald);border-color:var(--emerald)}
 .btn.small{padding:4px 10px;font-size:13px}
+.btn.primary.small{font-size:11.5px;padding:5px 10px}
 .btn:disabled{opacity:.5;cursor:default}
 
+/* sur-titre en capitales espacées (« NOS SERVICES » du site) */
+.cq-surtitre{display:block;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--emerald);font-weight:700;margin:0 0 10px}
+
 /* attente et messages de la connexion */
-.chargement{position:fixed;inset:auto 0 0 0;margin:0 auto 24px;width:max-content;max-width:calc(100% - 32px);z-index:50;background:var(--forest);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;box-shadow:0 6px 24px rgba(0,40,35,.25)}
-.chargement .btn{margin-left:10px}
-.chargement.cq-veille{inset:20vh 0 auto 0;width:auto;max-width:min(560px,calc(100% - 32px));border-radius:14px;padding:22px 26px;line-height:1.5}
+.chargement{position:fixed;inset:auto 0 0 0;margin:0 auto 24px;width:max-content;max-width:calc(100% - 32px);z-index:50;background:var(--forest);color:#fff;padding:10px 18px;border-radius:var(--r);font-size:14px;box-shadow:0 6px 24px rgba(0,40,35,.25)}
+.chargement .btn{margin-left:10px;color:var(--ink)}
+/* plateforme en veille (projet Supabase en pause) : encadré au lieu d'une erreur brute */
+.chargement.cq-veille{inset:20vh 0 auto 0;width:auto;max-width:min(560px,calc(100% - 32px));padding:22px 26px;line-height:1.5}
 .chargement.cq-veille b{font-size:17px}
 .chargement.cq-veille p{margin:10px 0}
 .chargement.cq-veille .btn{margin-left:0}
 
-/* écrans de connexion et de changement de mot de passe */
-.cnx{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:var(--forest);padding:16px}
+/* logo : A/V en trois hexagones et « ALMAVISION » espacé, comme sur le site */
+.cq-logo{display:flex;align-items:center;gap:11px;color:#fff;text-decoration:none;white-space:nowrap;min-width:0}
+.cq-logo svg{width:32px;height:32px;flex:none}
+.cq-logo .cq-mot{font-size:14px;font-weight:500;letter-spacing:.32em}
+.cq-logo .cq-mot b{font-weight:700}
+.cq-logo .cq-module{font-size:14px;font-weight:500;color:var(--mint);border-left:1px solid rgba(255,255,255,.25);padding-left:12px;overflow:hidden;text-overflow:ellipsis}
+
+/* écran de connexion : à gauche le vert du site et ses hexagones, à droite le formulaire */
+.cnx{position:fixed;inset:0;z-index:100;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);background:var(--clair);overflow:auto}
 .cnx[hidden]{display:none}
-.cnx-box{width:min(380px,100%);background:var(--bg);border-radius:16px;padding:26px 24px;display:grid;gap:8px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
-.cnx-logo{font-weight:700;color:var(--forest);letter-spacing:.02em}.cnx-logo span{color:var(--accent)}
-.cnx h1{margin:4px 0 8px;font-size:22px;color:var(--ink)}
-.cnx label{font-size:13px;color:var(--ink2);margin-top:4px}
-.cnx input{height:40px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;font-size:15px}
-.cnx input:focus{outline:2px solid var(--accent);outline-offset:1px}
-.cnx button{margin-top:10px;height:42px}
+.cnx-vitrine{position:relative;overflow:hidden;background:var(--forest);color:#fff;padding:44px 52px;display:flex;flex-direction:column;gap:14px}
+.cnx-vitrine::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.8;
+  background-image:var(--hex),var(--hex-plein),var(--hex),var(--hex-plein),var(--hex),var(--hex);background-repeat:no-repeat;
+  background-size:180px 208px,120px 139px,70px 81px,90px 104px,240px 277px,50px 58px;
+  background-position:88% 18%,64% 8%,74% 46%,56% 78%,104% 92%,92% 64%}
+.cnx-vitrine>*{position:relative;z-index:1}
+.cnx-vitrine .cq-logo svg{width:40px;height:40px}
+.cnx-vitrine .cq-logo .cq-mot{font-size:16px}
+.cnx-titre{margin-top:auto}
+.cnx-vitrine h2{margin:0;font-size:clamp(28px,3.4vw,42px);line-height:1.15;letter-spacing:-.01em;max-width:520px;color:#fff}
+.cnx-vitrine p{margin:0;color:rgba(255,255,255,.75);max-width:460px;font-size:15.5px}
+.cnx-vitrine .cq-surtitre{color:var(--mint)}
+.cnx-vitrine .cnx-pied{margin-top:auto;font-size:12.5px;color:rgba(255,255,255,.55)}
+.cnx-zone{display:grid;place-items:center;padding:32px 24px}
+.cnx-box{width:min(400px,100%);display:grid;gap:8px}
+.cnx-logo{display:none}
+.cnx h1{margin:0 0 8px;font-size:28px;line-height:1.2;color:var(--forest)}
+.cnx label{font-size:13px;color:var(--ink2);margin-top:6px;font-weight:500}
+.cnx input{height:46px;border:1px solid var(--line);border-radius:var(--r);padding:0 14px;font:inherit;font-size:15px;background:#fff}
+.cnx input:focus{outline:2px solid var(--emerald);outline-offset:0;border-color:var(--emerald)}
+.cnx button{margin-top:14px;height:48px}
 .cnx-msg{color:var(--coral);font-size:13.5px;margin:4px 0 0;min-height:1em}
 .cnx-aide{color:var(--muted);font-size:12.5px;margin:0}
-.cnx.voile{background:rgba(0,40,35,.6)}
-.cnx label.cnx-case{display:flex;gap:8px;align-items:center;margin-top:8px;cursor:pointer}
-.cnx .cnx-case input{width:16px;height:16px;margin:0;padding:0;accent-color:var(--accent)}
+.cnx label.cnx-case{display:flex;gap:8px;align-items:center;margin-top:8px;cursor:pointer;font-weight:400}
+.cnx .cnx-case input{width:16px;height:16px;margin:0;padding:0;accent-color:var(--forest)}
+/* fenêtre « changer mon mot de passe » : voile sur la page, boîte blanche */
+.cnx.voile{display:grid;grid-template-columns:1fr;place-items:center;background:rgba(0,40,35,.6);padding:16px}
+.cnx.voile[hidden]{display:none}
+.cnx.voile .cnx-box{background:var(--bg);border-radius:var(--r);padding:26px 24px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.cnx.voile h1{font-size:22px}
+.cnx .btn.small{margin-top:6px;height:auto;background:none;border:0;color:var(--emerald);font-weight:600;padding:4px 0;text-align:left;white-space:normal}
+.cnx .btn.small:hover{text-decoration:underline;background:none}
+#cnx-code-demander{margin-top:10px;background:var(--forest);border-color:var(--forest);color:#fff;font-weight:700;font-size:.86em;letter-spacing:.06em;text-transform:uppercase}
+#cnx-code-demander:hover{background:var(--emerald);border-color:var(--emerald)}
+#mfa-qr{justify-self:start;border:1px solid var(--line);padding:6px;background:#fff}
+.cnx code{font-family:var(--mono);font-size:13px;overflow-wrap:anywhere}
 .cnx-btns{display:flex;gap:8px;justify-content:flex-end}.cnx-btns .btn{flex:1}
+@media (max-width:860px){
+  .cnx{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .cnx-vitrine{padding:24px 20px 26px}.cnx-titre{margin-top:18px}.cnx-vitrine h2{font-size:26px}.cnx-vitrine p,.cnx-vitrine .cnx-pied{display:none}
+}
 
-/* menu des modules (en-tête de toutes les pages ; sur la Prospection, posé à côté du logo) */
-.cq-modules{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
-.cq-modules a{color:#fff;text-decoration:none;font-size:13px;font-weight:500;padding:5px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06)}
-.cq-modules a:hover{background:rgba(255,255,255,.14)}
-.cq-modules a[aria-current="page"]{background:#fff;color:var(--forest);border-color:#fff}
+/* menu des modules : liens texte, l'actif souligné (comme la navigation du site) */
+.cq-modules{display:flex;gap:2px;align-self:stretch;align-items:stretch}
+.cq-modules a{display:flex;align-items:center;padding:0 13px;color:rgba(255,255,255,.78);text-decoration:none;font-size:14.5px;font-weight:500;position:relative;white-space:nowrap}
+.cq-modules a:hover{color:#fff}
+.cq-modules a[aria-current="page"]{color:#fff}
+.cq-modules a[aria-current="page"]::after{content:"";position:absolute;left:13px;right:13px;bottom:0;height:3px;background:var(--mint)}
+
+/* menu du compte : initiales dans un hexagone, menu au clic */
+.cq-compte{position:relative;margin-left:auto;display:flex;align-items:center}
+.cq-moi{display:grid;place-items:center;width:36px;height:40px;border:0;padding:0;cursor:pointer;font-weight:700;font-size:13px;color:var(--forest);background:var(--mint);
+  clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);transition:background-color .2s}
+.cq-moi:hover,.cq-moi[aria-expanded="true"]{background:#fff}
+.cq-moi:focus-visible{outline:0;background:#fff}
+.cq-menu{position:absolute;right:0;top:calc(100% + 10px);z-index:60;min-width:240px;background:var(--bg);color:var(--ink);border-top:3px solid var(--forest);
+  box-shadow:0 14px 34px rgba(0,53,47,.18);display:grid;padding:6px 0}
+.cq-menu .cq-qui{padding:10px 18px 12px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+.cq-menu .cq-qui b{display:block;color:var(--ink);font-size:14.5px}
+.cq-menu button{border:0;background:none;text-align:left;padding:11px 18px;cursor:pointer;font-size:14px}
+.cq-menu button:hover,.cq-menu button:focus-visible{background:var(--accent-weak);color:var(--forest);outline:0}
 
 /* en-tête des pages de la plateforme (accueil et modules sans en-tête propre) */
-.cq-entete{position:sticky;top:0;z-index:20;background:var(--forest);color:#fff}
-.cq-barre{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:12px 20px;flex-wrap:wrap}
-.cq-marque{display:flex;align-items:center;gap:10px;font-weight:700;color:#fff;letter-spacing:.01em;text-decoration:none}
-.cq-marque small{display:block;font-weight:500;font-size:10.5px;color:var(--mint);letter-spacing:.2em}
-.cq-compte{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:13px;color:var(--mint)}
-.cq-compte .btn{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff}
-.cq-compte .btn:hover{background:rgba(255,255,255,.18)}
-.cq-page{max-width:1240px;margin:0 auto;padding:28px 20px 60px}
-.cq-page h1{font-size:26px;margin:0 0 6px;color:var(--forest)}
+.cq-entete{position:sticky;top:0;z-index:20;background:var(--forest);color:#fff;border-bottom:1px solid rgba(255,255,255,.08)}
+.cq-barre{max-width:1240px;margin:0 auto;height:64px;display:flex;align-items:center;gap:26px;padding:0 24px}
+.cq-page{max-width:1240px;margin:0 auto;padding:32px 24px 64px}
+.cq-page h1{font-size:28px;margin:0 0 6px;color:var(--forest)}
 .cq-page .cq-intro{color:var(--ink2);margin:0 0 22px;max-width:70ch}
-.cq-carte{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.cq-carte{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:24px 26px}
+.cq-carte h2{font-size:17px;margin:0 0 12px;color:var(--forest)}
 
-/* accueil : une tuile par module accessible */
-.cq-tuiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
-.cq-tuile{display:grid;gap:8px;align-content:start;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:20px 22px;color:inherit;text-decoration:none;min-height:150px}
-.cq-tuile:hover{border-color:var(--accent);box-shadow:0 6px 20px rgba(0,53,47,.08)}
-.cq-tuile b{font-size:18px;color:var(--forest)}
-.cq-tuile span{color:var(--ink2)}
-.cq-tuile em{font-style:normal;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--accent);background:var(--accent-weak);border-radius:999px;padding:2px 10px;justify-self:start}
-@media (max-width:640px){.cq-barre{padding:10px 14px}.cq-page{padding:20px 14px 48px}.cq-compte{margin-left:0;flex-wrap:wrap;min-width:0}.cq-compte>span{overflow-wrap:anywhere}}
+/* bandeau vert d'une page (« hero » du site), avec ses hexagones */
+.cq-bandeau{position:relative;overflow:hidden;background:var(--forest);color:#fff}
+.cq-bandeau::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.7;
+  background-image:var(--hex),var(--hex-plein),var(--hex),var(--hex-plein),var(--hex);background-repeat:no-repeat;
+  background-size:130px 150px,80px 92px,170px 196px,56px 65px,100px 115px;
+  background-position:84% 20%,70% 70%,98% 110%,62% 14%,92% -40%}
+.cq-bandeau-in{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:42px 24px 40px}
+.cq-bandeau .cq-surtitre{color:var(--mint)}
+.cq-bandeau h1{margin:0;font-size:clamp(28px,3.4vw,40px);line-height:1.15;letter-spacing:-.01em;color:#fff;max-width:820px}
+.cq-bandeau p{margin:12px 0 0;max-width:680px;color:rgba(255,255,255,.8);font-size:15.5px}
+
+/* accueil : une carte par module accessible (cartes « Nos services » du site) */
+.cq-tuiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px}
+.cq-tuile{position:relative;display:flex;flex-direction:column;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:28px 28px 24px;color:inherit;text-decoration:none;min-height:170px;transition:transform .25s,box-shadow .25s}
+.cq-tuile::before{content:"";position:absolute;left:-1px;top:-1px;height:4px;width:0;background:var(--emerald);transition:width .3s}
+.cq-tuile:hover{transform:translateY(-4px);box-shadow:0 16px 36px rgba(0,53,47,.10)}
+.cq-tuile:hover::before{width:calc(100% + 2px)}
+.cq-tuile b{font-size:17px;color:var(--forest);text-transform:uppercase;letter-spacing:.06em}
+.cq-tuile span{color:var(--ink2);flex:1}
+.cq-tuile em{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--emerald);background:var(--accent-weak);border-radius:3px;padding:3px 8px;align-self:flex-start}
+.cq-tuile strong{margin-top:10px;font-size:13.5px;color:var(--forest)}
+
+/* pied de page (coordonnées du cabinet, comme le site) */
+body:has(> .cq-pied){min-height:100vh;display:flex;flex-direction:column}
+.cq-pied{margin-top:auto;border-top:1px solid var(--line);background:var(--bg);color:var(--muted);font-size:12.5px}
+.cq-pied-in{max-width:1240px;margin:0 auto;padding:18px 24px;display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center}
+.cq-pied .cq-mot{color:var(--forest);letter-spacing:.3em;font-size:11.5px;font-weight:500}
+.cq-pied .cq-mot b{font-weight:700}
+.cq-pied a{color:var(--emerald);text-decoration:none}
+.cq-pied a:hover{text-decoration:underline}
+.cq-pied .cq-vide{flex:1}
+
+@media (max-width:760px){
+  .cq-barre{padding:0 14px;gap:12px}.cq-logo .cq-module{display:none}
+  .cq-modules{min-width:0;overflow-x:auto;scrollbar-width:none}.cq-modules a{padding:0 8px;font-size:13.5px}.cq-modules a[aria-current="page"]::after{left:8px;right:8px}
+  .cq-page{padding:22px 16px 48px}.cq-bandeau-in{padding:28px 16px}.cq-pied-in{padding:16px}
+}
+@media (max-width:520px){.cq-barre:has(.cq-modules) .cq-logo .cq-mot{display:none}}
+@media (prefers-reduced-motion:reduce){.cq-tuile,.cq-tuile::before,.btn{transition:none}}

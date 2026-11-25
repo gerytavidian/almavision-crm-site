@@ -19,7 +19,8 @@
       const nom = document.createElement("b"); nom.textContent = m.nom;
       const desc = document.createElement("span"); desc.textContent = m.description || "";
       a.append(nom, desc);
-      if (m.statut && m.statut !== "en service") { const e = document.createElement("em"); e.textContent = m.statut; a.appendChild(e); }
+      if (m.statut && m.statut !== "en service") { const e = document.createElement("em"); e.textContent = m.statut; a.insertBefore(e, nom); }
+      const ouvrir = document.createElement("strong"); ouvrir.textContent = "Ouvrir →"; a.appendChild(ouvrir);
       tuiles.appendChild(a);
     }
     document.getElementById("accueil-page").hidden = false;

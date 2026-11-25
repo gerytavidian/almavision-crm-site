@@ -1,11 +1,12 @@
 
 (async () => {
-if (window.__pret) { try { await window.__pret; } catch (e) { if (!e.affiche) document.getElementById("chargement").textContent = "Connexion impossible : " + e.message + ". Rechargez la page."; return; } }
-// les données sont publiées à côté de la page (data-base.json, data-leads.json, data-projets.json)
+// la page n'existe que dans le site de l'équipe : la coquille et l'adaptateur du module (prospection.js) préparent la
+// connexion, les données, le suivi partagé et Claude ; window.__pret attend tout cela
+try { await window.__pret; } catch (e) { if (!e.affiche) document.getElementById("chargement").textContent = "Connexion impossible : " + e.message + ". Rechargez la page."; return; }
+// données de l'application (base, leads, projets) : lues après connexion dans la table app_data (window.__lireDonnees)
 let DATA;
 try {
-  const lire = f => window.__lireDonnees ? window.__lireDonnees(f) :
-    fetch(`${f}?v=202611201716`).then(r => { if (!r.ok) throw new Error(`${f} : ${r.status}`); return r.json(); });
+  const lire = f => window.__lireDonnees(f);
   const [base, leads, projets] = await Promise.all(["data-base.json", "data-leads.json", "data-projets.json"].map(lire));
   DATA = {...base, leads, projets};
 } catch (e) {
@@ -304,7 +305,7 @@ async function appliquerFiches(fiches, st, go, apres){
   if (!fiches.length || go.disabled) return;
   if (!db || canWrite === false) { toast("Le suivi partagé n'est pas disponible ici : rien n'a été enregistré."); return; }
   if (fiches.length > MAX_LOT) { toast(`${fmt(fiches.length)} fiches sélectionnées : ${fmt(MAX_LOT)} au plus par envoi. Affinez la recherche.`); return; }
-  // confirmation dans la barre (les fenêtres de confirmation du navigateur sont bloquées dans claude.ai)
+  // confirmation dans la barre (plutôt qu'une fenêtre du navigateur)
   const signe = fiches.length + "|" + st;
   if (fiches.length > CONFIRMER_DES && go.dataset.conf !== signe) {
     go.dataset.conf = signe; go.textContent = `Confirmer : ${fmt(fiches.length)} fiches en « ${ST[st]} »`; return;
@@ -359,15 +360,12 @@ function saveSuivi(k, patch){ const next = {...(suivi[k] || {}), ...patch, maj: 
   suiviDocs[k] = next; suivi[k] = next; write("suivi", k, next); renderAll(); }
 async function connect(){
   const C = window.claude;
-  if (!C || !C.use) { setSync("Consultation seule (hors claude.ai)"); renderTodo(); return; }
   [db, user] = await Promise.all([C.use("db"), C.use("user")]);
   if (user) { try { myId = await user.id(); canWrite = await user.can("data.write"); } catch {} }
   if (!db) { setSync("Consultation seule"); renderTodo(); return; }
   setSync(canWrite === false ? "Lecture seule" : "Suivi partagé connecté");
-  if (window.__site && !$("deco")) { const b = document.createElement("button"); b.id = "deco"; b.className = "btn small deco"; b.type = "button";
-    b.textContent = `${window.__site.prenom} · Se déconnecter`; b.onclick = window.__site.deconnexion; $("sync").after(b);
-    const c = document.createElement("button"); c.id = "chmdp"; c.className = "btn small deco"; c.type = "button";
-    c.textContent = "Changer mon mot de passe"; c.onclick = window.__site.changerMdp; b.after(c); }
+  // menu du compte de la coquille (initiales dans un hexagone : nom, mot de passe, déconnexion)
+  if (!$("deco")) { const c = window.__site.compte(); c.id = "deco"; $("sync").after(c); }
   db.collection("suivi").onSnapshot(s => { suiviDocs = lireDocs(s, propreSuivi); fusionnerSuivi();
     if (!enLot) renderAll(); }, () => setSync("Connexion perdue : rechargez"));
   db.collection("suivi_lots").onSnapshot(s => { suiviLots = lireDocs(s, propreLot); fusionnerSuivi();
@@ -452,7 +450,7 @@ function renderRecents(){
   if (manque.length) chercherNoms(manque);
   const qui = id => id === myId ? "Vous" : nomsRech[id] || "";
   el.innerHTML = `<div class="sh">Dernières recherches de l'équipe</div>` + rechTout.map((x, i) => {
-    const onglet = x.mode === "projets" ? "Recherche Projets" : "Recherche Corpo", n = qui(x.id);
+    const onglet = x.mode === "projets" ? "Projets" : "Sociétés", n = qui(x.id);
     return `<button type="button" role="option" id="rech-${i}" data-rech="${i}" class="${i === suggSel ? "on" : ""}" aria-selected="${i === suggSel}" title="${esc(`${n ? n + " · " : ""}${onglet} · ${ilYa(x.le)} : ${x.q}`)}">${ICONE_HIST}<span class="rq">${esc(x.q)}</span><i>${
       n ? `<b>${esc(n)}</b> · ` : ""}${esc(ilYa(x.le))}${x.mode === "projets" ? " · projets" : ""}</i></button>`; }).join("");
   el.hidden = false; $("q").setAttribute("aria-expanded", "true");
@@ -627,7 +625,7 @@ function chipsUI(boxId, spec, getF, extra, onChange){
 }
 const an = x => String(Math.round(x));
 const SPEC_C = () => [
-  {g: "Cible", items: [{t: "select", k: "etape", lab: "Suivi", opts: [["nontraite","Non traité"],["qualifier","À qualifier"],["prospection","Dans Prospection (tout sauf Non traité)"]]},
+  {g: "Cible", items: [{t: "select", k: "etape", lab: "Suivi", opts: [["nontraite","Non traité"],["qualifier","À qualifier"],["prospection","Dans le Suivi (tout sauf Non traité)"]]},
     {t: "multi", k: "segs", lab: "Type de cible", opts: Object.entries(SEG)}, {t: "multi", k: "roles", lab: "Type de propriétaire", opts: ROLES.map(r => [r, r])}]},
   {g: "Portefeuille", items: [{t: "range", k: "kw", lab: "Puissance", unit: "MW", mult: 1000},
     {t: "range", k: "np", lab: "Nombre de projets (centrales + en développement)", step: 1, fmt: x => fmt(x) + " projets"},
@@ -849,9 +847,9 @@ function renderProsp(){
     const mwTot = Math.round((ls.reduce((a, l) => a + (l.kw || 0), 0) + ps.reduce((a, p) => a + (p.kw || 0), 0)) / 1000);
     return `<div class="pgrp"><h2><span class="st ${s}">${esc(ST[s])}</span><span class="n">${ls.length ? `${fmt(ls.length)} société${ls.length > 1 ? "s" : ""}` : ""}${ls.length && ps.length ? " · " : ""}${ps.length ? `${fmt(ps.length)} projet${ps.length > 1 ? "s" : ""}` : ""} · ${fmt(mwTot)} MW</span></h2>
       ${ls.length ? `<div class="head" aria-hidden="true"><span>Statut</span><span>Société</span><span>Portefeuille</span><span>Fin de contrat</span><span>Contact</span><span>Note</span><span></span></div>
-      <div class="list">${ls.slice(0, 300).map(ligneLead).join("")}</div>${ls.length > 300 ? `<p class="saved">300 premières sur ${fmt(ls.length)} : utilisez Recherche Corpo avec le filtre Statut pour le reste.</p>` : ""}` : ""}
+      <div class="list">${ls.slice(0, 300).map(ligneLead).join("")}</div>${ls.length > 300 ? `<p class="saved">300 premières sur ${fmt(ls.length)} : utilisez l'onglet Sociétés avec le filtre Statut pour le reste.</p>` : ""}` : ""}
       ${ps.length ? `<div class="head phead" aria-hidden="true" style="margin-top:8px"><span>Statut</span><span>Projet</span><span>Puissance</span><span>Étape</span><span>Propriétaire</span><span>Note</span><span></span></div>
-      <div class="list">${ps.slice(0, 300).map(ligneProjet).join("")}</div>${ps.length > 300 ? `<p class="saved">300 premiers sur ${fmt(ps.length)} : utilisez Recherche Projets avec le filtre Statut pour le reste.</p>` : ""}` : ""}</div>`; }).join("");
+      <div class="list">${ps.slice(0, 300).map(ligneProjet).join("")}</div>${ps.length > 300 ? `<p class="saved">300 premiers sur ${fmt(ps.length)} : utilisez l'onglet Projets avec le filtre Statut pour le reste.</p>` : ""}` : ""}</div>`; }).join("");
   prospFiches = PR_ORDRE.filter(s => prSts.has(s)).flatMap(s => [
     ...(quoi === "projets" ? [] : socs.filter(l => l.st === s && okRe(l.re)).map(l => ["k", l.k])),
     ...(quoi === "societes" ? [] : projs.filter(p => pst(p) === s && okRe(pre(p))).map(p => ["p", p.i]))]);
@@ -1186,9 +1184,8 @@ function creBloc(p){
   </dl></div>`;
 }
 async function exporterProjets(){
-  const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
-  if (!dl) { toast("L'export n'est disponible que dans claude.ai."); return; }
-  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.xlsx) || "vendor/xlsx.full.min.js"; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
+  const dl = await window.claude.use("downloads");
+  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = window.__lib.xlsx; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
   if (!window.XLSX) { toast("Export impossible pour le moment."); return; }
   const rows = pcur.map(p => ({"Priorité": p.pr, "Score": p.sc, "Projet": p.n, "Type": TP[p.t], "Étape": ETP[p.et] || "", "Puissance (kW)": p.kw || "", "Commune": p.com || "", "Département": p.dep || "", "Région": p.regn || "",
     "Mise en service": p.ms || "", "Date de l'avis": p.dt || "", "Fin de contrat": p.fc || "", "Appel d'offres": p.ao ? aoTxt(p.ao) : p.lao || "", "Propriétaire": p.owner || "", "Porteur cité": p.por || "",
@@ -1243,7 +1240,7 @@ async function psearch(){
   const q = $("q").value.trim();
   noterRecherche(q, "projets");
   if (!q) { PF.q = ""; paiNote = ""; showNote(); prefresh(); return; }
-  if (!phrase(q) || !sample) { PF = {...PF0(), sort: PF.sort, q}; paiNote = !sample && phrase(q) ? "La recherche en langage naturel n'est disponible que dans claude.ai ; recherche par mots." : ""; showNote(); prefresh(); return; }
+  if (!phrase(q)) { PF = {...PF0(), sort: PF.sort, q}; paiNote = ""; showNote(); prefresh(); return; }
   $("go").disabled = true; $("ai-note").hidden = false; $("ai-note").innerHTML = `<span class="spin"></span> Claude analyse votre demande…`;
   try {
     const j = await sample.json(pconsigne(q), {modelTier: "default"});
@@ -1259,8 +1256,7 @@ async function psearch(){
 /* ---------------- recherche en langage naturel (Claude) ---------------- */
 let sample = null;
 async function initAI(){
-  const C = window.claude;
-  sample = C && C.use ? await C.use("sample") : null;
+  sample = await window.claude.use("sample");
 }
 function consigne(question){
   return `Tu transformes une demande de prospection en filtres pour un moteur de recherche de leads (base de propriétaires et développeurs de centrales photovoltaïques en France). Almavision est un cabinet de conseil M&A qui cherche des actifs et des projets À VENDRE chez des propriétaires et développeurs indépendants ou de taille moyenne ; les grands énergéticiens, IPP et fonds sont des acheteurs, pas des cibles. Les priorités P1 > P2 > P3 mesurent cette pertinence. Nous sommes le ${new Date().toLocaleDateString("fr-FR")}.
@@ -1315,8 +1311,8 @@ async function search(){
   const q = $("q").value.trim();
   noterRecherche(q, "recherche");
   if (!q) { F.q = ""; aiNote = ""; refresh(); return; }
-  if (!phrase(q) || !sample) {   // nom, SIREN, ville : recherche directe
-    F = {...F0(), sort: F.sort, q}; aiNote = !sample && phrase(q) ? "La recherche en langage naturel n'est disponible que dans claude.ai ; recherche par mots." : "";
+  if (!phrase(q)) {   // nom, SIREN, ville : recherche directe
+    F = {...F0(), sort: F.sort, q}; aiNote = "";
     showNote(); refresh(); return; }
   $("go").disabled = true; $("ai-note").hidden = false; $("ai-note").innerHTML = `<span class="spin"></span> Claude analyse votre demande…`;
   try {
@@ -1337,6 +1333,7 @@ function showNote(){ const n = mode() === "projets" ? paiNote : aiNote; $("ai-no
 function setHero(){
   const pj = mode() === "projets";
   $("fz-c").hidden = pj; $("fz-p").hidden = !pj;
+  $("hero-e").textContent = pj ? "Prospection · Projets" : "Prospection · Sociétés";
   $("hero-t").innerHTML = pj ? "Trouvez des <span>projets à vendre</span>" : "Trouvez vos prochaines <span>cibles</span>";
   $("hero-sub").textContent = pj ? `${fmt(PROJ.length)} projets : centrales en service, lauréats CRE, projets en développement${NB_OSM ? `, et ${fmt(NB_OSM)} toitures vues sur OpenStreetMap (filtre « Type de projet »)` : ""} · liés à leur société propriétaire`
     : `${fmt(LEADS.length)} propriétaires et développeurs de centrales solaires, classés selon leur probabilité d'avoir des actifs ou des projets à vendre · données du ${DATA.genere}`;
@@ -1347,9 +1344,8 @@ function setHero(){
 
 /* ---------------- export ---------------- */
 async function exporter(){
-  const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
-  if (!dl) { toast("L'export n'est disponible que dans claude.ai."); return; }
-  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.xlsx) || "vendor/xlsx.full.min.js"; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
+  const dl = await window.claude.use("downloads");
+  if (!window.XLSX) await new Promise((ok, ko) => { const s = document.createElement("script"); s.src = window.__lib.xlsx; s.onload = ok; s.onerror = ko; document.head.appendChild(s); }).catch(() => {});
   if (!window.XLSX) { toast("Export impossible pour le moment."); return; }
   const rows = current.map(l => ({"Priorité": l.pr, "Société": l.s, "SIREN": l.sn || "", "Type": SEG[l.seg] || l.seg, "Groupe": l.dv || l.gr || "", "Type de propriétaire": l.dr || "",
     "Statut": ST[l.st] || l.st, "Responsable": l.re || "", "Projets (centrales + en développement)": l.np, "Centrales": l.nc, "Puissance (kW)": l.kw || "", "Fin de contrat": l.fc || "", "Fin d'OA": l.foa ? l.foa.fin : "",
@@ -1369,11 +1365,16 @@ async function exporter(){
 /* ---------------- fiche ---------------- */
 let openK = null;
 function openLead(k){ openA = null; openP = null; openK = k; renderDrawer(); document.querySelectorAll(".row").forEach(r => r.classList.toggle("sel", r.dataset.k === k)); }
+new MutationObserver(() => {
+  const ouverte = !$("drawer").hidden;
+  if (ouverte) document.documentElement.style.setProperty("--haut", (document.querySelector("header")?.offsetHeight || 113) + "px");
+  document.body.classList.toggle("fiche-ouverte", ouverte);
+}).observe($("drawer"), {attributes: true, attributeFilter: ["hidden"]});
 function closeLead(){ openK = null; openP = null; $("drawer").hidden = true; document.querySelectorAll(".row.sel").forEach(r => r.classList.remove("sel")); }
 function tachesDe(k){ return Object.entries(taches).filter(([, t]) => t.k === k).sort((a, b) => (a[1].fait - b[1].fait) || (a[1].ech || "9").localeCompare(b[1].ech || "9")); }
 // Fiche société : chaque bloc devient repliable (titre cliquable), sauf « Projets de la société » et « Note de l'équipe ».
 // L'état ouvert ou fermé de chaque bloc est retenu pour les fiches suivantes (navigateur de chacun).
-const SEC_FERMEES = ["Pertinence pour Almavision", "Toutes les centrales", "Historique", "Toutes les sources", "Trouvé par l'agent"];
+const SEC_FERMEES = ["Pertinence pour Almavision", "Avant la plateforme", "Toutes les sources", "Trouvé par l'agent"];
 function replier(db){
   for (const bloc of [...db.children]) {
     if (bloc.matches("details")) {   // volets déjà repliables : même style, état retenu
@@ -1395,6 +1396,43 @@ function suivreSection(det, titre){
   const v = store.get(cle);
   det.open = v ? v === "1" : !SEC_FERMEES.some(t => titre.startsWith(t));
   det.addEventListener("toggle", () => store.set(cle, det.open ? "1" : "0"));
+}
+// onglets de la fiche société ; le dernier choisi reste ouvert d'une fiche à l'autre
+const ONGLETS_FICHE = [["synthese", "Synthèse"], ["actifs", "Actifs"], ["registre", "Registre"], ["historique", "Historique"]];
+let ongletFiche = ONGLETS_FICHE.some(o => o[0] === store.get("fiche-onglet")) ? store.get("fiche-onglet") : "synthese";
+function montrerOnglet(d, id){
+  for (const b of d.querySelectorAll(".ftabs button")) b.setAttribute("aria-selected", String(b.dataset.ft === id));
+  for (const t of d.querySelectorAll(".ftab")) t.hidden = t.dataset.ft !== id;
+  const db = d.querySelector(".db"); if (db) db.scrollTop = 0;
+}
+// Historique : changements du suivi (table app_doc_historique : avant, après, date, auteur), envois groupés, tâches
+const quand = le => { const x = new Date(le); return isNaN(x) ? "" : x.toLocaleString("fr-FR", {day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"}); };
+const pastille = st => `<span class="st ${esc(st)}">${esc(ST[normSt(st)] || st)}</span>`;
+let nomsHist = {};
+async function historiqueFiche(l){
+  const k = l.k, ev = [];
+  let lignes = [];
+  try { if (window.__historique) lignes = await window.__historique("suivi", [k, ...(l.ka || [])]); } catch {}
+  for (const h of lignes) {
+    const av = h.avant || {}, ap = h.apres || {};
+    if (!h.apres) { ev.push({le: h.le, par: h.par, txt: "Suivi effacé"}); continue; }
+    if ((av.st || "") !== (ap.st || "") && ap.st) ev.push({le: h.le, par: h.par, txt: `Statut ${av.st ? pastille(av.st) + " → " : ": "}${pastille(ap.st)}`});
+    if ((av.re || "") !== (ap.re || "")) ev.push({le: h.le, par: h.par, txt: ap.re ? `Responsable : <b>${esc(ap.re)}</b>` : "Plus de responsable"});
+    if ((av.note || "") !== (ap.note || "")) ev.push({le: h.le, par: h.par, txt: ap.note ? "Note de l'équipe modifiée" : "Note de l'équipe effacée"});
+    if (ap.paFait && !av.paFait) ev.push({le: h.le, par: h.par, txt: "Action prévue dans l'Excel marquée comme faite"});
+  }
+  for (const lot of Object.values(suiviLots)) if (lot && Array.isArray(lot.cles) && (lot.cles.includes(k) || (l.ka || []).some(a => lot.cles.includes(a))))
+    ev.push({le: lot.le, par: lot.par, txt: `Statut : ${pastille(lot.st)} <span class="saved">(changement groupé de ${fmt(lot.cles.length)} fiches)</span>`});
+  for (const [, t] of tachesDe(k)) {
+    if (t.le) ev.push({le: t.le, txt: `Tâche ajoutée : ${esc(t.t)}${t.resp ? ` <span class="saved">(${esc(t.resp)})</span>` : ""}`, c: "t"});
+    if (t.fait && t.fait_le) ev.push({le: t.fait_le, txt: `Tâche faite : ${esc(t.t)}`, c: "t"});
+  }
+  const ids = [...new Set(ev.map(e => e.par).filter(p => p && !(p in nomsHist)))];
+  if (ids.length && user && user.profiles) { try { const ps = await user.profiles(ids) || {}; for (const id of ids) nomsHist[id] = (ps[id] && ps[id].name || "").trim().split(/\s+/)[0] || "Un collègue"; } catch {} }
+  const el = $("f-hist"); if (!el || openK !== k) return;   // fiche fermée ou changée entre-temps
+  ev.sort((a, b) => String(b.le).localeCompare(String(a.le)));
+  el.innerHTML = ev.length ? ev.slice(0, 200).map(e => `<li class="${e.c || ""}"><span class="q">${esc(quand(e.le))}${e.par ? ` · ${esc(e.par === myId ? "vous" : nomsHist[e.par] || "un collègue")}` : ""}</span>${e.txt}</li>`).join("")
+    : `<li>Aucun changement enregistré depuis l'ouverture de la plateforme.</li>`;
 }
 function renderDrawer(){
   $("drawer").classList.remove("wide");
@@ -1418,7 +1456,7 @@ function renderDrawer(){
     <td class="num">${c[1] ? mw(c[1]) : ""}</td><td>${esc(c[2] || "")}</td><td>${ao ? aoHtml(ao) : ""}</td><td class="num">${c[3] || ""}</td>
     <td class="num">${c[4] ? `<span class="tag ${c[4] <= 2031 ? "warn" : ""}">${c[4]}</span>` : ""}</td></tr>`; }).join("");
   const props = [...new Set(l.ce.map(c => c[7]).filter(Boolean))];
-  const ts = tachesDe(l.k);
+  const ts = tachesDe(l.k), nbActifs = (l.nc || l.ce.length || 0) + (PK.get(l.k) || []).filter(p => p.t === "D").length;
   const legacy = l.pa && !suivi[l.k]?.paFait ? `<div class="task"><input type="checkbox" data-legacy="${esc(l.k)}" aria-label="Marquer comme fait" ${ro ? "disabled" : ""}><div><div class="tt">${esc(l.pa)}</div><div class="tm">Excel${l.da ? " · " + frDate(l.da) : ""}</div></div><span></span></div>` : "";
   d.hidden = false;
   d.innerHTML = `<div class="dh"><div class="top"><span class="hex ${esc(l.pr)}">${esc(l.pr)}</span><div><h2>${esc(l.s)}</h2>
@@ -1427,20 +1465,18 @@ function renderDrawer(){
     <div class="acts">${l.te ? `<a class="btn primary small" href="tel:${esc(l.te.replace(/\s/g, ""))}" style="text-decoration:none">Appeler ${esc(l.te)}</a>` : ""}
       <select id="e-st" aria-label="Statut" ${ro ? "disabled" : ""}>${Object.entries(ST).map(([k, v]) => `<option value="${k}" ${l.st === k ? "selected" : ""}>${v}</option>`).join("")}</select>
       <select id="e-re" aria-label="Responsable" ${ro ? "disabled" : ""}><option value="">Responsable : personne</option>${MEMBRES.map(m => `<option value="${esc(m)}" ${l.re === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select></div></div>
+  <nav class="ftabs" role="tablist" aria-label="Parties de la fiche">${ONGLETS_FICHE.map(([id, nom]) => `<button type="button" role="tab" data-ft="${id}" aria-selected="${id === ongletFiche}">${nom}${id === "actifs" && nbActifs ? ` <span class="n">${fmt(nbActifs)}</span>` : ""}</button>`).join("")}</nav>
   <div class="db">
+   <div class="ftab" data-ft="synthese">
     ${bandeauArx(l)}
-    ${identiteSoc(l)}
-    ${encadrePappers(l)}
-    ${l.fil && l.fil.length ? `<div><h3>Sociétés réunies dans cette fiche (${fmt(l.nfil || l.fil.length)})</h3>
-      <p class="saved" style="margin:0 0 6px">Filiales et SPV du groupe : le suivi se fait ici, sur la société de tête.</p>
-      <ul class="srcs">${l.fil.map(f => `<li>${esc(f[0])}${f[1] ? ` · ${fmt(f[1])} centrale${f[1] > 1 ? "s" : ""}` : ""}${f[2] ? `, ${mw(f[2])}` : ""}</li>`).join("")}</ul>
-      ${(l.nfil || 0) > l.fil.length ? `<p class="saved" style="margin:4px 0 0">et ${fmt(l.nfil - l.fil.length)} autres.</p>` : ""}</div>` : ""}
     <div>
       <div><h3>À faire</h3>
       <form class="newtask" id="d-new" style="margin-bottom:6px"><input type="text" id="d-t" placeholder="Ajouter une tâche pour cette société" aria-label="Nouvelle tâche" ${ro ? "disabled" : ""}><input type="date" id="d-d" aria-label="Échéance" ${ro ? "disabled" : ""}><button class="btn primary small" ${ro ? "disabled" : ""}>Ajouter</button></form>
       <div>${legacy}${ts.map(([id, t]) => taskHtml(id, t, false)).join("")}</div></div>
     </div>
     <div class="note-equipe"><h3>Note de l'équipe</h3><textarea class="note" id="e-note" placeholder="Ce qu'on sait, ce qui a été dit…" ${ro ? "disabled" : ""}>${esc(l.note)}</textarea><p class="saved" id="majinfo">${l.maj ? `Mis à jour le ${frDate(l.maj.le)}` : ""}</p></div>
+    <div><h3>Contacts</h3><div class="clist">${ct}</div></div>
+    <div><h3>Dirigeants</h3><div class="ppl">${pe}</div></div>
     <details class="det"><summary>Pertinence pour Almavision</summary>
       <div class="scorebar" style="margin-top:8px"><b style="font-size:20px;color:var(--forest)">${Number(l.sc) || 0}</b><span>/ 100</span><span class="b"><i style="width:${Number(l.sc) || 0}%"></i></span>
       ${l.px ? `<span class="tag">Priorité de l'équipe (Excel) : ${esc(l.px)}${l.sx != null ? " · " + l.sx : ""}</span>` : ""}</div>
@@ -1450,15 +1486,23 @@ function renderDrawer(){
     ${l.en && l.en.length ? `<div><h3>Trouvé par l'agent d'enquête</h3><ul class="srcs">${l.en.map(t => { const m = t.match(/^(.*?)(?: — (https?:\/\/\S+))?$/);
         return `<li>${esc(m[1])}${m[2] ? ` <a href="${esc(m[2])}" target="_blank" rel="noopener">source</a>` : ""}</li>`; }).join("")}</ul>
       <p class="saved" style="margin:4px 0 0">Informations trouvées sur le web ou dans les annonces légales (BODACC) : à vérifier avant usage.</p></div>` : ""}
-    ${mesProj.length ? `<div><h3>Projets de la société</h3><p style="margin:0 0 8px;font-size:13.5px">${fmt(mesProj.length)} projet${mesProj.length > 1 ? "s" : ""} dans Recherche Projets : ${["S","L","D"].map(t => [t, mesProj.filter(p => p.t === t).length]).filter(x => x[1]).map(([t, n]) => `${n} ${({S:"en service", L:"lauréat"+(n>1?"s":"")+" CRE non retrouvé"+(n>1?"s":"")+" au registre", D:"en développement"})[t]}`).join(", ")}.</p>
+   </div>
+   <div class="ftab" data-ft="actifs">
+    ${l.fil && l.fil.length ? `<div><h3>Sociétés réunies dans cette fiche (${fmt(l.nfil || l.fil.length)})</h3>
+      <p class="saved" style="margin:0 0 6px">Filiales et SPV du groupe : le suivi se fait ici, sur la société de tête.</p>
+      <ul class="srcs">${l.fil.map(f => `<li>${esc(f[0])}${f[1] ? ` · ${fmt(f[1])} centrale${f[1] > 1 ? "s" : ""}` : ""}${f[2] ? `, ${mw(f[2])}` : ""}</li>`).join("")}</ul>
+      ${(l.nfil || 0) > l.fil.length ? `<p class="saved" style="margin:4px 0 0">et ${fmt(l.nfil - l.fil.length)} autres.</p>` : ""}</div>` : ""}
+    ${mesProj.length ? `<div><h3>Projets de la société</h3><p style="margin:0 0 8px;font-size:13.5px">${fmt(mesProj.length)} projet${mesProj.length > 1 ? "s" : ""} dans l'onglet Projets : ${["S","L","D"].map(t => [t, mesProj.filter(p => p.t === t).length]).filter(x => x[1]).map(([t, n]) => `${n} ${({S:"en service", L:"lauréat"+(n>1?"s":"")+" CRE non retrouvé"+(n>1?"s":"")+" au registre", D:"en développement"})[t]}`).join(", ")}.</p>
       <button class="btn small" id="to-proj">Voir ses projets</button></div>` : ""}
     ${ce ? `<div><h3>Toutes les centrales (${fmt(l.ce.length)}${l.nc > l.ce.length ? ` plus grandes sur ${fmt(l.nc)}` : ""})</h3><div style="overflow-x:auto"><table class="sub"><thead><tr><th>Nom et sources</th><th class="num">Puissance</th><th>Lieu</th><th>Appel d'offres</th><th class="num">Mise en service</th><th class="num">Fin contrat</th></tr></thead><tbody>${ce}</tbody></table></div></div>` : ""}
     ${(() => { const g = l.dk && GROUPES[l.dk]; if (!g) return "";
         return `<div><h3>Le groupe : ${esc(g.n)} <span class="saved">${fmt(g.t)} sociétés</span></h3><ul class="srcs">${g.m.map(m => `<li class="idr" tabindex="0">${m[4] && m[4] !== l.k ? `<span class="owner" data-open="${esc(m[4])}">${esc(m[0])}</span>` : `<b>${esc(m[0])}</b>`}${m[1] ? ` · ${fmt(m[1])} centrale${m[1] > 1 ? "s" : ""}` : ""}${m[2] ? `, ${mw(m[2])}` : ""}${m[3] ? `<span class="ids">${esc(m[3])}</span>` : ""}</li>`).join("")}</ul>${g.t > g.m.length ? `<p class="saved" style="margin:4px 0 0">${fmt(g.t - g.m.length)} autres sociétés dans le groupe.</p>` : ""}</div>`; })()}
     ${l.rx && l.rx.length ? `<div><h3>Rachats et cessions</h3><ul class="srcs">${l.rx.map(d => `<li>${esc({rachete_par: "Rachetée par", a_rachete: "A racheté", actifs_vendus_a: "A vendu des actifs à", actifs_achetes_a: "A acheté des actifs à"}[d[0]] || d[0])} <b>${esc(d[1])}</b> <span class="saved">${esc(d[2] || "")}</span></li>`).join("")}</ul></div>` : ""}
-    <div><h3>Contacts</h3><div class="clist">${ct}</div></div>
-    <div><h3>Dirigeants</h3><div class="ppl">${pe}</div></div>
-    ${l.no || l.ap.length ? `<div><h3>Historique (Excel)</h3>${l.ap.map(a => `<p style="margin:0 0 4px;font-size:13.5px"><span class="saved">${frDate(a.date)}</span> ${esc(a.resultat || "")}${a.suite ? ` · suite : ${esc(a.suite)}` : ""}</p>`).join("")}${l.no ? `<p style="margin:0;white-space:pre-wrap;font-size:13.5px;color:var(--ink2)">${esc(l.no)}</p>` : ""}</div>` : ""}
+   ${!nbActifs && !(l.fil && l.fil.length) && !(l.rx && l.rx.length) && !(l.dk && GROUPES[l.dk]) ? `<p class="saved" style="margin:0">Aucun actif connu pour cette société.</p>` : ""}
+   </div>
+   <div class="ftab" data-ft="registre">
+    ${identiteSoc(l)}
+    ${encadrePappers(l)}
     <details class="det"><summary>Toutes les sources de la fiche (détail)</summary><div class="origine">
       ${l.sl.length ? `<h4>Le lead</h4><ul>${l.sl.map(t => `<li>créé depuis ${esc(t)}</li>`).join("")}</ul>` : l.o === "nouveau" ? `<h4>Le lead</h4><ul><li>propriétaire identifié par la base, pas encore dans les Excel de l'équipe</li></ul>` : ""}
       <h4>L'entreprise</h4><ul>${l.se.length ? l.se.map(e => `<li>${esc(srcLong(e))}</li>`).join("") : `<li>source non tracée</li>`}</ul>
@@ -1467,8 +1511,16 @@ function renderDrawer(){
       ${l.ct.length ? `<h4>Les contacts</h4><ul>${[...new Set(l.ct.map(c => c[2]))].map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}</div></details>
     <div class="links">${l.sn ? `<a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(l.sn)}" target="_blank" rel="noopener">Annuaire des entreprises</a><a href="https://www.pappers.fr/entreprise/${esc(l.sn)}" target="_blank" rel="noopener">Pappers</a>` : ""}${l.web ? `<a href="${esc(/^https?:/.test(l.web) ? l.web : "https://" + l.web)}" target="_blank" rel="noopener">Site web</a>` : ""}
       <a href="https://www.google.com/search?q=${encodeURIComponent(l.s + " " + (l.ville || ""))}" target="_blank" rel="noopener">Rechercher sur le web</a></div>
+   </div>
+   <div class="ftab" data-ft="historique">
+    <div><h3>Suivi dans la plateforme</h3><ol class="frise" id="f-hist"><li class="q">Chargement…</li></ol></div>
+    ${l.no || l.ap.length ? `<div><h3>Avant la plateforme (Excel)</h3>${l.ap.map(a => `<p style="margin:0 0 4px;font-size:13.5px"><span class="saved">${frDate(a.date)}</span> ${esc(a.resultat || "")}${a.suite ? ` · suite : ${esc(a.suite)}` : ""}</p>`).join("")}${l.no ? `<p style="margin:0;white-space:pre-wrap;font-size:13.5px;color:var(--ink2)">${esc(l.no)}</p>` : ""}</div>` : ""}
+   </div>
   </div>`;
-  replier(d.querySelector(".db"));
+  for (const t of d.querySelectorAll(".ftab")) replier(t);
+  montrerOnglet(d, ongletFiche);
+  d.querySelector(".ftabs").onclick = e => { const b = e.target.closest("button[data-ft]"); if (!b) return; ongletFiche = b.dataset.ft; store.set("fiche-onglet", ongletFiche); montrerOnglet(d, ongletFiche); };
+  historiqueFiche(l);
   $("close").onclick = closeLead;
   if ($("to-proj")) $("to-proj").onclick = () => { PF = {...PF0(), k: l.k}; closeLead(); show("projets"); prefresh(); };
   $("e-st").onchange = e => { garderK.add(l.k); saveSuivi(l.k, {st: e.target.value}); };
@@ -1576,8 +1628,8 @@ async function renderMap(){
   $("legend").innerHTML = `<span><i style="background:${css("--p1")}"></i>P1</span><span><i style="background:${css("--p2")}"></i>P2</span>` +
     `<span><i style="background:${css("--p3")}"></i>P3 et autres</span><span><i style="background:#2A5B86"></i>Toiture vue sur OpenStreetMap</span><span>Taille : puissance</span>`;
   $("m-info").textContent = `${fmt(r.pts.length)} projet${r.pts.length > 1 ? "s" : ""} placé${r.pts.length > 1 ? "s" : ""}` +
-    (r.corpo ? ` : les projets à position précise des ${fmt(r.total)} sociétés de la dernière Recherche Corpo`
-             : ` sur ${fmt(r.total)} trouvés par la dernière Recherche Projets (${fmt(r.precis)} ont une position précise)`) +
+    (r.corpo ? ` : les projets à position précise des ${fmt(r.total)} sociétés de la dernière recherche dans Sociétés`
+             : ` sur ${fmt(r.total)} trouvés par la dernière recherche dans Projets (${fmt(r.precis)} ont une position précise)`) +
     `${r.precis > MAX_CARTE ? `, les ${fmt(MAX_CARTE)} premiers selon le tri` : ""}${r.quoi ? " · filtre de la carte : " + $("m-quoi").selectedOptions[0].textContent : ""}.` +
     " Les projets placés au centre de leur commune ne sont pas montrés.";
   if (window.__gmaps && !gmPanne) {
@@ -1668,9 +1720,9 @@ async function initGoogle(){
   return g;
 }
 
-/* Carte simple (sans clé Google, ou page hors du site) : contours des départements dessinés par d3 */
+/* Carte simple (sans clé Google) : contours des départements dessinés par d3 */
 async function carteD3(pts){
-  if (!window.d3) await new Promise(ok => { const s = document.createElement("script"); s.src = (window.__lib && window.__lib.d3) || "vendor/d3.min.js"; s.onload = ok; s.onerror = ok; document.head.appendChild(s); });
+  if (!window.d3) await new Promise(ok => { const s = document.createElement("script"); s.src = window.__lib.d3; s.onload = ok; s.onerror = ok; document.head.appendChild(s); });
   if (!window.d3 || !DATA.deps || !DATA.deps.length) { $("m-info").textContent = "La carte n'est pas disponible dans cette vue."; return; }
   $("map").hidden = false;
   if (!MAP) MAP = initMap();

@@ -1,10 +1,19 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=3fdb010182"><link rel="stylesheet" href="modules/dataroom/visionneuse.css?v=f102ea9cc4"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=849ee19ac3"></head><body>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=cc07e53459"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=3fdb010182"><link rel="stylesheet" href="modules/dataroom/visionneuse.css?v=f102ea9cc4"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=849ee19ac3"></head><body>
 <script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}], "vue": "invites"}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
+  <div class="cnx-vitrine">
+    <span class="cq-logo"><span data-cq-logo></span><span class="cq-mot">ALMA<b>VISION</b></span></span>
+    <div class="cnx-titre"><span class="cq-surtitre">Espace sécurisé</span><h2 class="cq-nom-module">Plateforme</h2></div>
+    <p>Conseil M&amp;A en énergies renouvelables. Les documents et les données de cet espace sont confidentiels et
+      réservés aux personnes invitées.</p>
+    <span class="cnx-pied">Almavision · 37 boulevard d'Argenson, 92200 Neuilly-sur-Seine</span>
+  </div>
+  <div class="cnx-zone">
   <form class="cnx-box" id="cnx-form" autocomplete="on">
     <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
-    <h1>Connexion</h1>
+    <span class="cq-surtitre">Connexion</span>
+    <h1>Bienvenue</h1>
     <label for="cnx-email">Email</label>
     <input id="cnx-email" type="email" autocomplete="username" required>
     <label for="cnx-mdp">Mot de passe</label>
@@ -18,6 +27,7 @@
   </form>
   <form class="cnx-box" id="cnx-code-form" hidden autocomplete="on" novalidate>
     <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <span class="cq-surtitre">Acquéreurs</span>
     <h1>Connexion par code</h1>
     <p class="cnx-aide">Saisissez l'adresse à laquelle Almavision vous a donné accès : un code de connexion vous est envoyé
       par email. La connexion s'arrête à la fermeture de l'onglet.</p>
@@ -30,10 +40,20 @@
     <p class="cnx-msg" id="cnx-code-msg" role="alert"></p>
     <button class="btn small" type="button" id="cnx-vers-mdp">Équipe Almavision : connexion par mot de passe</button>
   </form>
+  </div>
 </div>
 <div id="mfa" class="cnx" hidden>
+  <div class="cnx-vitrine">
+    <span class="cq-logo"><span data-cq-logo></span><span class="cq-mot">ALMA<b>VISION</b></span></span>
+    <div class="cnx-titre"><span class="cq-surtitre">Espace sécurisé</span><h2 class="cq-nom-module">Plateforme</h2></div>
+    <p>Conseil M&amp;A en énergies renouvelables. Les documents et les données de cet espace sont confidentiels et
+      réservés aux personnes invitées.</p>
+    <span class="cnx-pied">Almavision · 37 boulevard d'Argenson, 92200 Neuilly-sur-Seine</span>
+  </div>
+  <div class="cnx-zone">
   <form class="cnx-box" id="mfa-form" autocomplete="off" novalidate>
     <div class="cnx-logo"><span class="cq-nom-module" style="color:inherit">Plateforme</span> <span>Almavision</span></div>
+    <span class="cq-surtitre">Sécurité</span>
     <h1>Double authentification</h1>
     <div id="mfa-nouveau" hidden>
       <p class="cnx-aide">Ce module demande, en plus du mot de passe, le code d'une application d'authentification
@@ -49,6 +69,7 @@
     <p class="cnx-aide">Téléphone perdu ou changé : demandez à Géry de retirer l'ancienne application.</p>
     <button class="btn small" type="button" id="mfa-x">Se déconnecter</button>
   </form>
+  </div>
 </div>
 <div id="mdp" class="cnx voile" hidden role="dialog" aria-modal="true" aria-labelledby="mdp-titre">
   <form class="cnx-box" id="mdp-form" autocomplete="off">
@@ -228,7 +249,7 @@
     <div class="dr-vis-zone" id="dr-vis-zone"><canvas id="dr-vis-toile" width="0" height="0"></canvas></div>
   </div>
 </main>
-<script src="plateforme/coquille.js?v=cff860c8a7"></script>
+<script src="plateforme/coquille.js?v=fdbac69977"></script>
 <script src="modules/dataroom/visionneuse.js?v=9398eae7f4"></script>
 <script src="modules/dataroom/acheteur.js?v=c7e3c1d381"></script>
 </body></html>

@@ -167,7 +167,14 @@ window.__pret = (async () => {
   };
 
   window.claude = {use: async n => n === "db" ? db : n === "user" ? user : n === "downloads" ? downloads : n === "sample" ? sample : null};
-  window.__site = {prenom, deconnexion: P.deconnecter, changerMdp: P.changerMdp};
+  // historique d'une fiche (onglet Historique) : changements tracés en base par app_doc_trace (lecture réservée aux membres)
+  window.__historique = async (collection, ids) => {
+    const {data, error} = await sb.from("app_doc_historique").select("avant,apres,le,par").eq("collection", collection)
+      .in("id", ids).order("le", {ascending: false}).limit(200);
+    if (error) throw error;
+    return data || [];
+  };
+  window.__site = {prenom, deconnexion: P.deconnecter, changerMdp: P.changerMdp, compte: P.menuCompte};
 
   // menu des modules dans l'en-tête de l'application, à côté du logo
   const marque = document.querySelector("header .brand");
