@@ -266,6 +266,8 @@
     $("ach-fil").textContent = ""; ecrire($("ach-q-msg"), ""); $("ach-question").value = "";
     $("ach-docs").textContent = ""; ecrire($("ach-docs-msg"), ""); ecrire($("ach-nda-msg"), ""); ecrire($("ach-d-msg"), "");
     $("ach-projet").hidden = true; $("ach-decouverte").hidden = true;
+    // la carte « Interroger la data room » est en tête de fiche, hors de #ach-projet : cachée tant que rien ne l'autorise
+    $("ach-assistant").hidden = true; $("ach-assistant-absent").hidden = true;
     // informations publiques de la fiche vitrine (résumé, points clés, mise en service) : facultatives pour un projet où
     // l'on participe (dr_marche ne rend fiche_id que pour une fiche publiée ; si elle vient d'être retirée, on garde ce
     // que dr_marche a rendu)
@@ -392,9 +394,16 @@
       actions.appendChild(bouton("Consulter", () => ouvrirDocument(d.element_id, "consulter", dire), "btn small",
                                  `Consulter « ${d.nom} »`));
     }
+    // « Télécharger » toujours montré sur un document ouvert : actif avec le niveau « télécharger » du dossier, sinon grisé
+    // avec sa raison (le serveur refuse de toute façon un téléchargement non autorisé : dr_autoriser)
     if (d.telecharger === true) {
       actions.appendChild(bouton("Télécharger", () => ouvrirDocument(d.element_id, "telecharger", dire), "btn small",
                                  `Télécharger « ${d.nom} »`));
+    } else {
+      const b = bouton("Télécharger", () => {}, "btn small", `Télécharger « ${d.nom} » : non autorisé pour ce dossier`);
+      b.disabled = true;
+      b.title = "Téléchargement non autorisé pour ce dossier : demandez-le à l'équipe Almavision";
+      actions.appendChild(b);
     }
     li.append(actions, msgDoc);
     return li;

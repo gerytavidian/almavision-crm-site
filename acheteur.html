@@ -1,4 +1,4 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=92e8974737"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=5c5ecb137a"></head><body>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=92e8974737"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=7daac11976"></head><body>
 <script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}], "vue": "invites"}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
@@ -93,6 +93,34 @@
         <dl class="dr-ach-infos" id="ach-fiche-infos"></dl>
       </div>
     </div>
+    <!-- en tête de fiche : interroger la data room (projet où l'organisation participe, assistant activé, clause acceptée) -->
+    <section class="cq-carte ach-vedette" id="ach-assistant" hidden aria-labelledby="ach-assistant-titre">
+      <div class="dr-tete">
+        <h3 id="ach-assistant-titre">Interroger la data room</h3>
+        <button class="btn small" type="button" id="ach-nouvelle">Nouvelle conversation</button>
+      </div>
+      <p class="dr-aide">Posez votre question en langage courant : la réponse s'appuie sur les documents de ce projet qui
+        vous sont ouverts, avec le document et la page de chaque passage cité. Par exemple : « Quel est le productible
+        P50 ? », « Quelle est la durée du bail ? », « Où en est le raccordement ? ». Vérifiez dans les documents cités ;
+        aucun avis juridique, fiscal ou d'investissement.</p>
+      <form class="dr-form dr-poser" id="ach-form-question" autocomplete="off" novalidate>
+        <label for="ach-question">Votre question</label>
+        <textarea id="ach-question" rows="2" maxlength="2000" placeholder="Ex. : quelle est la durée du bail et le loyer ?"></textarea>
+        <div class="dr-boutons"><button class="btn primary" type="submit" id="ach-q-go">Interroger</button></div>
+      </form>
+      <p class="dr-msg" id="ach-q-msg" role="status" aria-live="polite"></p>
+      <ol class="dr-fil" id="ach-fil"></ol>
+      <details class="dr-confidentialite">
+        <summary>Confidentialité</summary>
+        <p>Pour chaque question, la plateforme envoie à Claude (Anthropic, États-Unis) la question et, au plus, 8 extraits
+          des documents qui vous sont ouverts ; jamais un document entier. Anthropic n'utilise pas ces données pour
+          entraîner ses modèles et ne les garde pas plus de 30 jours. Vos questions, les réponses et les références
+          citées sont gardées par Almavision pour le suivi de l'opération.</p>
+      </details>
+    </section>
+    <p class="ach-assistant-absent" id="ach-assistant-absent" hidden>Interrogation de la data room pas encore activée pour
+      ce projet.</p>
+
     <p class="ach-resume" id="ach-fiche-resume"></p>
     <ul class="dr-v-points" id="ach-fiche-points"></ul>
     <p class="dr-aide">Les visuels sont des illustrations générées par la plateforme, pas des photos des projets.</p>
@@ -122,31 +150,6 @@
         <div class="ach-docs" id="ach-docs"></div>
       </section>
 
-      <section class="cq-carte" id="ach-assistant" hidden aria-labelledby="ach-assistant-titre">
-        <div class="dr-tete">
-          <h3 id="ach-assistant-titre">Interroger Claude sur ce projet</h3>
-          <button class="btn small" type="button" id="ach-nouvelle">Nouvelle conversation</button>
-        </div>
-        <p class="dr-aide">L'assistant répond à partir des seuls documents qui vous sont ouverts, en citant le document et
-          la page de chaque passage utilisé. Il peut se tromper : vérifiez dans les documents cités. Il ne donne aucun avis
-          juridique, fiscal ou d'investissement.</p>
-        <form class="dr-form dr-poser" id="ach-form-question" autocomplete="off" novalidate>
-          <label for="ach-question">Question</label>
-          <textarea id="ach-question" rows="3" maxlength="2000"></textarea>
-          <div class="dr-boutons"><button class="btn primary small" type="submit" id="ach-q-go">Poser la
-            question</button></div>
-        </form>
-        <p class="dr-msg" id="ach-q-msg" role="status" aria-live="polite"></p>
-        <ol class="dr-fil" id="ach-fil"></ol>
-        <details class="dr-confidentialite">
-          <summary>Confidentialité</summary>
-          <p>Pour chaque question, la plateforme envoie à Claude (Anthropic, États-Unis) la question et, au plus, 8 extraits
-            des documents qui vous sont ouverts ; jamais un document entier. Anthropic n'utilise pas ces données pour
-            entraîner ses modèles et ne les garde pas plus de 30 jours. Vos questions, les réponses et les références
-            citées sont gardées par Almavision pour le suivi de l'opération.</p>
-        </details>
-      </section>
-      <p class="ach-assistant-absent" id="ach-assistant-absent" hidden>Assistant pas encore activé pour ce projet.</p>
     </div>
 
     <!-- fiche de découverte : aucun document -->
@@ -178,5 +181,5 @@
 </main>
 <script src="plateforme/coquille.js?v=cff860c8a7"></script>
 <script src="modules/dataroom/visionneuse.js?v=008f04577c"></script>
-<script src="modules/dataroom/acheteur.js?v=da66027d09"></script>
+<script src="modules/dataroom/acheteur.js?v=0b4a38bb3c"></script>
 </body></html>
