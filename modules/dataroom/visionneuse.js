@@ -1,6 +1,7 @@
 /* Visionneuse de la Data Room (lot b, docs/DATAROOM_PLAN.md §6 et annexe « Visionneuse »).
 
-   window.drVisionneuse(options) rend {consulter(autorisation), telecharger(autorisation, dire), fermer()} ; options :
+   window.drVisionneuse(options) rend {consulter(autorisation, ouverture), telecharger(autorisation, dire), fermer()} ;
+   ouverture (facultatif) : {page} pour ouvrir un PDF à cette page (renvoi de l'assistant, acheteur.js) ; options :
      conf          {url, cle} du projet Supabase (configuration de la page)
      jeton()       jeton de la personne (promesse), relu à chaque plage (il se renouvelle)
      suivre(c, n)  note les pages vues (dr_suivre), facultatif
@@ -423,7 +424,11 @@
       o.lecteur = l;
       link.setViewer(viewer);
       const sur = (nom, f) => eventBus.on(nom, x => { if (ouverte === o) f(x || {}); }, {signal});
-      sur("pagesinit", () => { viewer.currentScaleValue = "page-width"; majPage(o); msg(o.note || ""); });
+      sur("pagesinit", () => {
+        viewer.currentScaleValue = "page-width";
+        if (o.depart > 1 && o.depart <= viewer.pagesCount) viewer.currentPageNumber = o.depart;   // page demandée
+        majPage(o); msg(o.note || "");
+      });
       sur("pagerendered", e => {
         const vue = e.source || viewer.getPageView(e.pageNumber - 1);
         marquer(o, vue && vue.canvas);
@@ -492,13 +497,15 @@
       $("dr-vis-pages").hidden = o.doc.numPages < 2;
       $("dr-vis-prec").onclick = () => Promise.race([afficherPage(o, o.page - 1), echec]).catch(e => echouer(o, e));
       $("dr-vis-suiv").onclick = () => Promise.race([afficherPage(o, o.page + 1), echec]).catch(e => echouer(o, e));
-      await Promise.race([afficherPage(o, 1), echec]);
+      await Promise.race([afficherPage(o, Math.min(o.depart || 1, o.doc.numPages)), echec]);
     }
 
-    async function consulter(autorisation) {
+    async function consulter(autorisation, ouverture = {}) {
       montrer(autorisation);
+      const depart = Number(ouverture && ouverture.page);
       const o = {autorisation, doc: null, tache: null, page: 0, vues: new Set(), rendues: new Set(),
-                 marques: new WeakSet(), lecteur: null, note: "", saisiePage: false};
+                 marques: new WeakSet(), lecteur: null, note: "", saisiePage: false,
+                 depart: Number.isInteger(depart) && depart >= 1 ? depart : 1};
       ouverte = o;
       try {
         if (/^image\//.test(autorisation.mime || "")) {

@@ -165,9 +165,71 @@
 .ach-doc .dr-doc-msg:empty{display:none}
 .ach-note-visuels{margin:0}
 
+/* ---------------------------------------------------------------- questions et réponses (sql/12_questions.sql)
+   fil à gauche, « Vos questions sur ce projet » à droite ; question en bulle vert sapin, réponse en carte claire */
+.ach-qa{display:grid;grid-template-columns:minmax(0,1fr) minmax(14rem,18rem);gap:18px;align-items:start;margin-top:4px}
+.ach-qa-principal{min-width:0}
+.ach-fil{margin:10px 0 0;display:grid;gap:16px}
+.ach-fil:empty{display:none}
+.ach-echange{border:0;padding:0;display:grid;gap:8px}
+.ach-bulle-q{justify-self:end;max-width:min(36rem,88%);background:var(--forest);color:#fff;border-radius:16px 16px 4px 16px;padding:10px 14px;box-shadow:0 2px 8px rgba(0,53,47,.12)}
+.ach-bulle-texte{margin:0;font-size:15px;line-height:1.45;white-space:pre-line;overflow-wrap:anywhere}
+.ach-bulle-date{margin:4px 0 0;font-size:11.5px;color:var(--mint);text-align:right}
+.ach-patience{justify-self:start;margin:0;display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--ink2);background:var(--soft);border-radius:12px;padding:8px 14px}
+.ach-patience::before{content:"";width:14px;height:14px;border-radius:50%;border:2px solid var(--accent-weak);border-top-color:var(--forest);animation:ach-tourne .9s linear infinite}
+@keyframes ach-tourne{to{transform:rotate(360deg)}}
+.ach-reponse{justify-self:stretch;background:var(--bg);border:1px solid var(--line);border-left:4px solid var(--forest);border-radius:4px 14px 14px 14px;padding:12px 16px 10px;box-shadow:0 2px 10px rgba(0,53,47,.05)}
+.ach-reponse.absente{border-left-color:var(--muted);background:var(--soft)}
+.ach-r-tete{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:6px}
+.ach-r-auteur{font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--forest)}
+.ach-r-date{font-size:12px;color:var(--muted)}
+.ach-r-corps{font-size:15px;line-height:1.6;color:var(--ink);max-width:78ch;overflow-wrap:anywhere}
+.ach-r-corps p{margin:0 0 8px}
+.ach-r-corps p:last-child{margin-bottom:0}
+.ach-r-corps strong{font-weight:700;color:var(--forest)}
+.ach-r-titre{margin:12px 0 4px;font-size:15.5px;color:var(--forest)}
+.ach-r-titre:first-child{margin-top:0}
+.ach-r-liste{margin:4px 0 10px;padding-left:1.4rem}
+.ach-r-liste li{margin:3px 0;padding-left:2px}
+.ach-r-liste li::marker{color:var(--forest);font-weight:600}
+.ach-r-note{margin:0 0 8px;font-size:13.5px;font-style:italic;color:var(--ink2)}
+.ach-r-absente{margin:0 0 6px}
+.ach-r-absente p{margin:0;font-size:14px;color:var(--ink2)}
+.ach-r-absente .ach-r-absente-titre{font-weight:600;color:var(--ink);margin-bottom:2px}
+/* pastilles des renvois [n] : bouton (document ouvert) ou inerte (infobulle) */
+.ach-renvoi{display:inline-flex;align-items:center;justify-content:center;min-width:1.45em;height:1.45em;margin:0 1px;padding:0 5px;vertical-align:.12em;border-radius:999px;font-family:inherit;font-size:11.5px;font-weight:600;line-height:1;border:1px solid var(--forest);background:var(--accent-weak);color:var(--forest);white-space:nowrap}
+button.ach-renvoi{cursor:pointer}
+button.ach-renvoi:hover{background:var(--forest);color:#fff}
+button.ach-renvoi:focus-visible,.ach-hist-btn:focus-visible,.ach-sources summary:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.ach-renvoi.inerte{border-color:var(--line);background:var(--soft);color:var(--ink2);cursor:help}
+.ach-renvoi.fiche{border-style:dashed}
+.ach-sources{margin:10px 0 0;border-top:1px solid var(--soft);padding-top:8px}
+.ach-sources summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--forest);border-radius:6px;width:fit-content}
+.ach-sources-liste{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
+.ach-sources-liste li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13.5px}
+.ach-source-nom{flex:1 1 12rem;overflow-wrap:anywhere;color:var(--ink)}
+.ach-source-ferme{font-size:12px;font-style:italic;color:var(--muted)}
+.ach-r-actions{display:flex;justify-content:flex-end;margin-top:8px}
+.ach-r-msg{margin:4px 0 0;font-size:12.5px;color:var(--accent)}
+.ach-r-msg:empty{display:none}
+/* historique */
+.ach-historique-panneau{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px 12px 10px;position:sticky;top:12px}
+.ach-historique-panneau h4{margin:0 0 4px;font-size:14.5px;color:var(--forest)}
+.ach-historique-panneau .dr-msg{font-size:12.5px;margin:0 0 6px}
+.ach-historique{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:26rem;overflow:auto}
+.ach-hist-btn{display:grid;gap:2px;width:100%;text-align:left;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer}
+.ach-hist-btn:hover{border-color:var(--forest)}
+.ach-hist-btn[aria-current="true"]{border-color:var(--forest);box-shadow:inset 3px 0 0 var(--forest)}
+.ach-hist-question{font-size:13.5px;font-weight:600;line-height:1.35;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ach-hist-meta{font-size:12px;color:var(--muted)}
+.ach-hist-derniere{font-size:12px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* ---------------------------------------------------------------- tablette et mobile : une colonne */
 @media (max-width:860px){
   .ach-hero-haut{grid-template-columns:1fr}
+  .ach-qa{grid-template-columns:1fr}
+  .ach-historique-panneau{position:static;order:-1}
+  .ach-historique{max-height:14rem}
   .ach-hero-visuel .dr-photo-img,.ach-hero-visuel .dr-visuel svg{height:auto}
   .ach-hero-panneau{padding:20px}
   .ach-hero-panneau h2{font-size:25px}
@@ -185,12 +247,24 @@
 }
 @media (prefers-reduced-motion:reduce){
   .ach-carte,.ach-carte:hover{transition:none;transform:none}
+  .ach-patience::before{animation:none}
 }
 
 /* ---------------------------------------------------------------- impression : la fiche seule, sans boutons */
 @media print{
-  .ach-entete .cq-intro,.ach-marche,.ach-filtres,.ach-fil-ariane,#ach-assistant,.ach-assistant-absent,#ach-nda,#ach-decouverte,.ach-loupe,.dr-vis,
-  .btn,.dr-doc-actions,.dr-doc-msg,.ach-agrandir,#ach-docs-msg,.ach-section > .dr-aide{display:none !important}
+  .ach-entete .cq-intro,.ach-marche,.ach-filtres,.ach-fil-ariane,.ach-assistant-absent,#ach-nda,#ach-decouverte,.ach-loupe,.dr-vis,
+  .btn,.dr-doc-actions,.dr-doc-msg,.ach-agrandir,#ach-docs-msg,.ach-section > .dr-aide,
+  #ach-assistant .dr-aide,#ach-assistant .dr-poser,#ach-q-msg,#ach-assistant .dr-confidentialite,.ach-historique-panneau,
+  .ach-patience,.ach-r-actions,.ach-r-msg{display:none !important}
+  /* le fil des questions et réponses s'imprime (s'il y en a un) ; sans fil, la carte de l'assistant disparaît */
+  #ach-assistant{border:0;background:none;padding:0}
+  #ach-assistant:has(.ach-fil:empty){display:none !important}
+  .ach-qa{display:block}
+  .ach-echange,.ach-reponse{break-inside:avoid}
+  .ach-bulle-q{max-width:none;justify-self:stretch;background:none;color:var(--ink);border:1px solid var(--forest);box-shadow:none}
+  .ach-bulle-date{color:var(--muted)}
+  .ach-reponse{box-shadow:none}
+  .ach-sources-liste li{font-size:12px}
   .ach-fiche{gap:12px}
   .ach-hero,.ach-section,.ach-dossier{box-shadow:none;break-inside:avoid-page}
   .ach-hero-panneau,.ach-puce,.ach-badge,.ach-points li::before,.ach-section > h3::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}

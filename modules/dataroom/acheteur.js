@@ -24,6 +24,14 @@
      la data room » juste dessous, puis Présentation, Points forts, Galerie (photo agrandie au clic) et Documents par
      dossier repliable (icône selon le type, taille, date, étape, cadenas). Cartes de la grille : photo en couverture,
      badges, puissance en grand.
+   - Questions enregistrées et rangées (sql/12_questions.sql, 25/11/2026) : dans « Interroger la data room », le panneau
+     « Vos questions sur ce projet » liste les conversations du compte dans cette salle (dr_mes_conversations : les
+     siennes seulement, jamais celles d'un collègue ni les essais de l'équipe), relu après chaque question ; un clic
+     rouvre la conversation (dr_assistant_conversation) dans le fil. Réponse mise en page par un petit rendu SÛR, en
+     DOM (createElement et textContent, jamais de HTML) : paragraphes, listes à puces et numérotées, **gras**, titres
+     simples ; les renvois [1], [2]… deviennent des pastilles qui ouvrent le document cité à sa page dans la visionneuse
+     (document ouvert à l'acheteur et affichable ; sinon pastille inerte avec infobulle) ; « Sources (n) » repliable,
+     date et heure, « Copier la réponse » (texte brut), réponse absente dite clairement ; le fil s'imprime.
    La base revérifie tout à chaque appel (conditions 1 à 4, étape, droits par dossier, dossiers réservés) et refuse
    toujours de la même façon (42501 « accès refusé ») ; la page n'affiche que ce qu'elle a reçu. Tout texte venu de la
    base passe par textContent ou setAttribute ; aucun script extérieur ni en ligne. */
@@ -248,7 +256,10 @@
   }
 
   // ------------------------------------------------------------------ état
-  const ach = {projets: [], choisi: null, conversation: null, photosMarche: new Map(), photosFiche: []};
+  // tour : change chaque fois que le fil est vidé ou remplacé (autre projet, conversation rouverte, nouvelle conversation) ;
+  // une réponse arrivée après ce changement n'est pas mise dans le fil d'une autre conversation (rangée dans la liste)
+  const ach = {projets: [], choisi: null, conversation: null, photosMarche: new Map(), photosFiche: [], docs: new Map(),
+               tour: 0, ouverture: 0};
 
   // ------------------------------------------------------------------ marketplace (dr_marche)
   function remplirChoix(select, valeurs, libelles) {
@@ -331,7 +342,7 @@
   function montrerGrille() {
     visionneuse.fermer();
     fermerLoupe(false);
-    ach.choisi = null; ach.conversation = null;
+    ach.choisi = null; ach.conversation = null; ach.tour++;
     ach.photosFiche = [];
     $("ach-galerie").textContent = ""; $("ach-galerie").hidden = true; $("ach-galerie-section").hidden = true;
     garderPhotos(cheminsUtiles());
@@ -470,9 +481,10 @@
     if (!p) return;
     visionneuse.fermer();
     fermerLoupe(false);
-    ach.choisi = p; ach.conversation = null;
+    ach.choisi = p; ach.conversation = null; ach.docs = new Map(); ach.tour++;
     msg("");
     $("ach-fil").textContent = ""; ecrire($("ach-q-msg"), ""); $("ach-question").value = "";
+    $("ach-historique").textContent = ""; ecrire($("ach-hist-msg"), "");
     $("ach-docs").textContent = ""; ecrire($("ach-docs-msg"), ""); ecrire($("ach-nda-msg"), ""); ecrire($("ach-d-msg"), "");
     $("ach-projet").hidden = true; $("ach-decouverte").hidden = true; $("ach-nda").hidden = true;
     $("ach-bandeau").hidden = true; $("ach-bandeau").textContent = "";
@@ -521,6 +533,7 @@
     $("ach-assistant").hidden = !p.assistant_actif;
     $("ach-assistant-absent").hidden = !!p.assistant_actif;
     await chargerDocuments(p);
+    if (p.assistant_actif && !$("ach-assistant").hidden) await chargerHistorique(p);
   }
 
   // bandeau du héros : étape atteinte et fin d'accès en toutes lettres, puis les 4 étapes du processus de vente
@@ -597,6 +610,7 @@
       return;
     }
     const docs = (Array.isArray(data) ? data : []).filter(d => d && d.element_id);
+    ach.docs = new Map(docs.map(d => [d.element_id, d]));   // pastilles des réponses : document ouvert et affichable ?
     if (!docs.length) { ecrire(m, "Aucun document publié dans ce projet pour le moment."); return; }
     const ouverts = docs.filter(d => d.accessible === true).length;
     ecrire(m, `${ouverts} document${ouverts > 1 ? "s" : ""} ouvert${ouverts > 1 ? "s" : ""} pour vous sur ${docs.length}.`);
@@ -686,25 +700,277 @@
     : e && e.code === "42501" ? "Ce document ne vous est pas (ou plus) ouvert."
     : e && e.code === "55000" ? "Document indisponible pour le moment : l'équipe Almavision est prévenue."
     : `Ouverture impossible : ${messageBase(e)}.`;
-  async function ouvrirDocument(id, action, dire) {
+  // page : celle d'un passage cité par l'assistant (la visionneuse s'ouvre à cette page)
+  async function ouvrirDocument(id, action, dire, page = null) {
     dire(action === "telecharger" ? "Préparation du téléchargement…" : "Ouverture…");
     const {data, error} = await appel("dr_autoriser", {p_element: id, p_action: action});
     if (error || !data) { dire(refusOuverture(error)); return; }
     if (action === "telecharger") await visionneuse.telecharger(data, dire);
-    else { dire(""); await visionneuse.consulter(data); }
+    else { dire(""); await visionneuse.consulter(data, page ? {page} : {}); }
   }
 
   // ---------------- assistant (fonction serveur « assistant », même appel que l'écran de l'acquéreur de dataroom.js)
+  const DATE_HEURE = new Intl.DateTimeFormat("fr-FR", {dateStyle: "short", timeStyle: "short"});
+  const dateHeure = d => { const x = d ? new Date(d) : null; return x && !Number.isNaN(x.getTime()) ? DATE_HEURE.format(x) : ""; };
+  const ABSENTE = "Cette information ne figure pas dans la dataroom.";
+  const ouDansDoc = c => c.feuille ? `feuille « ${c.feuille} »` : c.page != null ? `page ${c.page}` : "";
+  const pageDe = c => { const n = Number(c && c.page); return Number.isInteger(n) && n >= 1 ? n : null; };
+  // un renvoi s'ouvre si le document cité est listé ouvert pour l'acheteur et affichable dans la visionneuse
+  const docOuvrable = c => { const d = c && c.element_id ? ach.docs.get(c.element_id) : null;
+                             return d && d.accessible === true && consultable(d.mime) ? d : null; };
+
+  // ---- petit rendu SÛR du texte de Claude : tout passe par createElement et textContent, jamais par du HTML. Blocs :
+  // paragraphes (lignes vides), listes à puces (« - », « * », « • ») et numérotées (« 1. », « 1) »), titres simples
+  // (« # » à « ### ») ; dans une ligne : **gras** et renvois [n] (pastilles ; « [fiche du projet] », renvoi à la fiche
+  // publique posé par supabase/functions/assistant/claude.ts : pastille inerte). Le reste est du texte, tel quel.
+  function enLigne(parent, texte, renvoi) {
+    const re = /\*\*([^*\n]+?)\*\*|\[(\d{1,2})\]|\[fiche du projet\]/g;
+    let i = 0, m;
+    while ((m = re.exec(texte))) {
+      if (m.index > i) parent.append(texte.slice(i, m.index));
+      if (m[1] != null) { const s = el("strong"); enLigne(s, m[1], renvoi); parent.appendChild(s); }
+      else if (m[2] != null) parent.appendChild(renvoi(Number(m[2])));
+      else {
+        const f = el("span", "ach-renvoi fiche", "fiche");
+        f.title = "Passage tiré de la fiche publique du projet";
+        parent.appendChild(f);
+      }
+      i = re.lastIndex;
+    }
+    if (i < texte.length) parent.append(texte.slice(i));
+  }
+  // une ligne faite seulement de renvois (« [1][2] » ajoutés par claude.ts après un bloc qui finit par un retour à la
+  // ligne) se rattache au bloc précédent, au lieu de faire un paragraphe à elle seule
+  const RENVOIS_SEULS = /^\s*(?:\[(?:\d{1,2}|fiche du projet)\]\s*)+$/;
+  const dernier = n => n && n.children.length ? n.children[n.children.length - 1] : null;
+  function rendreTexte(texte, renvoi) {
+    const corps = el("div", "ach-r-corps");
+    let para = null, liste = null;
+    const finir = () => { para = null; liste = null; };
+    for (const brute of String(texte || "").replace(/\r\n?/g, "\n").split("\n")) {
+      const ligne = brute.trimEnd();
+      if (!ligne.trim()) { finir(); continue; }
+      if (RENVOIS_SEULS.test(ligne)) {
+        let cible = (liste && dernier(liste)) || para || dernier(corps);
+        if (cible && /^(UL|OL)$/.test(cible.tagName)) cible = dernier(cible);
+        if (cible) { cible.append(" "); enLigne(cible, ligne.trim(), renvoi); continue; }
+      }
+      let m;
+      if ((m = /^\s{0,3}(#{1,3})\s+(.+)$/.exec(ligne))) {
+        finir();
+        const h = el("h4", "ach-r-titre");
+        enLigne(h, m[2].replace(/\s*#+\s*$/, ""), renvoi);
+        corps.appendChild(h);
+        continue;
+      }
+      const puce = /^\s*[-*•]\s+(.+)$/.exec(ligne), num = /^\s*(\d{1,3})[.)]\s+(.+)$/.exec(ligne);
+      if (puce || num) {
+        const balise = puce ? "UL" : "OL";
+        if (!liste || liste.tagName !== balise) {
+          para = null;
+          liste = el(balise.toLowerCase(), "ach-r-liste");
+          if (num && Number(num[1]) > 1) liste.setAttribute("start", num[1]);
+          corps.appendChild(liste);
+        }
+        const li = el("li");
+        enLigne(li, (puce || num)[puce ? 1 : 2], renvoi);
+        liste.appendChild(li);
+        continue;
+      }
+      // suite d'un élément de liste (ligne indentée) ou d'un paragraphe : même bloc, à la ligne
+      if (liste && /^\s{2,}\S/.test(ligne) && liste.children.length) {
+        const li = liste.children[liste.children.length - 1];
+        li.appendChild(el("br"));
+        enLigne(li, ligne.trim(), renvoi);
+        continue;
+      }
+      liste = null;
+      if (para) para.appendChild(el("br"));
+      else { para = el("p"); corps.appendChild(para); }
+      enLigne(para, ligne.trim(), renvoi);
+    }
+    return corps;
+  }
+  // texte brut (copie) : sans marques de gras ni de titre, sources à la fin
+  function texteBrut(texte, citations) {
+    const t = String(texte || "").replace(/\*\*([^*\n]+?)\*\*/g, "$1").replace(/^\s{0,3}#{1,3}\s+/gm, "").trim();
+    const s = citations.map(c => `[${c.n}] ${c.nom || "document"}${ouDansDoc(c) ? `, ${ouDansDoc(c)}` : ""}`);
+    return s.length ? `${t}\n\nSources :\n${s.join("\n")}` : t;
+  }
+  async function copier(texte, dire) {
+    const presse = typeof navigator !== "undefined" && navigator.clipboard;
+    if (!presse || typeof presse.writeText !== "function") { dire("Copie impossible dans ce navigateur : sélectionnez le texte."); return; }
+    try { await presse.writeText(texte); dire("Réponse copiée."); }
+    catch { dire("Copie refusée par le navigateur : sélectionnez le texte."); }
+  }
+
+  // une question (bulle) et sa réponse mises en page ; citations : [{n, element_id, nom, page, feuille}]
+  function echange(question, poseLe, reponse, resultat, citations) {
+    const li = el("li", "ach-echange");
+    const q = el("div", "ach-bulle-q");
+    q.appendChild(el("p", "ach-bulle-texte", question));
+    if (poseLe) q.appendChild(el("p", "ach-bulle-date", dateHeure(poseLe)));
+    li.appendChild(q);
+    const cits = (Array.isArray(citations) ? citations : [])
+      .filter(c => c && Number.isInteger(Number(c.n))).map(c => ({...c, n: Number(c.n)}));
+    const r = el("article", "ach-reponse");
+    r.setAttribute("aria-label", "Réponse de l'assistant");
+    const tete = el("div", "ach-r-tete");
+    tete.appendChild(el("span", "ach-r-auteur", "Assistant de la data room"));
+    if (poseLe) tete.appendChild(el("span", "ach-r-date", dateHeure(poseLe)));
+    r.appendChild(tete);
+    const etat = el("p", "ach-r-msg");
+    etat.setAttribute("role", "status");
+    const dire = t => { etat.textContent = t; };
+    const ouvrir = (c, d) => ouvrirDocument(d.element_id, "consulter", dire, pageDe(c));
+    // pastille [n] : bouton si le document s'ouvre, sinon inerte avec infobulle
+    const renvoi = n => {
+      const c = cits.find(x => x.n === n), d = docOuvrable(c);
+      const ou = c ? ouDansDoc(c) : "";
+      if (c && d) {
+        const b = bouton(String(n), () => ouvrir(c, d), "ach-renvoi", `Source ${n} : ouvrir « ${c.nom || d.nom} »${ou ? `, ${ou}` : ""}`);
+        b.title = `${c.nom || d.nom}${ou ? `, ${ou}` : ""}`;
+        return b;
+      }
+      const s = el("span", "ach-renvoi inerte", String(n));
+      s.title = c ? `${c.nom || "Document"}${ou ? `, ${ou}` : ""} : document pas ouvert dans la plateforme pour vous`
+        : "Source plus disponible (document retiré ou accès modifié)";
+      return s;
+    };
+    const texte = typeof reponse === "string" ? reponse : "";
+    const absente = resultat === "sans_reponse" || (!cits.length && texte.trim() === ABSENTE);
+    if (absente) {
+      r.classList.add("absente");
+      const a = el("div", "ach-r-absente");
+      a.appendChild(el("p", "ach-r-absente-titre", "Information introuvable dans les documents qui vous sont ouverts."));
+      a.appendChild(el("p", null, "Reformulez la question (autres mots, un seul sujet à la fois), ou posez-la à votre "
+                                  + "contact chez Almavision."));
+      r.appendChild(a);
+      const reste = texte.replace(ABSENTE, "").trim();
+      if (reste) r.appendChild(rendreTexte(reste, renvoi));
+    } else if (texte.trim()) {
+      if (resultat === "partiel") r.appendChild(el("p", "ach-r-note", "Réponse partielle : une partie de la question ne trouve pas de réponse dans les documents."));
+      r.appendChild(rendreTexte(texte, renvoi));
+    } else {
+      r.classList.add("absente");
+      r.appendChild(el("p", "ach-r-note", resultat === "en_cours" ? "Réponse pas terminée (interrompue) : reposez la question."
+        : "Pas de réponse enregistrée pour cette question (assistant indisponible à ce moment-là)."));
+    }
+    if (cits.length) {
+      const src = el("details", "ach-sources");
+      src.appendChild(el("summary", null, `Sources (${cits.length})`));
+      const ol = el("ol", "ach-sources-liste");
+      for (const c of cits) {
+        const l = el("li");
+        l.appendChild(el("span", "ach-renvoi inerte", String(c.n)));
+        const ou = ouDansDoc(c);
+        l.appendChild(el("span", "ach-source-nom", `${c.nom || "Document"}${ou ? `, ${ou}` : ""}`));
+        const d = docOuvrable(c);
+        if (d) l.appendChild(bouton(pageDe(c) ? `Ouvrir à la page ${pageDe(c)}` : "Ouvrir", () => ouvrir(c, d), "btn small",
+                                    `Ouvrir « ${c.nom || d.nom} »${ou ? `, ${ou}` : ""}`));
+        else l.appendChild(el("span", "ach-source-ferme", "non ouvert pour vous"));
+        ol.appendChild(l);
+      }
+      src.appendChild(ol);
+      r.appendChild(src);
+    }
+    if (texte.trim()) {
+      const actions = el("div", "ach-r-actions");
+      actions.appendChild(bouton("Copier la réponse", () => copier(texteBrut(texte, cits), dire), "btn small ach-copier",
+                                 "Copier la réponse (texte brut, avec les sources)"));
+      r.appendChild(actions);
+    }
+    r.appendChild(etat);
+    li.appendChild(r);
+    return li;
+  }
+
+  // ---- historique : les conversations du compte dans cette salle (dr_mes_conversations, sql/12_questions.sql)
+  async function chargerHistorique(p) {
+    const zone = $("ach-historique"), m = $("ach-hist-msg");
+    const {data, error} = await appel("dr_mes_conversations", {p_salle: p.salle_id});
+    if (ach.choisi !== p) return;
+    zone.textContent = "";
+    if (error) {
+      ecrire(m, error.code === "42501" ? REFUS : ["PGRST202", "42883"].includes(String(error.code))
+        ? "Historique pas encore disponible." : `Historique illisible : ${messageBase(error)}.`, "erreur");
+      return;
+    }
+    const liste = (Array.isArray(data) ? data : []).filter(c => c && c.conversation_id);
+    if (!liste.length) {
+      ecrire(m, "Aucune question pour le moment. Chaque question posée ici est enregistrée : vous la retrouverez dans "
+                + "cette liste, avec sa réponse et ses sources.");
+      return;
+    }
+    ecrire(m, `${liste.length} conversation${liste.length > 1 ? "s" : ""}, la plus récente d'abord.`);
+    for (const c of liste) {
+      const li = el("li");
+      const n = Number(c.questions) || 0;
+      const b = bouton("", () => rouvrirConversation(p, c.conversation_id), "ach-hist-btn",
+                       `Rouvrir la conversation « ${c.premiere_question || ""} »`);
+      b.dataset.conversation = c.conversation_id;
+      b.appendChild(el("span", "ach-hist-question", c.premiere_question || "(question)"));
+      const meta = `${n} question${n > 1 ? "s" : ""} · dernière le ${dateHeure(c.derniere)}`;
+      b.appendChild(el("span", "ach-hist-meta", meta));
+      if (n > 1 && c.derniere_question && c.derniere_question !== c.premiere_question) {
+        b.appendChild(el("span", "ach-hist-derniere", `Dernière : ${c.derniere_question}`));
+      }
+      b.setAttribute("aria-current", c.conversation_id === ach.conversation ? "true" : "false");
+      li.appendChild(b);
+      zone.appendChild(li);
+    }
+  }
+  function marquerHistorique() {
+    for (const b of $("ach-historique").querySelectorAll("button")) {
+      b.setAttribute("aria-current", b.dataset.conversation === ach.conversation ? "true" : "false");
+    }
+  }
+  async function rouvrirConversation(p, id) {
+    const m = $("ach-q-msg");
+    ecrire(m, "Ouverture de la conversation…");
+    const demande = ++ach.ouverture;   // deux clics rapides : seule la dernière conversation demandée s'affiche
+    const {data, error} = await appel("dr_assistant_conversation", {p_conversation: id});
+    if (ach.choisi !== p || ach.ouverture !== demande) return;
+    if (error || !data || !Array.isArray(data.questions)) {
+      ecrire(m, error && error.code === "42501" ? "Conversation introuvable ou fermée." : `Ouverture impossible : ${messageBase(error)}.`, "erreur");
+      return;
+    }
+    ach.conversation = id; ach.tour++;
+    const fil = $("ach-fil");
+    fil.textContent = "";
+    for (const q of data.questions) {
+      if (!q) continue;
+      fil.appendChild(echange(q.question || "", q.cree_le, q.reponse, q.resultat, q.citations));
+    }
+    marquerHistorique();
+    const n = data.questions.length;
+    ecrire(m, `Conversation rouverte (${n} question${n > 1 ? "s" : ""}) : vos nouvelles questions la poursuivent.`);
+    annoncer("Conversation rouverte.");
+    $("ach-question").focus();
+  }
+
   async function poserQuestion(ev) {
     ev.preventDefault();
     const p = ach.choisi, m = $("ach-q-msg"), question = $("ach-question").value.trim();
     if (!p || !p.participe || !p.assistant_actif || p.nda_a_accepter) return;
     if (question.length < 2) { ecrire(m, "Tapez une question.", "erreur"); return; }
     $("ach-q-go").disabled = true;
-    ecrire(m, "L'assistant cherche dans les documents et rédige sa réponse…");
+    ecrire(m, "");
+    const tour = ach.tour;
+    // la question s'affiche tout de suite, avec l'état d'attente sous elle
+    const attente = el("li", "ach-echange ach-attente");
+    const bulle = el("div", "ach-bulle-q");
+    bulle.appendChild(el("p", "ach-bulle-texte", question));
+    attente.appendChild(bulle);
+    const patience = el("p", "ach-patience", "Recherche dans les documents…");
+    patience.setAttribute("role", "status");
+    attente.appendChild(patience);
+    $("ach-fil").appendChild(attente);
+    $("ach-assistant").setAttribute("aria-busy", "true");
     const jeton = await jetonActuel();
     const arret = new AbortController(), minuterie = setTimeout(() => arret.abort(), 150000);
     let rep, corps = null;
+    const fin = () => { attente.remove(); $("ach-q-go").disabled = false; $("ach-assistant").setAttribute("aria-busy", "false"); };
     try {
       rep = await fetch(`${conf.url}/functions/v1/assistant`, {
         method: "POST", redirect: "error", credentials: "omit", cache: "no-store", signal: arret.signal,
@@ -713,14 +979,15 @@
       });
       try { corps = await rep.json(); } catch { corps = null; }
     } catch {
+      fin();
       ecrire(m, "Pas de réponse du serveur : réessayez dans un moment.", "erreur");
-      $("ach-q-go").disabled = false;
       return;
     } finally { clearTimeout(minuterie); }
-    $("ach-q-go").disabled = false;
+    fin();
     if (ach.choisi !== p) return;
     // codes de la fonction serveur (supabase/functions/assistant/index.ts) : 403 assistant coupé par l'équipe (DRA01),
-    // 429 plafond du jour (DRJ01) ou du mois (DRM01), 401 accès fermé, 502 Claude indisponible
+    // 429 plafond du jour (DRJ01) ou du mois (DRM01), 401 accès fermé, 502 Claude indisponible, 400 demande refusée
+    // (conversation d'une étape précédente, par exemple)
     if (!rep.ok || !corps || typeof corps.reponse !== "string") {
       const erreur = corps && typeof corps.erreur === "string" ? corps.erreur : "";
       if (rep.status === 403) {
@@ -735,26 +1002,22 @@
         : rep.status === 429 ? "Nombre de questions du jour atteint : reprenez demain."
         : rep.status === 401 ? "Accès à l'assistant fermé pour ce projet."
         : rep.status === 502 ? "Assistant indisponible pour le moment : réessayez plus tard."
+        : rep.status === 400 && ach.conversation
+          ? "Cette conversation ne peut plus être poursuivie (votre étape a changé) : cliquez sur « Nouvelle conversation »."
         : "L'assistant n'a pas pu répondre : réessayez.", "erreur");
+      return;
+    }
+    if (ach.tour !== tour) {
+      // le fil a changé pendant l'attente (conversation rouverte ou nouvelle) : la réponse est rangée, pas mêlée au fil
+      ecrire(m, "Réponse reçue : elle est rangée dans « Vos questions sur ce projet ».");
+      await chargerHistorique(p);
       return;
     }
     ach.conversation = corps.conversation;
     $("ach-question").value = "";
-    const li = el("li", "dr-echange");
-    li.appendChild(el("p", "dr-q", question));
-    li.appendChild(el("p", "dr-r", corps.reponse));
-    const cits = Array.isArray(corps.citations) ? corps.citations : [];
-    if (cits.length) {
-      const ul = el("ul", "dr-citations");
-      for (const c of cits) {
-        const ou = c.feuille ? `feuille « ${c.feuille} »` : c.page != null ? `page ${c.page}` : "";
-        ul.appendChild(el("li", null, `[${c.n}] ${c.nom}${ou ? `, ${ou}` : ""}`));
-      }
-      li.appendChild(ul);
-    }
-    $("ach-fil").appendChild(li);
-    ecrire(m, "");
+    $("ach-fil").appendChild(echange(question, new Date().toISOString(), corps.reponse, corps.resultat, corps.citations));
     annoncer("Réponse de l'assistant reçue.");
+    await chargerHistorique(p);   // la liste range la question tout de suite
   }
 
   // ---------------- fiche de découverte : informations publiques seulement, aucun document
@@ -821,14 +1084,21 @@
   $("ach-loupe").addEventListener("click", ev => {
     if (ev.target === $("ach-loupe") || ev.target === $("ach-loupe-zone")) fermerLoupe();
   });
-  // impression : tous les dossiers dépliés (la feuille de style d'impression cache boutons, filtres et assistant)
+  // impression : tous les dossiers et toutes les sources dépliés (la feuille de style d'impression cache boutons,
+  // filtres et formulaire de l'assistant ; le fil des questions et réponses s'imprime)
   if (typeof window.addEventListener === "function") {
-    window.addEventListener("beforeprint", () => { for (const d of $("ach-docs").querySelectorAll("details")) d.open = true; });
+    window.addEventListener("beforeprint", () => {
+      for (const d of [...$("ach-docs").querySelectorAll("details"), ...$("ach-fil").querySelectorAll("details")]) d.open = true;
+    });
   }
   $("ach-nda-go").addEventListener("click", accepterClause);
   $("ach-form-question").addEventListener("submit", poserQuestion);
-  $("ach-nouvelle").addEventListener("click", () => { ach.conversation = null; $("ach-fil").textContent = "";
-                                                      ecrire($("ach-q-msg"), "Nouvelle conversation."); });
+  $("ach-nouvelle").addEventListener("click", () => {
+    ach.conversation = null; ach.tour++; $("ach-fil").textContent = "";
+    marquerHistorique();
+    ecrire($("ach-q-msg"), "Nouvelle conversation : les précédentes restent dans « Vos questions sur ce projet ».");
+    $("ach-question").focus();
+  });
   $("ach-form-demande").addEventListener("submit", demanderAcces);
   await chargerMarche();
 })();

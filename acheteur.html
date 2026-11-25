@@ -1,4 +1,4 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=92b9ba0dcf"><link rel="stylesheet" href="modules/dataroom/visionneuse.css?v=f102ea9cc4"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=ef4ef46533"></head><body>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=92b9ba0dcf"><link rel="stylesheet" href="modules/dataroom/visionneuse.css?v=f102ea9cc4"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=849ee19ac3"></head><body>
 <script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}], "vue": "invites"}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
@@ -114,13 +114,24 @@
         vous sont ouverts, avec le document et la page de chaque passage cité. Par exemple : « Quel est le productible
         P50 ? », « Quelle est la durée du bail ? », « Où en est le raccordement ? ». Vérifiez dans les documents cités ;
         aucun avis juridique, fiscal ou d'investissement.</p>
-      <form class="dr-form dr-poser" id="ach-form-question" autocomplete="off" novalidate>
-        <label for="ach-question">Votre question</label>
-        <textarea id="ach-question" rows="2" maxlength="2000" placeholder="Ex. : quelle est la durée du bail et le loyer ?"></textarea>
-        <div class="dr-boutons"><button class="btn primary" type="submit" id="ach-q-go">Interroger</button></div>
-      </form>
-      <p class="dr-msg" id="ach-q-msg" role="status" aria-live="polite"></p>
-      <ol class="dr-fil" id="ach-fil"></ol>
+      <div class="ach-qa">
+        <div class="ach-qa-principal">
+          <form class="dr-form dr-poser" id="ach-form-question" autocomplete="off" novalidate>
+            <label for="ach-question">Votre question</label>
+            <textarea id="ach-question" rows="2" maxlength="2000" placeholder="Ex. : quelle est la durée du bail et le loyer ?"></textarea>
+            <div class="dr-boutons"><button class="btn primary" type="submit" id="ach-q-go">Interroger</button></div>
+          </form>
+          <p class="dr-msg" id="ach-q-msg" role="status" aria-live="polite"></p>
+          <!-- fil : chaque question en bulle, puis la réponse mise en page (acheteur.js, rendu sûr en DOM) -->
+          <ol class="dr-fil ach-fil" id="ach-fil" aria-live="polite" aria-relevant="additions" aria-label="Questions et réponses"></ol>
+        </div>
+        <!-- questions enregistrées : les conversations du compte dans ce projet (dr_mes_conversations) -->
+        <aside class="ach-historique-panneau" aria-labelledby="ach-hist-titre">
+          <h4 id="ach-hist-titre">Vos questions sur ce projet</h4>
+          <p class="dr-msg" id="ach-hist-msg" role="status"></p>
+          <ul class="ach-historique" id="ach-historique"></ul>
+        </aside>
+      </div>
       <details class="dr-confidentialite">
         <summary>Confidentialité</summary>
         <p>Pour chaque question, la plateforme envoie à Claude (Anthropic, États-Unis) la question et, au plus, 8 extraits
@@ -218,6 +229,6 @@
   </div>
 </main>
 <script src="plateforme/coquille.js?v=cff860c8a7"></script>
-<script src="modules/dataroom/visionneuse.js?v=c04ae8901d"></script>
-<script src="modules/dataroom/acheteur.js?v=d59cbaa6a8"></script>
+<script src="modules/dataroom/visionneuse.js?v=9398eae7f4"></script>
+<script src="modules/dataroom/acheteur.js?v=c7e3c1d381"></script>
 </body></html>
