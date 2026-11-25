@@ -1,5 +1,6 @@
-/* Page de l'acquéreur (acheteur.html) : grille de projets façon marketplace et fiche produit. S'appuie sur dataroom.css
-   (messages, visuels, visionneuse, assistant) et sur les couleurs de la coquille (charte Almavision). */
+/* Page de l'acquéreur (acheteur.html) : grille de projets façon marketplace et fiche projet soignée (25/11/2026).
+   S'appuie sur dataroom.css (messages, visuels, visionneuse, assistant) et sur les couleurs de la coquille (charte
+   Almavision : vert sapin --forest 00352F, DM Sans, hexagones). Motifs dessinés en SVG data: (img-src 'self' data:). */
 .ach-entete{margin-bottom:8px}
 .ach-entete h1{margin-bottom:4px}
 
@@ -11,61 +12,189 @@
 .ach-filtres .ach-case{display:flex;align-items:center;gap:6px;height:36px}
 .ach-case input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
 
-/* grille de cartes */
-.ach-grille{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr))}
-.ach-carte{position:relative;display:flex;flex-direction:column;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:12px 14px 14px;cursor:pointer;transition:box-shadow .15s,border-color .15s}
-.ach-carte:hover{border-color:var(--mint);box-shadow:0 6px 18px rgba(0,53,47,.08)}
-.ach-carte:focus-within{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+/* pastilles (technologie, stade, région) et badge « Vos projets » */
+.ach-puces{display:flex;flex-wrap:wrap;gap:6px;margin:0}
+.ach-puce{display:inline-block;font-size:12px;line-height:1.5;border-radius:999px;padding:1px 10px;background:var(--accent-weak);color:var(--forest);font-weight:500;white-space:nowrap}
+.ach-badge{display:inline-block;align-self:flex-start;font-size:12px;line-height:1.5;border-radius:999px;padding:1px 10px;background:var(--forest);color:#fff;font-weight:600;white-space:nowrap}
+
+/* grille de cartes : couverture 16:9, corps, puissance en grand */
+.ach-grille{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr))}
+.ach-carte{position:relative;display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:14px;overflow:hidden;cursor:pointer;transition:box-shadow .15s,border-color .15s,transform .15s}
+.ach-carte:hover{border-color:var(--mint);box-shadow:0 10px 26px rgba(0,53,47,.10);transform:translateY(-2px)}
+.ach-carte:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
 .ach-carte.miens{border-color:var(--forest);box-shadow:0 0 0 1px var(--forest)}
-.ach-carte-nom{margin:2px 0 0;font-size:16px;color:var(--forest)}
+.ach-carte > .dr-visuel{width:100%;margin:0;border-radius:0;aspect-ratio:16/9}
+.ach-carte > .dr-visuel svg{height:100%}
+.ach-carte .ach-badge{position:absolute;top:10px;left:10px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.ach-carte-corps{flex:1;display:flex;flex-direction:column;gap:5px;padding:12px 16px 16px}
+.ach-carte-nom{margin:2px 0 0;font-size:17px;line-height:1.25;color:var(--forest);overflow-wrap:anywhere}
+.ach-carte-puissance{margin:0;font-size:24px;font-weight:700;line-height:1.1;color:var(--forest);letter-spacing:-.01em}
 .ach-carte-infos{margin:0;font-size:13px;color:var(--ink2)}
 .ach-carte-etat{margin:0;font-size:12.5px;color:var(--accent);font-weight:600}
-.ach-carte-extrait{margin:2px 0 6px;font-size:13px;color:var(--muted)}
+.ach-carte-extrait{margin:2px 0 8px;font-size:13px;color:var(--muted)}
 .ach-carte-voir{align-self:flex-start;margin-top:auto}
-.ach-badge{align-self:flex-start;font-size:12px;border-radius:999px;padding:1px 10px;background:var(--forest);color:#fff;font-weight:600;white-space:nowrap}
-.ach-carte .ach-badge{position:absolute;top:20px;left:22px}
 
-/* fiche produit */
-.ach-fiche{display:grid;gap:12px}
-.ach-fiche > .btn{justify-self:start}
-/* « Interroger la data room » en tête de fiche, mis en avant */
-.ach-vedette{border:2px solid var(--forest);background:linear-gradient(180deg,rgba(0,53,47,.05),var(--bg) 60%)}
-.ach-vedette h3{color:var(--forest);font-size:18px}
-.ach-vedette textarea{font-size:15px}
-.dr-doc-actions .btn[disabled]{opacity:.5;cursor:not-allowed}
-.ach-fiche-tete{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
-.ach-fiche-infos{flex:1 1 18rem;display:grid;gap:6px}
-.ach-fiche-infos h2{margin:0;font-size:22px;color:var(--forest)}
-.ach-fiche-infos h2:focus{outline:none}
-.ach-badge-zone{margin:0}
+/* ---------------------------------------------------------------- fiche projet */
+.ach-fiche{display:grid;gap:18px}
+.ach-fil-ariane{margin:0}
+.ach-retour{border:0;background:none;padding:4px 2px;font:inherit;font-size:14px;color:var(--accent);cursor:pointer;border-radius:6px}
+.ach-retour:hover{text-decoration:underline}
+
+/* héros : photo en grand | panneau vert sapin (nom de code, badges, étape) ; chiffres clés dessous */
+.ach-hero{background:var(--bg);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 4px 18px rgba(0,53,47,.06)}
+.ach-hero-haut{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr)}
+.ach-hero-visuel{position:relative;background:var(--soft)}
+.ach-hero-visuel > .dr-visuel{width:100%;height:100%;border-radius:0}
+.ach-hero-visuel .dr-photo-img{height:100%}
+.ach-hero-visuel .dr-visuel svg{height:100%}
+.ach-hero-legende{position:absolute;right:8px;bottom:8px;margin:0;max-width:min(26rem,70%);font-size:12.5px;line-height:1.4;color:#fff;background:rgba(0,53,47,.78);border-radius:8px;padding:3px 10px;pointer-events:none}
+.ach-hero-panneau{position:relative;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:26px 28px;background-color:var(--forest);color:#fff;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.08' stroke-width='1.2'%3E%3Cpath d='M28 1 54 16v30L28 61 2 46V16z'/%3E%3Cpath d='M28 61v36'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:56px 97px;background-position:right -10px top -20px}
+.ach-surtitre{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mint);font-weight:600}
+.ach-hero-panneau h2{margin:0;font-size:30px;line-height:1.15;color:#fff;overflow-wrap:anywhere}
+.ach-hero-panneau h2:focus{outline:none}
+.ach-hero-panneau h2:focus-visible{outline:2px solid var(--mint);outline-offset:3px}
+.ach-badge-zone{display:flex;flex-wrap:wrap;gap:6px;margin:0}
 .ach-badge-zone:empty{display:none}
-.ach-resume{margin:0;max-width:80ch;color:var(--ink);white-space:pre-line}
-.ach-resume:empty{display:none}
-#ach-projet,#ach-decouverte{display:grid;gap:12px}
-#ach-projet[hidden],#ach-decouverte[hidden]{display:none}
-.ach-bandeau{margin:0;background:var(--accent-weak);color:var(--forest);border-radius:10px;padding:10px 14px;font-weight:600}
-.ach-fiche h3{margin:0 0 6px;font-size:17px;color:var(--forest)}
+.ach-hero-panneau .ach-badge{background:#fff;color:var(--forest)}
+.ach-hero-panneau .ach-puce{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.28)}
+/* étape atteinte et fin d'accès, puis les 4 étapes du processus de vente */
+.ach-bandeau{margin:6px 0 0;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18)}
+.ach-bandeau[hidden]{display:none}
+.ach-bandeau-texte{margin:0;font-weight:600;font-size:14px}
+.ach-bandeau-fin{margin:4px 0 0;font-size:13px;color:#FFD9CC;font-weight:600}
+.ach-etapes{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.ach-etapes li{position:relative;padding-top:12px;font-size:11.5px;line-height:1.3;color:rgba(255,255,255,.62)}
+.ach-etapes li::before{content:"";position:absolute;top:0;left:0;right:0;height:5px;border-radius:3px;background:rgba(255,255,255,.18)}
+.ach-etapes li.faite{color:rgba(255,255,255,.85)}
+.ach-etapes li.faite::before{background:var(--mint)}
+.ach-etapes li.courante{color:#fff;font-weight:600}
+.ach-etapes li.courante::before{background:#fff}
 
-/* documents */
-.ach-dossier{margin-top:10px}
-.ach-dossier h4{margin:0 0 4px;font-size:14.5px;color:var(--forest)}
-.ach-liste{list-style:none;margin:0;padding:0;display:grid;gap:2px}
-.ach-doc{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:6px 8px;border-radius:8px;font-size:13.5px}
+/* chiffres clés en tuiles */
+.ach-chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(10rem,100%),1fr));gap:1px;margin:0;background:var(--line);border-top:1px solid var(--line)}
+.ach-chiffres[hidden]{display:none}
+.ach-tuile{background:var(--bg);padding:14px 18px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.ach-tuile dt{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.ach-tuile dd{margin:0;font-size:17px;font-weight:600;color:var(--forest);overflow-wrap:anywhere;line-height:1.25}
+.ach-tuile.forte dd{font-size:28px;font-weight:700;letter-spacing:-.01em}
+.ach-unite{font-size:15px;font-weight:600;color:var(--accent)}
+.ach-tuile.discrete dd{font-size:14px;font-family:var(--mono);color:var(--ink2);font-weight:500}
+
+/* « Interroger la data room », clause et demande d'accès : en tête, mis en avant */
+.ach-vedette{border:2px solid var(--forest);background:linear-gradient(180deg,rgba(0,53,47,.05),var(--bg) 60%)}
+.ach-vedette h3{color:var(--forest);font-size:19px;margin:0 0 6px}
+.ach-vedette textarea{font-size:15px}
+.ach-assistant-absent{margin:0;color:var(--muted);font-size:13.5px;background:var(--soft);border:1px dashed var(--line);border-radius:10px;padding:10px 14px}
+#ach-projet{display:grid;gap:18px}
+#ach-projet[hidden],.ach-section[hidden],.ach-vedette[hidden]{display:none}
+
+/* sections titrées (puce hexagonale) */
+.ach-section{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.ach-section > h3{position:relative;margin:0 0 12px;padding-left:24px;font-size:18px;color:var(--forest)}
+.ach-section > h3::before{content:"";position:absolute;left:0;top:50%;width:15px;height:17px;margin-top:-8.5px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 17'%3E%3Cpath d='M7.5 0 15 4.25v8.5L7.5 17 0 12.75v-8.5z' fill='%2300352F'/%3E%3C/svg%3E") no-repeat center/contain}
+.ach-resume{margin:0;max-width:78ch;color:var(--ink);font-size:15px;line-height:1.6;white-space:pre-line}
+.ach-points{list-style:none;margin:0;padding:0;display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(min(20rem,100%),1fr))}
+.ach-points li{position:relative;padding:10px 12px 10px 42px;background:var(--soft);border-radius:10px;font-size:14.5px;line-height:1.45;overflow-wrap:anywhere}
+.ach-points li::before{content:"";position:absolute;left:12px;top:10px;width:20px;height:22px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 22'%3E%3Cpath d='M10 0 19.5 5.5v11L10 22 .5 16.5v-11z' fill='%2300352F'/%3E%3Cpath d='m6 11.2 2.7 2.7L14.2 8.4' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center/contain}
+
+/* galerie (cadre commun des photos : dataroom.css) ; bouton « Agrandir » posé sur toute la photo */
+.ach-galerie{list-style:none;margin:0;padding:0;display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr))}
+.ach-galerie[hidden]{display:none}
+.ach-galerie-photo{position:relative}
+.ach-galerie-photo .dr-visuel{width:100%;margin:0;border-radius:10px}
+.ach-legende{margin:6px 0 0;font-size:13px;color:var(--ink2)}
+.ach-agrandir{position:absolute;inset:0;z-index:1;display:block;width:100%;border:0;margin:0;padding:0;background:transparent;cursor:zoom-in;border-radius:10px}
+.ach-galerie-photo .ach-agrandir{bottom:auto;height:auto;aspect-ratio:16/9}
+.ach-agrandir:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.ach-agrandir-signe{position:absolute;right:8px;top:8px;font-size:11.5px;font-weight:600;line-height:1.4;color:#fff;background:rgba(0,53,47,.78);border-radius:999px;padding:2px 9px;opacity:0;transition:opacity .15s}
+.ach-agrandir:hover .ach-agrandir-signe,.ach-agrandir:focus-visible .ach-agrandir-signe{opacity:1}
+
+/* photo agrandie */
+.ach-loupe{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;background:rgba(6,24,22,.94);color:#fff}
+.ach-loupe[hidden]{display:none}
+.ach-loupe-barre{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 16px}
+.ach-loupe-titre{flex:1 1 12rem;margin:0;font-size:15px;color:#fff}
+.ach-loupe-num{font-size:13px;color:var(--mint)}
+.ach-loupe .btn{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.3);color:#fff}
+.ach-loupe .btn:hover{background:rgba(255,255,255,.2)}
+.ach-loupe .btn[hidden]{display:none}
+.ach-loupe-zone{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px 16px}
+.ach-loupe-img{width:auto;max-width:100%;max-height:100%;aspect-ratio:auto;object-fit:contain;border-radius:6px}
+.ach-loupe-vide{margin:0;color:var(--mint)}
+.ach-loupe-legende{margin:0;padding:8px 16px 16px;text-align:center;font-size:14px;color:rgba(255,255,255,.9)}
+.ach-loupe-legende:empty{display:none}
+
+/* documents : un dossier repliable, une ligne par document (icône | nom et détails | boutons) */
+.ach-docs{display:grid;gap:10px;margin-top:6px}
+.ach-dossier{border:1px solid var(--line);border-radius:12px;background:var(--bg);overflow:hidden}
+.ach-dossier-tete{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--soft);cursor:pointer;list-style:none}
+.ach-dossier-tete::-webkit-details-marker{display:none}
+.ach-dossier-tete::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--forest);border-bottom:2px solid var(--forest);transform:rotate(-45deg);transition:transform .15s}
+.ach-dossier[open] > .ach-dossier-tete::before{transform:rotate(45deg)}
+.ach-dossier-tete h4{margin:0;font-size:15px;color:var(--forest);flex:1;overflow-wrap:anywhere}
+.ach-dossier-compte{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.ach-liste{list-style:none;margin:0;padding:4px 6px 6px;display:grid;gap:0}
+.ach-doc{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:4px 12px;padding:8px;border-radius:8px;font-size:14px}
+.ach-doc + .ach-doc{border-top:1px solid var(--soft)}
 .ach-doc:hover{background:var(--soft)}
-.ach-doc-nom{overflow-wrap:anywhere;font-weight:500}
+.ach-doc-icone{flex:none;color:#6B7B7E}
+.ach-doc-icone.pdf{color:#B4402A}
+.ach-doc-icone.word{color:#2B5797}
+.ach-doc-icone.excel{color:#1E7145}
+.ach-doc-icone.ppt{color:#C55A11}
+.ach-doc-icone.image{color:#00594F}
+.ach-doc-icone.archive{color:#7A6A3A}
+.ach-doc-corps{display:grid;gap:2px;min-width:0}
+.ach-doc-ligne{display:flex;align-items:center;gap:6px;min-width:0}
+.ach-doc-nom{overflow-wrap:anywhere;font-weight:600;color:var(--ink)}
+.ach-doc-meta{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;font-size:12px;color:var(--muted)}
+.ach-doc-type{font-weight:600;color:var(--ink2)}
+.ach-doc-etape{border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--ink2)}
 .ach-doc.ferme{color:var(--muted)}
-.ach-doc.ferme .ach-doc-nom{font-weight:400}
+.ach-doc.ferme .ach-doc-nom{font-weight:400;color:var(--muted)}
+.ach-doc.ferme .ach-doc-icone{opacity:.45}
 .ach-cadenas{flex:none;color:var(--muted)}
 .ach-raison{font-size:12.5px;font-style:italic;color:var(--ink2)}
-.ach-doc .dr-doc-actions{display:inline-flex;gap:6px;margin-left:auto}
-/* photos (cadre commun : dataroom.css) */
-.ach-legende{margin:4px 0 0;font-size:13px;color:var(--ink2);max-width:22rem}
-.ach-galerie{list-style:none;margin:0;padding:0;display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr))}
-.ach-galerie[hidden]{display:none}
-.ach-assistant-absent{margin:0;color:var(--muted);font-size:13.5px;background:var(--soft);border:1px dashed var(--line);border-radius:10px;padding:10px 14px}
+.ach-doc .dr-doc-actions{display:inline-flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.dr-doc-actions .btn[disabled]{opacity:.5;cursor:not-allowed}
+.ach-doc .dr-doc-msg{font-size:12.5px;color:var(--accent)}
+.ach-doc .dr-doc-msg:empty{display:none}
+.ach-note-visuels{margin:0}
 
+/* ---------------------------------------------------------------- tablette et mobile : une colonne */
+@media (max-width:860px){
+  .ach-hero-haut{grid-template-columns:1fr}
+  .ach-hero-visuel .dr-photo-img,.ach-hero-visuel .dr-visuel svg{height:auto}
+  .ach-hero-panneau{padding:20px}
+  .ach-hero-panneau h2{font-size:25px}
+}
 @media (max-width:600px){
   .ach-filtres select,.ach-filtres input[type="search"]{min-width:0;width:100%}
   .ach-filtres label{flex:1 1 100%}
-  .ach-doc .dr-doc-actions{margin-left:0}
+  .ach-section{padding:16px}
+  .ach-etapes{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ach-tuile{padding:12px 14px}
+  .ach-tuile.forte dd{font-size:24px}
+  .ach-doc{grid-template-columns:auto minmax(0,1fr)}
+  .ach-doc .dr-doc-actions{grid-column:2;justify-content:flex-start}
+  .ach-dossier-tete{flex-wrap:wrap}
+}
+@media (prefers-reduced-motion:reduce){
+  .ach-carte,.ach-carte:hover{transition:none;transform:none}
+}
+
+/* ---------------------------------------------------------------- impression : la fiche seule, sans boutons */
+@media print{
+  .ach-entete .cq-intro,.ach-marche,.ach-filtres,.ach-fil-ariane,#ach-assistant,.ach-assistant-absent,#ach-nda,#ach-decouverte,.ach-loupe,.dr-vis,
+  .btn,.dr-doc-actions,.dr-doc-msg,.ach-agrandir,#ach-docs-msg,.ach-section > .dr-aide{display:none !important}
+  .ach-fiche{gap:12px}
+  .ach-hero,.ach-section,.ach-dossier{box-shadow:none;break-inside:avoid-page}
+  .ach-hero-panneau,.ach-puce,.ach-badge,.ach-points li::before,.ach-section > h3::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .ach-doc{break-inside:avoid;grid-template-columns:auto minmax(0,1fr)}
+  .ach-dossier-tete::before{display:none}
+  .ach-tuile,.ach-points li{break-inside:avoid}
 }

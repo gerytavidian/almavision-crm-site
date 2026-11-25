@@ -1,4 +1,4 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=2985721350"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=7129743e49"></head><body>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=049be64a73"><link rel="stylesheet" href="modules/dataroom/visionneuse.css?v=f102ea9cc4"><link rel="stylesheet" href="modules/dataroom/acheteur.css?v=ef4ef46533"></head><body>
 <script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}], "vue": "invites"}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
@@ -83,17 +83,27 @@
     <ul class="ach-grille" id="ach-grille" aria-label="Projets"></ul>
   </section>
 
+  <!-- fiche projet : héros (photo, nom de code, badges, étape), chiffres clés, « Interroger la data room » juste
+       dessous, puis Présentation, Points forts, Galerie, Documents -->
   <article class="ach-fiche" id="ach-fiche" hidden aria-labelledby="ach-fiche-titre">
-    <button class="btn small" type="button" id="ach-retour">← Tous les projets</button>
-    <div class="ach-fiche-tete">
-      <div id="ach-fiche-visuel"></div>
-      <div class="ach-fiche-infos">
-        <p class="ach-badge-zone" id="ach-fiche-badge"></p>
-        <h2 id="ach-fiche-titre" tabindex="-1"></h2>
-        <dl class="dr-ach-infos" id="ach-fiche-infos"></dl>
+    <nav class="ach-fil-ariane" aria-label="Navigation">
+      <button class="ach-retour" type="button" id="ach-retour">← Tous les projets</button>
+    </nav>
+
+    <header class="ach-hero">
+      <div class="ach-hero-haut">
+        <div class="ach-hero-visuel" id="ach-fiche-visuel"></div>
+        <div class="ach-hero-panneau">
+          <p class="ach-surtitre">Projet proposé par Almavision</p>
+          <h2 id="ach-fiche-titre" tabindex="-1"></h2>
+          <p class="ach-badge-zone" id="ach-fiche-badge"></p>
+          <div class="ach-bandeau" id="ach-bandeau" role="note" hidden></div>
+        </div>
       </div>
-    </div>
-    <ul class="ach-galerie" id="ach-galerie" aria-label="Autres photos du projet" hidden></ul>
+      <h3 class="dr-lecteur" id="ach-chiffres-titre">Chiffres clés</h3>
+      <dl class="ach-chiffres" id="ach-fiche-infos" aria-labelledby="ach-chiffres-titre"></dl>
+    </header>
+
     <!-- en tête de fiche : interroger la data room (projet où l'organisation participe, assistant activé, clause acceptée) -->
     <section class="cq-carte ach-vedette" id="ach-assistant" hidden aria-labelledby="ach-assistant-titre">
       <div class="dr-tete">
@@ -122,40 +132,22 @@
     <p class="ach-assistant-absent" id="ach-assistant-absent" hidden>Interrogation de la data room pas encore activée pour
       ce projet.</p>
 
-    <p class="ach-resume" id="ach-fiche-resume"></p>
-    <ul class="dr-v-points" id="ach-fiche-points"></ul>
-    <p class="dr-aide">Visuels marqués « Photo » : photos du projet fournies par l'équipe Almavision. Visuels marqués
-      « Illustration » : dessins générés par la plateforme, pas des photos du projet.</p>
+    <!-- projet où l'organisation participe : la clause d'abord, avant documents et assistant -->
+    <section class="cq-carte ach-vedette" id="ach-nda" hidden aria-labelledby="ach-nda-titre">
+      <h3 id="ach-nda-titre">Clause de confidentialité</h3>
+      <p class="dr-aide">Avant d'ouvrir les documents de ce projet, lisez et acceptez la clause ci-dessous. Votre
+        acceptation est enregistrée à votre nom, avec la version du texte.</p>
+      <div class="dr-nda-texte" id="ach-nda-texte"></div>
+      <label class="dr-case" for="ach-nda-ok"><input type="checkbox" id="ach-nda-ok"> J'ai lu la clause et je
+        l'accepte.</label>
+      <div class="dr-boutons"><button class="btn primary small" type="button" id="ach-nda-go">Accepter et
+        continuer</button></div>
+      <p class="dr-msg" id="ach-nda-msg" role="status" aria-live="polite"></p>
+    </section>
 
-    <!-- projet où l'organisation participe -->
-    <div id="ach-projet" hidden>
-      <p class="ach-bandeau" id="ach-bandeau" role="note"></p>
-
-      <section class="cq-carte" id="ach-nda" hidden aria-labelledby="ach-nda-titre">
-        <h3 id="ach-nda-titre">Clause de confidentialité</h3>
-        <p class="dr-aide">Avant d'ouvrir les documents de ce projet, lisez et acceptez la clause ci-dessous. Votre
-          acceptation est enregistrée à votre nom, avec la version du texte.</p>
-        <div class="dr-nda-texte" id="ach-nda-texte"></div>
-        <label class="dr-case" for="ach-nda-ok"><input type="checkbox" id="ach-nda-ok"> J'ai lu la clause et je
-          l'accepte.</label>
-        <div class="dr-boutons"><button class="btn primary small" type="button" id="ach-nda-go">Accepter et
-          continuer</button></div>
-        <p class="dr-msg" id="ach-nda-msg" role="status" aria-live="polite"></p>
-      </section>
-
-      <section class="cq-carte" id="ach-docs-carte" hidden aria-labelledby="ach-docs-titre">
-        <h3 id="ach-docs-titre">Documents</h3>
-        <p class="dr-aide">Tous les documents publiés du projet sont listés. Ceux qui vous sont ouverts s'affichent dans la
-          plateforme, avec votre nom en filigrane ; les autres portent un cadenas et l'étape à laquelle ils s'ouvriront.
-          Chaque ouverture est enregistrée à votre nom.</p>
-        <p class="dr-msg" id="ach-docs-msg" role="status" aria-live="polite"></p>
-        <div class="ach-docs" id="ach-docs"></div>
-      </section>
-
-    </div>
-
-    <!-- fiche de découverte : aucun document -->
-    <div id="ach-decouverte" hidden>
+    <!-- fiche de découverte : aucun document, demande d'accès -->
+    <section class="cq-carte ach-vedette" id="ach-decouverte" hidden aria-labelledby="ach-decouverte-titre">
+      <h3 id="ach-decouverte-titre">Accéder à la data room</h3>
       <p class="dr-aide">Fiche de présentation non confidentielle, préparée par l'équipe Almavision. Elle ne donne ni
         invitation, ni accès aux documents, ni accès à l'assistant.</p>
       <form class="dr-form" id="ach-form-demande" autocomplete="off" novalidate>
@@ -164,8 +156,52 @@
         <div class="dr-boutons"><button class="btn primary small" type="submit" id="ach-demander">Demander l'accès</button></div>
       </form>
       <p class="dr-msg" id="ach-d-msg" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="ach-section" id="ach-presentation" hidden aria-labelledby="ach-presentation-titre">
+      <h3 id="ach-presentation-titre">Présentation</h3>
+      <p class="ach-resume" id="ach-fiche-resume"></p>
+    </section>
+
+    <section class="ach-section" id="ach-points" hidden aria-labelledby="ach-points-titre">
+      <h3 id="ach-points-titre">Points forts</h3>
+      <ul class="ach-points" id="ach-fiche-points"></ul>
+    </section>
+
+    <section class="ach-section" id="ach-galerie-section" hidden aria-labelledby="ach-galerie-titre">
+      <h3 id="ach-galerie-titre">Galerie</h3>
+      <p class="dr-aide">Photos du projet fournies par l'équipe Almavision ; cliquez sur une photo pour l'agrandir.</p>
+      <ul class="ach-galerie" id="ach-galerie" aria-label="Autres photos du projet" hidden></ul>
+    </section>
+
+    <!-- projet où l'organisation participe : documents -->
+    <div id="ach-projet" hidden>
+      <section class="ach-section" id="ach-docs-carte" hidden aria-labelledby="ach-docs-titre">
+        <h3 id="ach-docs-titre">Documents</h3>
+        <p class="dr-aide">Tous les documents publiés du projet sont listés. Ceux qui vous sont ouverts s'affichent dans la
+          plateforme, avec votre nom en filigrane ; les autres portent un cadenas et l'étape à laquelle ils s'ouvriront.
+          Chaque ouverture est enregistrée à votre nom.</p>
+        <p class="dr-msg" id="ach-docs-msg" role="status" aria-live="polite"></p>
+        <div class="ach-docs" id="ach-docs"></div>
+      </section>
     </div>
+
+    <p class="dr-aide ach-note-visuels">Visuels marqués « Photo » : photos du projet fournies par l'équipe Almavision.
+      Visuels marqués « Illustration » : dessins générés par la plateforme, pas des photos du projet.</p>
   </article>
+
+  <!-- photo agrandie (galerie) : image posée par le script (adresse blob: locale) -->
+  <div class="ach-loupe" id="ach-loupe" hidden role="dialog" aria-modal="true" aria-labelledby="ach-loupe-titre">
+    <div class="ach-loupe-barre">
+      <h2 class="ach-loupe-titre" id="ach-loupe-titre">Photo du projet</h2>
+      <span class="ach-loupe-num" id="ach-loupe-num" aria-live="polite"></span>
+      <button class="btn small" type="button" id="ach-loupe-prec">Photo précédente</button>
+      <button class="btn small" type="button" id="ach-loupe-suiv">Photo suivante</button>
+      <button class="btn small" type="button" id="ach-loupe-fermer">Fermer</button>
+    </div>
+    <div class="ach-loupe-zone" id="ach-loupe-zone"></div>
+    <p class="ach-loupe-legende" id="ach-loupe-legende"></p>
+  </div>
 
   <div class="dr-vis" id="dr-vis" hidden role="dialog" aria-modal="true" aria-labelledby="dr-vis-titre">
     <div class="dr-vis-barre">
@@ -182,6 +218,6 @@
   </div>
 </main>
 <script src="plateforme/coquille.js?v=cff860c8a7"></script>
-<script src="modules/dataroom/visionneuse.js?v=008f04577c"></script>
-<script src="modules/dataroom/acheteur.js?v=d59b27392b"></script>
+<script src="modules/dataroom/visionneuse.js?v=c04ae8901d"></script>
+<script src="modules/dataroom/acheteur.js?v=d59cbaa6a8"></script>
 </body></html>

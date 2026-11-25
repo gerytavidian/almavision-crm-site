@@ -120,7 +120,7 @@
 .dr-citations { margin: .3rem 0 0; padding-left: 1.2rem; font-size: .9em; }
 .dr-confidentialite { margin-top: .8rem; }
 
-/* visionneuse (lot b) */
+/* visionneuse (lot b) : cadre commun ; lecteur PDF.js, barre d'outils et impression dans visionneuse.css */
 .dr-vis { position: fixed; inset: 0; z-index: 60; background: var(--fond, #f6f7f6); display: flex; flex-direction: column; }
 .dr-vis[hidden] { display: none; }
 .dr-vis-barre { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .6rem 1rem;

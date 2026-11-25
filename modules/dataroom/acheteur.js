@@ -18,6 +18,12 @@
      légende. Bucket PRIVÉ « dr-photos » : chaque photo est téléchargée avec le jeton de la personne
      (sb.storage…download), puis affichée par une adresse blob: locale, libérée dès qu'elle ne sert plus ; en cas
      d'échec, l'illustration revient. Aucune adresse publique, rien en HTML brut (alt = légende).
+   - Fiche soignée (25/11/2026) : héros (photo principale ou illustration, nom de code, badges technologie, stade et
+     région, étape atteinte et fin d'accès), chiffres clés en tuiles (puissance, stade, région, mise en service, et les
+     points clés de la forme « Libellé : valeur chiffrée », tels que la fiche les donne : rien d'inventé), « Interroger
+     la data room » juste dessous, puis Présentation, Points forts, Galerie (photo agrandie au clic) et Documents par
+     dossier repliable (icône selon le type, taille, date, étape, cadenas). Cartes de la grille : photo en couverture,
+     badges, puissance en grand.
    La base revérifie tout à chaque appel (conditions 1 à 4, étape, droits par dossier, dossiers réservés) et refuse
    toujours de la même façon (42501 « accès refusé ») ; la page n'affiche que ce qu'elle a reçu. Tout texte venu de la
    base passe par textContent ou setAttribute ; aucun script extérieur ni en ligne. */
@@ -160,6 +166,34 @@
     svg.appendChild(forme("path", {d: "M5 7V5a3 3 0 0 1 6 0v2", fill: "none", stroke: "currentColor", "stroke-width": 1.6}));
     return svg;
   }
+  // type d'un document, d'après son type MIME puis son extension : [classe de l'icône, étiquette, nom du type]
+  function typeDoc(d) {
+    const m = String(d.mime || "").toLowerCase(), x = /\.([a-z0-9]{1,5})$/i.exec(String(d.nom || ""));
+    const ext = x ? x[1].toLowerCase() : "";
+    if (m === "application/pdf" || ext === "pdf") return ["pdf", "PDF", "PDF"];
+    if (/msword|wordprocessing|opendocument\.text|rtf/.test(m) || ["doc", "docx", "odt", "rtf"].includes(ext)) return ["word", "DOC", "Word"];
+    if (/excel|spreadsheet|csv/.test(m) || ["xls", "xlsx", "xlsm", "xlsb", "ods", "csv"].includes(ext)) return ["excel", "XLS", "Excel"];
+    if (/powerpoint|presentation/.test(m) || ["ppt", "pptx", "odp"].includes(ext)) return ["ppt", "PPT", "PowerPoint"];
+    if (/^image\//.test(m) || ["png", "jpg", "jpeg", "gif", "webp", "tif", "tiff", "bmp", "heic"].includes(ext)) return ["image", "IMG", "Image"];
+    if (/zip|compressed|x-7z|x-rar/.test(m) || ["zip", "7z", "rar"].includes(ext)) return ["archive", "ZIP", "Archive"];
+    return ["autre", ext ? ext.toUpperCase().slice(0, 4) : "FIC", ext ? ext.toUpperCase() : "Fichier"];
+  }
+  // icône du document (page cornée, étiquette du type), décorative : le type est dit en toutes lettres à côté
+  function iconeDoc(type) {
+    const svg = forme("svg", {viewBox: "0 0 24 28", width: 26, height: 30, class: "ach-doc-icone " + type[0],
+                              "aria-hidden": "true", focusable: "false"});
+    svg.appendChild(forme("path", {d: "M3.5 1h11l6 6v19.5a.5.5 0 0 1-.5.5h-16.5a.5.5 0 0 1-.5-.5v-25a.5.5 0 0 1 .5-.5z",
+                                   fill: "#fff", stroke: "currentColor", "stroke-width": 1.3}));
+    svg.appendChild(forme("path", {d: "M14.5 1v6h6", fill: "none", stroke: "currentColor", "stroke-width": 1.3}));
+    svg.appendChild(forme("rect", {x: 0.5, y: 14, width: 18, height: 9, rx: 1.5, fill: "currentColor"}));
+    const t = forme("text", {x: 9.5, y: 20.8, "text-anchor": "middle", "font-size": 6.2, "font-weight": 700, fill: "#fff",
+                             "font-family": "DM Sans, Segoe UI, Arial, sans-serif"});
+    t.textContent = type[1];
+    svg.appendChild(t);
+    return svg;
+  }
+  // pastille d'une carte ou du héros (technologie, stade, région)
+  const puce = (texte, classe = "") => el("span", "ach-puce" + (classe ? " " + classe : ""), texte);
 
   // ------------------------------------------------------------------ photos (bucket privé « dr-photos »)
   // Une adresse blob: par photo téléchargée, gardée tant qu'une carte ou la fiche ouverte s'en sert (garderPhotos) ;
@@ -268,21 +302,26 @@
         (miens ? ` · ${miens} ouvert${miens > 1 ? "s" : ""} pour vous` : ""), "calme");
     for (const p of liste) {
       const li = el("li", "ach-carte" + (p.participe ? " miens" : ""));
+      // couverture 16:9 (photo ou illustration), badge « Vos projets » posé dessus
       li.appendChild(visuelProjet(p, "petit"));
       if (p.participe) li.appendChild(el("span", "ach-badge", "Vos projets"));
-      li.appendChild(el("h3", "ach-carte-nom", p.nom_de_code || "Projet"));
-      const infos = [techno(p), puissance(p), p.zone, stade(p)].filter(Boolean);
-      if (infos.length) li.appendChild(el("p", "ach-carte-infos", infos.join(" · ")));
+      const corps = el("div", "ach-carte-corps");
+      const puces = [techno(p) || (p.type_actif ? TYPES[p.type_actif] || p.type_actif : ""), stade(p)].filter(Boolean);
+      if (puces.length) { const z = el("p", "ach-puces"); for (const t of puces) z.appendChild(puce(t)); corps.appendChild(z); }
+      corps.appendChild(el("h3", "ach-carte-nom", p.nom_de_code || "Projet"));
+      if (puissance(p)) corps.appendChild(el("p", "ach-carte-puissance", puissance(p)));
+      if (p.zone) corps.appendChild(el("p", "ach-carte-infos", p.zone));
       if (p.participe) {
         const etat = [etapeAtteinte(p.etape),
                       p.nda_a_accepter ? "clause à accepter" : ""].filter(Boolean);
-        if (etat.length) li.appendChild(el("p", "ach-carte-etat", etat.join(" · ")));
+        if (etat.length) corps.appendChild(el("p", "ach-carte-etat", etat.join(" · ")));
       }
-      if (p.resume) li.appendChild(el("p", "ach-carte-extrait", p.resume.length > 140 ? p.resume.slice(0, 140) + "…" : p.resume));
+      if (p.resume) corps.appendChild(el("p", "ach-carte-extrait", p.resume.length > 140 ? p.resume.slice(0, 140) + "…" : p.resume));
       const b = bouton("Voir la fiche", () => ouvrirProjet(p.cle), "btn small ach-carte-voir",
                        `Voir la fiche du projet ${p.nom_de_code || ""}`.trim());
       b.dataset.cle = p.cle;
-      li.appendChild(b);
+      corps.appendChild(b);
+      li.appendChild(corps);
       // toute la carte s'ouvre à la souris ; au clavier, le bouton suffit (un seul arrêt de tabulation par carte)
       li.addEventListener("click", ev => { if (!b.contains(ev.target)) ouvrirProjet(p.cle); });
       ul.appendChild(li);
@@ -291,9 +330,10 @@
 
   function montrerGrille() {
     visionneuse.fermer();
+    fermerLoupe(false);
     ach.choisi = null; ach.conversation = null;
     ach.photosFiche = [];
-    $("ach-galerie").textContent = ""; $("ach-galerie").hidden = true;
+    $("ach-galerie").textContent = ""; $("ach-galerie").hidden = true; $("ach-galerie-section").hidden = true;
     garderPhotos(cheminsUtiles());
     $("ach-fiche").hidden = true;
     $("ach-marche").hidden = false;
@@ -301,51 +341,141 @@
   }
 
   // ------------------------------------------------------------------ fiche produit
+  // points clés de la forme « Libellé : valeur chiffrée » (« Productible P50 : 1 320 kWh/kWc ») : repris en tuiles tels
+  // quels, au plus 4 ; tous les autres restent dans « Points forts ». Rien n'est calculé ni deviné.
+  const POINT_CHIFFRE = /^\s*([^:\d\n][^:\n]{0,38}?)\s*:\s*(\S[^\n]{0,38})$/;
+  function chiffresDesPoints(points) {
+    const tuiles = [], reste = [];
+    for (const x of points) {
+      const m = tuiles.length < 4 ? POINT_CHIFFRE.exec(x) : null;
+      if (m && /\d/.test(m[2])) tuiles.push([m[1].trim(), m[2].trim()]);
+      else reste.push(x);
+    }
+    return {tuiles, reste};
+  }
+  // une tuile de la bande des chiffres clés (dt : libellé ; dd : valeur, unité à part pour la puissance)
+  function tuile(dl, libelle, valeur, classe = "", unite = "") {
+    const bloc = el("div", "ach-tuile" + (classe ? " " + classe : ""));
+    const dd = el("dd", null, valeur);
+    if (unite) dd.append(" ", el("span", "ach-unite", unite));
+    bloc.append(el("dt", null, libelle), dd);
+    dl.appendChild(bloc);
+  }
+  // bouton posé sur une photo (toute la surface) : l'agrandit dans la loupe
+  function boutonAgrandir(i, legende) {
+    const b = bouton("", ev => ouvrirLoupe(i, ev.currentTarget), "ach-agrandir",
+                     `Agrandir la photo${legende ? ` : ${legende}` : ""}`);
+    const signe = el("span", "ach-agrandir-signe", "Agrandir");
+    signe.setAttribute("aria-hidden", "true");
+    b.appendChild(signe);
+    return b;
+  }
+
   function entete(p, f) {
     const place = $("ach-fiche-visuel");
     place.textContent = "";
-    // galerie : la première photo en grand (à la place de l'illustration), les autres en dessous, avec leur légende
+    // héros : la première photo en grand (à la place de l'illustration), les autres dans la galerie, avec leur légende
     const photos = ach.photosFiche, galerie = $("ach-galerie");
     galerie.textContent = "";
     galerie.hidden = photos.length < 2;
+    $("ach-galerie-section").hidden = galerie.hidden;
     if (photos.length) {
       place.appendChild(figurePhoto(photos[0].chemin, photos[0].legende || `Photo du projet ${p.nom_de_code || ""}`.trim(),
                                     "grand", () => visuel(p, "grand")));
-      if (photos[0].legende) place.appendChild(el("p", "ach-legende", photos[0].legende));
-      for (const x of photos.slice(1)) {
+      place.appendChild(boutonAgrandir(0, photos[0].legende));
+      if (photos[0].legende) place.appendChild(el("p", "ach-legende ach-hero-legende", photos[0].legende));
+      photos.slice(1).forEach((x, k) => {
         const li = el("li", "ach-galerie-photo");
         li.appendChild(figurePhoto(x.chemin, x.legende || "Photo du projet", "petit",
                                    () => el("p", "ach-legende", "Photo indisponible pour le moment.")));
+        li.appendChild(boutonAgrandir(k + 1, x.legende));
         if (x.legende) li.appendChild(el("p", "ach-legende", x.legende));
         galerie.appendChild(li);
-      }
+      });
     } else place.appendChild(visuelProjet(p, "grand"));
+    // badges : vos projets, technologie (ou type d'actif), stade, région
     const badge = $("ach-fiche-badge");
     badge.textContent = "";
     if (p.participe) badge.appendChild(el("span", "ach-badge", "Vos projets"));
+    const typeActif = p.type_actif && !p.technologie ? TYPES[p.type_actif] || p.type_actif : "";
+    for (const t of [techno(p) || typeActif, stade(p), p.zone]) if (t) badge.appendChild(puce(t));
     $("ach-fiche-titre").textContent = p.nom_de_code || "Projet";
+    // chiffres clés : ce que la base a rendu, puis les points clés chiffrés de la fiche
+    const points = (f && Array.isArray(f.points_cles) ? f.points_cles : []).map(x => String(x)).filter(x => x.trim());
+    const {tuiles, reste} = chiffresDesPoints(points);
     const dl = $("ach-fiche-infos");
     dl.textContent = "";
-    const lignes = [["Technologie", techno(p)], ["Stade", stade(p)], ["Puissance", puissance(p)], ["Zone", p.zone],
-                    ["Type d'actif", p.type_actif && !p.technologie ? TYPES[p.type_actif] || p.type_actif : ""]];
-    if (f && f.annee_mise_en_service) lignes.push(["Mise en service", String(f.annee_mise_en_service)]);
-    if (p.participe && p.code) lignes.push(["Référence", p.code]);
-    for (const [t, v] of lignes) if (v) dl.append(el("dt", null, t), el("dd", null, v));
-    $("ach-fiche-resume").textContent = (f && f.resume) || p.resume || "";
+    if (p.puissance_mw != null && p.puissance_mw !== "") {
+      tuile(dl, "Puissance", NOMBRE.format(Number(p.puissance_mw)), "forte", p.fiche_id ? "MWc" : "MW");
+    }
+    if (stade(p)) tuile(dl, "Stade", stade(p));
+    if (p.zone) tuile(dl, "Région", p.zone);
+    if (f && f.annee_mise_en_service) tuile(dl, "Mise en service", String(f.annee_mise_en_service));
+    if (typeActif) tuile(dl, "Type d'actif", typeActif);
+    for (const [t, v] of tuiles) tuile(dl, t, v);
+    if (p.participe && p.code) tuile(dl, "Référence", p.code, "discrete");
+    dl.hidden = !dl.children.length;
+    // présentation et points forts (liste à icônes)
+    const resume = (f && f.resume) || p.resume || "";
+    $("ach-fiche-resume").textContent = resume;
+    $("ach-presentation").hidden = !resume;
     const pts = $("ach-fiche-points");
     pts.textContent = "";
-    for (const x of f && Array.isArray(f.points_cles) ? f.points_cles : []) pts.appendChild(el("li", null, String(x)));
+    for (const x of reste) pts.appendChild(el("li", null, x));
+    $("ach-points").hidden = !reste.length;
   }
+
+  // ---------------- photo agrandie (loupe) : les photos de la fiche ouverte, une à la fois, avec leur légende
+  const loupe = {i: 0, retour: null};
+  function ouvrirLoupe(i, depuis) {
+    const n = ach.photosFiche.length;
+    if (!n) return;
+    loupe.i = ((i % n) + n) % n;
+    loupe.retour = depuis || null;
+    $("ach-loupe").hidden = false;
+    montrerLoupe();
+    $("ach-loupe-fermer").focus();
+  }
+  function montrerLoupe() {
+    const photos = ach.photosFiche, n = photos.length, x = photos[loupe.i], zone = $("ach-loupe-zone");
+    if (!x) { fermerLoupe(); return; }
+    zone.textContent = "";
+    const img = el("img", "dr-photo-img ach-loupe-img");
+    img.setAttribute("alt", x.legende || "Photo du projet");
+    img.setAttribute("decoding", "async");
+    zone.appendChild(img);
+    $("ach-loupe-legende").textContent = x.legende || "";
+    $("ach-loupe-num").textContent = n > 1 ? `${loupe.i + 1} / ${n}` : "";
+    $("ach-loupe-prec").hidden = $("ach-loupe-suiv").hidden = n < 2;
+    const indisponible = () => {
+      if (!img.parentNode) return;
+      img.remove();
+      zone.appendChild(el("p", "ach-loupe-vide", "Photo indisponible pour le moment."));
+    };
+    img.addEventListener("error", indisponible);
+    urlPhoto(x.chemin).then(url => { if (url) img.setAttribute("src", url); else indisponible(); });
+  }
+  function fermerLoupe(rendreFocus = true) {
+    if ($("ach-loupe").hidden) return;
+    $("ach-loupe").hidden = true;
+    $("ach-loupe-zone").textContent = "";
+    const r = loupe.retour;
+    loupe.retour = null;
+    if (rendreFocus && r && document.documentElement.contains(r)) r.focus();
+  }
+  const tournerLoupe = pas => { loupe.i = (loupe.i + pas + ach.photosFiche.length) % ach.photosFiche.length; montrerLoupe(); };
 
   async function ouvrirProjet(cle) {
     const p = ach.projets.find(x => x.cle === cle);
     if (!p) return;
     visionneuse.fermer();
+    fermerLoupe(false);
     ach.choisi = p; ach.conversation = null;
     msg("");
     $("ach-fil").textContent = ""; ecrire($("ach-q-msg"), ""); $("ach-question").value = "";
     $("ach-docs").textContent = ""; ecrire($("ach-docs-msg"), ""); ecrire($("ach-nda-msg"), ""); ecrire($("ach-d-msg"), "");
-    $("ach-projet").hidden = true; $("ach-decouverte").hidden = true;
+    $("ach-projet").hidden = true; $("ach-decouverte").hidden = true; $("ach-nda").hidden = true;
+    $("ach-bandeau").hidden = true; $("ach-bandeau").textContent = "";
     // la carte « Interroger la data room » est en tête de fiche, hors de #ach-projet : cachée tant que rien ne l'autorise
     $("ach-assistant").hidden = true; $("ach-assistant-absent").hidden = true;
     // informations publiques de la fiche vitrine (résumé, points clés, mise en service) : facultatives pour un projet où
@@ -384,14 +514,38 @@
   // ---------------- projet où l'organisation participe
   async function projetOuvert(p) {
     $("ach-projet").hidden = false;
-    $("ach-bandeau").textContent = [etapeAtteinte(p.etape),
-                                    p.fin ? `accès jusqu'au ${jourDe(p.fin)}` : ""].filter(Boolean).join(" · ");
+    bandeau(p);
     $("ach-docs-carte").hidden = true; $("ach-assistant").hidden = true; $("ach-assistant-absent").hidden = true;
     if (p.nda_a_accepter) { await montrerClause(p); return; }
     $("ach-nda").hidden = true;
     $("ach-assistant").hidden = !p.assistant_actif;
     $("ach-assistant-absent").hidden = !!p.assistant_actif;
     await chargerDocuments(p);
+  }
+
+  // bandeau du héros : étape atteinte et fin d'accès en toutes lettres, puis les 4 étapes du processus de vente
+  function bandeau(p) {
+    const zone = $("ach-bandeau");
+    zone.textContent = "";
+    const jours = p.fin ? Math.ceil((new Date(p.fin) - Date.now()) / 86400e3) : null;
+    const texte = [etapeAtteinte(p.etape), p.fin ? `accès jusqu'au ${jourDe(p.fin)}` : ""].filter(Boolean).join(" · ");
+    if (!texte) { zone.hidden = true; return; }
+    zone.appendChild(el("p", "ach-bandeau-texte", texte));
+    if (jours != null && jours >= 0 && jours <= 14) {
+      zone.appendChild(el("p", "ach-bandeau-fin", `Plus que ${jours} jour${jours > 1 ? "s" : ""} d'accès.`));
+    }
+    const n = p.etape == null ? null : Number(p.etape);
+    if (n != null && Number.isInteger(n) && n >= 0 && n < ETAPES.length) {
+      const ol = el("ol", "ach-etapes");
+      ol.setAttribute("aria-label", "Étapes du processus de vente");
+      ETAPES.forEach((t, i) => {
+        const li = el("li", i < n ? "faite" : i === n ? "courante" : "", t);
+        if (i === n) li.setAttribute("aria-current", "step");
+        ol.appendChild(li);
+      });
+      zone.appendChild(ol);
+    }
+    zone.hidden = false;
   }
 
   // texte de la clause : dr_mes_salles (la fonction de l'écran de l'acquéreur de dataroom.js, qui rend la clause en cours)
@@ -448,10 +602,15 @@
     ecrire(m, `${ouverts} document${ouverts > 1 ? "s" : ""} ouvert${ouverts > 1 ? "s" : ""} pour vous sur ${docs.length}.`);
     const parDossier = new Map();
     for (const d of docs) { const k = d.dossier || "Documents"; if (!parDossier.has(k)) parDossier.set(k, []); parDossier.get(k).push(d); }
+    // un dossier = un bloc repliable (ouvert d'abord), avec le nombre de documents et de documents ouverts
     for (const [dossier, liste] of [...parDossier].sort((a, b) => TRI.compare(a[0], b[0]))) {
-      const bloc = el("section", "ach-dossier");
-      const h = el("h4", null, dossier);
-      bloc.appendChild(h);
+      const bloc = el("details", "ach-dossier");
+      bloc.open = true;
+      const resume = el("summary", "ach-dossier-tete");
+      const n = liste.length, o = liste.filter(d => d.accessible === true).length;
+      resume.append(el("h4", null, dossier),
+                    el("span", "ach-dossier-compte", `${n} document${n > 1 ? "s" : ""} · ${o} ouvert${o > 1 ? "s" : ""}`));
+      bloc.appendChild(resume);
       const ul = el("ul", "ach-liste");
       for (const d of liste.sort((a, b) => TRI.compare(a.nom || "", b.nom || ""))) ul.appendChild(ligneDocument(p, d));
       bloc.appendChild(ul);
@@ -462,10 +621,24 @@
   function ligneDocument(p, d) {
     const ouvert = d.accessible === true;
     const li = el("li", "ach-doc" + (ouvert ? "" : " ferme"));
-    if (!ouvert) li.appendChild(cadenas());
-    li.appendChild(el("span", "ach-doc-nom", d.nom));
-    if (d.taille != null) li.appendChild(el("span", "dr-taille", taille(Number(d.taille))));
-    if (d.publie_le) li.appendChild(el("span", "dr-lieu", `publié le ${jourDe(d.publie_le)}`));
+    // icône du type | nom, type, taille, date, étape (et raison d'un document fermé) | boutons
+    const type = typeDoc(d);
+    li.appendChild(iconeDoc(type));
+    const corps = el("div", "ach-doc-corps"), ligne = el("div", "ach-doc-ligne");
+    if (!ouvert) ligne.appendChild(cadenas());
+    ligne.appendChild(el("span", "ach-doc-nom", d.nom));
+    corps.appendChild(ligne);
+    const meta = el("div", "ach-doc-meta");
+    meta.appendChild(el("span", "ach-doc-type", type[2]));
+    if (d.taille != null) meta.appendChild(el("span", "dr-taille", taille(Number(d.taille))));
+    if (d.publie_le) meta.appendChild(el("span", "dr-lieu", `publié le ${jourDe(d.publie_le)}`));
+    if (d.etape != null) {
+      const e = el("span", "ach-doc-etape", `Étape ${d.etape}`);
+      if (ETAPES[Number(d.etape)]) e.title = ETAPES[Number(d.etape)];
+      meta.appendChild(e);
+    }
+    corps.appendChild(meta);
+    li.appendChild(corps);
     if (!ouvert) {
       // étape future d'un fichier ni PDF ni image sans le niveau « télécharger » : il restera fermé à cette étape
       const pasEncore = d.etape != null && p.etape != null && Number(d.etape) > Number(p.etape);
@@ -473,7 +646,7 @@
       const raison = pasEncore ? `Accessible à l'${etapeTexte(Number(d.etape))}` +
           (sansFormat ? ", avec le droit de téléchargement (format non affichable dans la plateforme)" : "")
         : "Téléchargement non autorisé (format non affichable dans la plateforme)";
-      li.appendChild(el("span", "ach-raison", raison));
+      corps.appendChild(el("span", "ach-raison", raison));
       return li;
     }
     const actions = el("span", "dr-doc-actions"), msgDoc = el("span", "dr-doc-msg");
@@ -494,7 +667,8 @@
       b.title = "Téléchargement non autorisé pour ce dossier : demandez-le à l'équipe Almavision";
       actions.appendChild(b);
     }
-    li.append(actions, msgDoc);
+    corps.appendChild(msgDoc);
+    li.appendChild(actions);
     return li;
   }
 
@@ -628,6 +802,29 @@
     const b = cle ? [...$("ach-grille").querySelectorAll("button")].find(x => x.dataset.cle === cle) : null;
     if (b) b.focus();
   });
+  $("ach-loupe-fermer").addEventListener("click", () => fermerLoupe());
+  $("ach-loupe-prec").addEventListener("click", () => tournerLoupe(-1));
+  $("ach-loupe-suiv").addEventListener("click", () => tournerLoupe(1));
+  // Échap ferme, flèches : photo voisine ; la tabulation reste dans la loupe (fenêtre modale) ; clic sur le fond : fermer
+  $("ach-loupe").addEventListener("keydown", ev => {
+    if (ev.key === "Escape") { ev.preventDefault(); fermerLoupe(); return; }
+    if (ev.key === "ArrowLeft" && ach.photosFiche.length > 1) { ev.preventDefault(); tournerLoupe(-1); return; }
+    if (ev.key === "ArrowRight" && ach.photosFiche.length > 1) { ev.preventDefault(); tournerLoupe(1); return; }
+    if (ev.key === "Tab") {
+      const arrets = ["ach-loupe-prec", "ach-loupe-suiv", "ach-loupe-fermer"].map($).filter(b => !b.hidden);
+      const i = arrets.indexOf(document.activeElement);
+      const suivant = ev.shiftKey ? (i <= 0 ? arrets.length - 1 : i - 1) : (i < 0 || i === arrets.length - 1 ? 0 : i + 1);
+      ev.preventDefault();
+      arrets[suivant].focus();
+    }
+  });
+  $("ach-loupe").addEventListener("click", ev => {
+    if (ev.target === $("ach-loupe") || ev.target === $("ach-loupe-zone")) fermerLoupe();
+  });
+  // impression : tous les dossiers dépliés (la feuille de style d'impression cache boutons, filtres et assistant)
+  if (typeof window.addEventListener === "function") {
+    window.addEventListener("beforeprint", () => { for (const d of $("ach-docs").querySelectorAll("details")) d.open = true; });
+  }
   $("ach-nda-go").addEventListener("click", accepterClause);
   $("ach-form-question").addEventListener("submit", poserQuestion);
   $("ach-nouvelle").addEventListener("click", () => { ach.conversation = null; $("ach-fil").textContent = "";

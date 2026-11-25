@@ -1,0 +1,46 @@
+/* Visionneuse de la Data Room : lecteur PDF.js (PDFViewer de Mozilla, styles de base dans vendor/pdf_viewer.css,
+   chargés par visionneuse.js à la première ouverture d'un PDF), barre d'outils maison, filigrane, impression.
+   Le cadre (.dr-vis, barre du titre, zone des images) est dans dataroom.css. Chargé par les deux pages du module
+   (équipe et acheteurs), après dataroom.css. */
+
+/* barre d'outils : pages, zoom, recherche, plein écran */
+.dr-vis-outils { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1.1rem; padding: .4rem 1rem;
+                 background: var(--bg, #fff); border-bottom: 1px solid var(--line, #ddd); }
+.dr-vis-groupe { display: inline-flex; align-items: center; gap: .3rem; }
+.dr-vis-outils .btn.small { min-width: 2rem; }
+.dr-vis-page { width: 3.4rem; padding: 3px 6px; border: 1px solid var(--line, #ccc); border-radius: 7px; text-align: right;
+               font-variant-numeric: tabular-nums; background: var(--bg, #fff); }
+.dr-vis-total, .dr-vis-echelle { font-variant-numeric: tabular-nums; color: var(--ink2, #46595A); white-space: nowrap; }
+.dr-vis-echelle { min-width: 3.6rem; text-align: center; }
+.dr-vis-cherche { width: min(17rem, 60vw); padding: 3px 8px; border: 1px solid var(--line, #ccc); border-radius: 7px;
+                  background: var(--bg, #fff); }
+.dr-vis-resultats { min-width: 7.5rem; font-size: 12.5px; color: var(--ink2, #46595A); }
+
+/* lecteur : PDFViewer exige un conteneur en position absolue, qui défile */
+.dr-vis-pdf { position: relative; flex: 1; min-height: 0; }
+.dr-vis-conteneur { position: absolute; inset: 0; overflow: auto; background: var(--page, #E9EEF2); }
+.dr-vis-conteneur:focus-visible { outline-offset: -3px; }
+.dr-vis-pdf .pdfViewer { padding: 8px 0 24px; }
+.dr-vis-pdf .pdfViewer .page { box-shadow: 0 2px 12px rgba(0, 0, 0, .12); }
+/* un canevas n'est montré qu'une fois le filigrane dessiné dedans (classe posée par visionneuse.js) */
+.dr-vis-pdf .canvasWrapper > canvas:not(.dr-fil) { visibility: hidden; }
+.dr-vis-pdf canvas { user-select: none; -webkit-user-select: none; }
+/* calque de texte : pour la recherche (surlignage des résultats), pas pour la sélection ni la copie */
+.dr-vis-pdf .textLayer, .dr-vis-pdf .textLayer * { user-select: none; -webkit-user-select: none; cursor: default; }
+/* l'icône d'attente de PDF.js (images/loading-icon.gif) n'est pas copiée dans vendor/ : fond simple à la place */
+.dr-vis-pdf .pdfViewer .page.loadingIcon::after { background: none; }
+.dr-vis:fullscreen { background: var(--page, #E9EEF2); }
+
+@media (max-width: 640px) {
+  .dr-vis-outils { gap: .35rem .6rem; padding: .35rem .6rem; }
+  .dr-vis-cherche { width: 100%; }
+  .dr-vis-groupe[aria-label="Recherche"] { flex: 1 1 100%; flex-wrap: wrap; }
+}
+
+/* impression : rien de la data room tant que la visionneuse est ouverte (window.print est aussi neutralisé) */
+@media print {
+  .dr-vis, .dr-vis * { display: none !important; }
+  body.dr-vis-ouverte > * { display: none !important; }
+  body.dr-vis-ouverte::before { content: "Impression désactivée : les documents de la data room se consultent à l'écran.";
+                                display: block; padding: 2rem; font: 14px sans-serif; }
+}
