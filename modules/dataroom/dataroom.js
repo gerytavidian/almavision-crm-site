@@ -43,7 +43,10 @@
   }
   document.getElementById("dr-presentation").hidden = false;
   document.getElementById("dr").hidden = false;
-  if ((RANGS[role] || 0) < RANGS.equipe) return;   // présentation seulement
+  if ((RANGS[role] || 0) < RANGS.equipe) {   // présentation seulement
+    document.getElementById("dr-v-parametres").hidden = false;
+    return;
+  }
 
   const sb = P.sb, conf = window.plateforme.conf;
   const $ = id => document.getElementById(id);
@@ -121,7 +124,12 @@
   const ecrire = (n, texte, classe = "") => { n.className = "dr-msg" + (classe ? " " + classe : ""); n.textContent = texte || ""; };
   // annonce pour les lecteurs d'écran (zone invisible) : les cartes sont redessinées à chaque rechargement
   const annoncer = t => { const a = $("dr-annonce"); a.textContent = ""; setTimeout(() => { a.textContent = t; }, 60); };
-  const arbreMsg = (texte, erreur = false) => { ecrire($("dr-arbre-msg"), texte, erreur ? "erreur" : ""); annoncer(texte); };
+  const arbreMsg = (texte, erreur = false) => {
+    ecrire($("dr-arbre-msg"), texte, erreur ? "erreur" : "");
+    // salle ouverte sur une autre étape que Documents : le message va aussi sous son en-tête
+    if (vue.nom === "salle" && vue.etape !== "documents") ecrire($("dr-s-msg"), texte, erreur ? "erreur" : "");
+    annoncer(texte);
+  };
 
   // focus gardé d'un dessin à l'autre (les cartes et l'arborescence sont redessinées à chaque rechargement) : chaque
   // commande porte un repère (data-cle) ; le focus revient sur la commande de même repère, sinon sur la ligne de l'élément
@@ -189,6 +197,8 @@
     reglages: null,          // {id, nom, statut, publication} : formulaire « Réglages » d'une salle ouvert
     secret: null,            // {id, valeur} : saisie de la date d'expiration du secret ouverte
     focusArbre: null, focusBiblios: null,   // focus à rendre au prochain dessin, après une action
+    erreurLecture: "",                     // lecture impossible ou Data Room pas installée : dit à l'accueil
+    sallesDepliees: new Set(),             // salles dont le dossier a déjà été déplié une fois à l'ouverture
   };
   let msgLecture = false;
 
@@ -242,6 +252,7 @@
       throw r.error;
     }
     if (msgLecture) { ecrire($("dr-msg"), ""); msgLecture = false; }
+    etat.erreurLecture = "";
     $("dr-declarer").hidden = $("dr-portee").hidden = false;
     etat.biblios = r.data || [];
     // lecture pas finie : delta en cours (lecture_en_cours, calculée par la base), énumération complète en cours ou à refaire
@@ -253,7 +264,6 @@
     passages.forEach((p, i) => { if (p.error) throw p.error; etat.passages.set(etat.biblios[i].id, p.data || []); });
     etat.salles = (await toutes(() => sb.from("dr_salle").select(COL_SALLE).order("id"))).lignes;
     etat.salleDe = new Map(etat.salles.map(s => [s.id, s]));
-    remplirSalleGlobale();
     if (!etat.biblios.some(b => b.id === etat.choisie)) {
       etat.choisie = etat.biblios.length ? etat.biblios[0].id : null;
       oublierArbre();
@@ -277,7 +287,12 @@
   let file = Promise.resolve();
   const recharger = () => (file = file.then(async () => {
     try { await charger(); }
-    catch (e) { ecrire($("dr-msg"), "Lecture impossible : " + messageBase(e) + ".", "erreur"); msgLecture = true; }
+    catch (e) {
+      ecrire($("dr-msg"), "Lecture impossible : " + messageBase(e) + ".", "erreur");
+      msgLecture = true;
+      etat.erreurLecture = "Lecture impossible : " + messageBase(e) + ".";
+      afficherAccueil();
+    }
   }));
 
   function pasInstallee(texte) {
@@ -288,6 +303,8 @@
     $("dr-docs-vide-texte").textContent = texte;
     ecrire($("dr-msg"), texte, "calme");
     msgLecture = true;
+    etat.erreurLecture = texte;
+    afficherAccueil();
   }
 
   // nouvelle bibliothèque affichée : dossiers dépliés, pages affichées et formulaires de l'arborescence oubliés
@@ -766,6 +783,11 @@
     }
   }
 
+  // salle ouverte dans la vue « salle », si elle est dans la bibliothèque affichée
+  const salleOuverte = () => {
+    const s = vue.salle ? etat.salleDe.get(vue.salle) : null;
+    return s && s.bibliotheque_id === etat.choisie ? s : null;
+  };
   // la racine est affichée comme un élément quand elle porte une salle, ou que le formulaire de salle y est ouvert
   const racineAffichee = () => !!etat.racine && (etat.sallesIci.has(etat.racine.item_id) ||
     (!!etat.brouillon && etat.brouillon.id === etat.racine.id));
@@ -841,7 +863,7 @@
     const salle = etat.sallesIci.get(e.item_id) || null;
     const fichiers = fichiersDe(e);
     const n = retirer ? fichiers.filter(f => f.version_publiee_id).length : fichiers.filter(publiable).length;
-    const quoi = salle ? `toute la salle ${salle.code} « ${salle.nom_de_code} »` : `le dossier « ${e.nom} »`;
+    const quoi = salle ? `toute la salle « ${nomSalle(salle)} »` : `le dossier « ${e.nom} »`;
     let texte;
     if (retirer) {
       texte = n ? `Dépublier ${compte(n, "fichier publié", "fichiers publiés")} dans ${quoi} ? Les acquéreurs n'y auront ` +
@@ -864,8 +886,8 @@
     f.appendChild(el("p", "dr-confirmer-texte", texte));
     let code = null;
     if (salle) {
-      code = champ(f, `Pour confirmer, tapez le code de la salle (${salle.code})`, el("input"), "confirmer-code:" + e.id);
-      code.maxLength = 11;
+      code = champ(f, `Pour confirmer, tapez le nom de la salle (${nomSalle(salle)})`, el("input"), "confirmer-code:" + e.id);
+      code.maxLength = 120;
       code.spellcheck = false;
       code.value = c.code || "";
       code.addEventListener("input", () => { if (etat.confirmation && etat.confirmation.id === e.id) etat.confirmation.code = code.value; });
@@ -885,8 +907,8 @@
     f.append(boutons, msg);
     f.addEventListener("submit", ev => {
       ev.preventDefault();
-      if (salle && code.value.trim().toUpperCase() !== salle.code) {
-        return ecrire(msg, `Code de la salle attendu : ${salle.code}. Rien n'a été ${retirer ? "dépublié" : "publié"}.`, "erreur");
+      if (salle && code.value.trim().toLowerCase() !== nomSalle(salle).trim().toLowerCase()) {
+        return ecrire(msg, `Nom de la salle attendu : ${nomSalle(salle)}. Rien n'a été ${retirer ? "dépublié" : "publié"}.`, "erreur");
       }
       etat.confirmation = null;
       f.remove();
@@ -951,6 +973,7 @@
         "publiez ensuite ses documents, dossier par dossier.");
       etat.focusArbre = {id: e.id};
       await recharger();
+      await rafraichirListesSalles();
     });
     return f;
   }
@@ -969,7 +992,7 @@
     const f = el("form", "dr-form dr-form-reglages");
     f.noValidate = true;
     f.autocomplete = "off";
-    f.appendChild(el("p", "dr-form-titre", `Réglages de la salle ${s.code}`));
+    f.appendChild(el("p", "dr-form-titre", `Réglages de la salle ${nomSalle(s)}`));
     const nom = champ(f, "Nom de code (vu des acquéreurs)", el("input"), "reglage-nom:" + s.id);
     nom.maxLength = 120; nom.required = true;
     const statut = champ(f, "Statut", options(el("select"), Object.entries(STATUTS)), "reglage-statut:" + s.id);
@@ -992,8 +1015,10 @@
     go.type = "submit";
     go.dataset.cle = "reglage-go:" + s.id;
     boutons.append(go, bouton("Annuler", () => {
+      const enTete = !!f.parentNode && f.parentNode.id === "dr-s-reglages-zone";
       etat.reglages = null;
       f.remove();
+      if (enTete) { $("dr-s-reglages").setAttribute("aria-expanded", "false"); $("dr-s-reglages").focus(); return; }
       for (const x of $("dr-arbre").querySelectorAll(".dr-salles [aria-expanded]")) x.setAttribute("aria-expanded", "false");
       rendreFocus($("dr-arbre"), {cle: "reglages:" + s.id});
     }, "btn small", "", "reglage-annuler:" + s.id));
@@ -1016,9 +1041,11 @@
       go.disabled = false;
       if (error) return ecrire(msg, messageBase(error), "erreur");
       etat.reglages = null;
-      arbreMsg(`Salle ${s.code} : ${dits.join(", ")}.`);
-      etat.focusArbre = {cle: "reglages:" + s.id};
+      arbreMsg(`Salle ${nomSalle(s)} : ${dits.join(", ")}.`); ecrire($("dr-acq-msg"), "");
+      const enTete = !!f.parentNode && f.parentNode.id === "dr-s-reglages-zone";
+      if (!enTete) etat.focusArbre = {cle: "reglages:" + s.id};
       await recharger();
+      if (enTete) { majVueSalle(); $("dr-s-reglages").focus(); }
     });
     return f;
   }
@@ -1080,13 +1107,15 @@
 
     const conteneur = e.type === "dossier" || e.type === "racine";
     const salle = conteneur ? etat.sallesIci.get(e.item_id) : null;
-    if (salle) {
-      ligne.appendChild(el("span", "dr-badge salle", `Salle ${salle.code} · ${salle.nom_de_code}`));
+    if (salle && vue.salle) {
+      // en-tête de la salle ouverte : nom, statut et réglages y sont déjà
+    } else if (salle) {
+      ligne.appendChild(el("span", "dr-badge salle", `Salle ${nomSalle(salle)}`));
       ligne.appendChild(bouton("Interroger ce projet avec Claude", () => interrogerEquipe(salle), "btn primary small dr-claude",
-        `Interroger le projet ${salle.code} avec Claude`, "claude:" + salle.id));
+        `Interroger le projet ${nomSalle(salle)} avec Claude`, "claude:" + salle.id));
       ligne.appendChild(el("span", "dr-etat", `${STATUTS[salle.statut] || salle.statut} · publication ` +
         (salle.publication === "auto" ? "automatique" : "manuelle")));
-    } else if (e.salle_id && e.dossier_id === e.id) {
+    } else if (!vue.salle && e.salle_id && e.dossier_id === e.id) {
       ligne.appendChild(el("span", "dr-badge", "dossier de premier niveau"));
     }
     if (e.type === "dossier" && !etat.parItem.has(e.parent_item_id)) {
@@ -1099,7 +1128,7 @@
         if (e.publie_nom) s.title = `Nom vu par les acquéreurs : ${e.publie_nom}`;
         ligne.appendChild(s);
         const salleFichier = etat.salleDe.get(e.salle_id), dossier = etat.parId.get(e.dossier_id);
-        if (salleFichier) ligne.appendChild(el("span", "dr-lieu", salleFichier.code + (dossier ? ` › ${dossier.nom}` : "")));
+        if (salleFichier && !vue.salle) ligne.appendChild(el("span", "dr-lieu", nomSalle(salleFichier) + (dossier ? ` › ${dossier.nom}` : "")));
       } else ligne.appendChild(el("span", "dr-etat", "hors salle"));
     }
 
@@ -1123,7 +1152,7 @@
           `${visible ? "Aperçu" : "Télécharger"} : « ${e.publie_nom || e.nom} »`, "apercu:" + e.id));
       }
     } else if (e.salle_id && conteneur) {
-      const tout = salle ? `toute la salle ${salle.code}` : `tous les fichiers du dossier « ${e.nom} »`;
+      const tout = salle ? `toute la salle ${nomSalle(salle)}` : `tous les fichiers du dossier « ${e.nom} »`;
       actions.appendChild(bouton("Publier…", () => demanderConfirmation(e, li, false), "btn small", `Publier ${tout}`,
                                  "publier:" + e.id));
       actions.appendChild(bouton("Dépublier…", () => demanderConfirmation(e, li, true), "btn small", `Dépublier ${tout}`,
@@ -1187,15 +1216,30 @@
     zone.hidden = !etat.biblios.length;
     $("dr-docs-vide").hidden = !!etat.biblios.length;
     $("dr-docs-vide-texte").textContent = "Aucune bibliothèque SharePoint déclarée : la plateforme ne connaît encore aucun document.";
-    majEtatSalle();
+    majVueSalle();
     if (!etat.biblios.length) return;
     choix.textContent = "";
     for (const b of etat.biblios) { const o = el("option", null, b.nom); o.value = b.id; choix.appendChild(o); }
     choix.value = etat.choisie;
-    $("dr-choix-biblio").hidden = etat.biblios.length < 2;
+    $("dr-choix-biblio").hidden = etat.biblios.length < 2 || !!salleOuverte();
     arbre.textContent = "";
     if (!etat.elements.length) {
       arbre.appendChild(el("p", "dr-vide", "Rien d'indexé pour l'instant : lancez « Synchroniser maintenant »."));
+      return;
+    }
+    // salle ouverte : son seul dossier, déplié au premier affichage
+    const sf = salleOuverte();
+    if (sf) {
+      const racine = etat.parItem.get(sf.racine_item_id);
+      if (!racine) {
+        arbre.appendChild(el("p", "dr-erreur", "Le dossier SharePoint de cette salle est introuvable (supprimé ou déplacé ?)."));
+        return;
+      }
+      if (!etat.sallesDepliees.has(sf.id)) { etat.sallesDepliees.add(sf.id); etat.ouverts.add(racine.id); }
+      const ul = el("ul", "dr-arbre-salle");
+      remplir(ul, [racine], "salle:" + sf.id);
+      arbre.appendChild(ul);
+      rendreFocus(arbre, voulu);
       return;
     }
     const fichiers = etat.elements.filter(e => e.type === "fichier");
@@ -1216,18 +1260,18 @@
       const ul = el("ul", "dr-salles");
       for (const s of salles) {
         const li = el("li");
-        li.append(el("b", null, s.code), ` ${s.nom_de_code} · ${STATUTS[s.statut] || s.statut} · publication ` +
+        li.append(el("b", null, nomSalle(s)), ` · ${STATUTS[s.statut] || s.statut} · publication ` +
           (s.publication === "auto" ? "automatique" : "manuelle"));
         const racine = etat.parItem.get(s.racine_item_id);
-        if (racine) li.appendChild(bouton("Afficher", () => montrer(racine), "btn small", `Afficher la salle ${s.code}`, "afficher:" + s.id));
+        if (racine) li.appendChild(bouton("Afficher", () => montrer(racine), "btn small", `Afficher la salle ${nomSalle(s)}`, "afficher:" + s.id));
         else li.append(" · dossier de la salle introuvable (supprimé de SharePoint ?)");
         const ouvert = !!etat.reglages && etat.reglages.id === s.id;
-        const r = bouton("Réglages", ev => ouvrirReglages(s, li, ev.currentTarget), "btn small", `Réglages de la salle ${s.code}`,
+        const r = bouton("Réglages", ev => ouvrirReglages(s, li, ev.currentTarget), "btn small", `Réglages de la salle ${nomSalle(s)}`,
                          "reglages:" + s.id);
         r.setAttribute("aria-expanded", String(ouvert));
         li.appendChild(r);
         li.appendChild(bouton("Créer la fiche marketplace", ev => ficheDepuisSalle(s, ev.currentTarget), "btn small",
-                              `Créer ou ouvrir la fiche marketplace de la salle ${s.code}`, "fiche:" + s.id));
+                              `Créer ou ouvrir la fiche marketplace de la salle ${nomSalle(s)}`, "fiche:" + s.id));
         if (ouvert) li.appendChild(formReglages(s));
         ul.appendChild(li);
       }
@@ -1298,9 +1342,9 @@
       for (const s of salles) {
         const st = s.statuts && typeof s.statuts === "object" ? s.statuts : {};
         const parts = Object.keys(STATUTS_INDEX).filter(k => st[k]).map(k => `${NOMBRE.format(st[k])} ${STATUTS_INDEX[k]}`);
-        ul.appendChild(el("li", null, `${s.code} (${s.nom_de_code}) : ${parts.length ? parts.join(", ") : "aucun document"}` +
+        ul.appendChild(el("li", null, `${nomSalle(s)} : ${parts.length ? parts.join(", ") : "aucun document"}` +
           ` · ${compte(Number(s.extraits) || 0, "extrait")}`));
-        const o = el("option", null, `${s.code} (${s.nom_de_code})`);
+        const o = el("option", null, nomSalle(s));
         o.value = s.salle_id;
         choix.appendChild(o);
       }
@@ -1457,13 +1501,13 @@
   function contexteEquipe() {
     const s = sallesAssistant.find(x => x.salle_id === $("dr-a-salle").value), etape = $("dr-a-etape");
     $("dr-a-contexte").textContent = s
-      ? `Projet : ${s.code} · ${s.nom_de_code}. Essai comme un acquéreur à l'étape « ${
+      ? `Projet : ${nomSalle(s)}. Essai comme un acquéreur à l'étape « ${
           (() => { const os = [...etape.querySelectorAll("option")]; return ((os.find(o => o.value === etape.value) || os[0]) || {}).textContent || etape.value; })()} » : Claude ne lit que les documents publiés de ce projet ouverts à cette étape.`
       : "Aucun projet (salle) pour le moment : créez une salle dans l'arborescence.";
     // interrupteur du projet (réglages de la salle) : il gouverne aussi les questions de l'équipe
     const coupe = !!s && s.assistant_actif === false;
     if (coupe) {
-      $("dr-a-contexte").textContent = `Projet : ${s.code} · ${s.nom_de_code}. Assistant non activé pour ce projet : ` +
+      $("dr-a-contexte").textContent = `Projet : ${nomSalle(s)}. Assistant non activé pour ce projet : ` +
         "l'activer dans les réglages de la salle (arborescence) pour l'essayer ; les acquéreurs n'y ont accès qu'une fois " +
         "la salle ouverte.";
     }
@@ -1471,19 +1515,16 @@
   }
   function interrogerEquipe(salle) {
     if (!sallesAssistant.some(x => x.salle_id === salle.id)) {
-      arbreMsg(`Assistant indisponible pour la salle ${salle.code} : la recherche n'est pas encore installée, ou la salle n'est pas encore connue d'elle (Recharger).`, true);
+      arbreMsg(`Assistant indisponible pour la salle ${nomSalle(salle)} : la recherche n'est pas encore installée, ou la salle n'est pas encore connue d'elle (Recharger).`, true);
       return;
     }
-    ouvrirOnglet("interroger");
-    $("dr-salle").value = salle.id;
-    majEtatSalle();
-    appliquerSalle();
+    montrerVue("parametres");
     $("dr-a-salle").value = salle.id;
     nouvelleConversation(false);
     contexteEquipe();
     $("dr-assistant").scrollIntoView({block: "start"});
     $("dr-a-question").focus();
-    annoncer(`Interroger le projet ${salle.code} avec Claude.`);
+    annoncer(`Interroger le projet ${nomSalle(salle)} avec Claude.`);
   }
 
   function remplirSallesAssistant(salles) {
@@ -1491,7 +1532,7 @@
     const choix = $("dr-a-salle"), avant = choix.value;
     choix.textContent = "";
     for (const s of salles) {
-      const o = el("option", null, `${s.code} (${s.nom_de_code})`);
+      const o = el("option", null, nomSalle(s));
       o.value = s.salle_id;
       choix.appendChild(o);
     }
@@ -1678,7 +1719,8 @@
   const COL_DOSSIER = "id,nom,etape,reserve,dossier_id";
   const CATEGORIES = {fonds: "fonds", ipp: "IPP", industriel: "industriel", conseil: "conseil", autre: "autre"};
   const acq = {orgs: [], comptes: [], salles: []};
-  const acqMsg = (t, erreur = false) => ecrire($("dr-acq-msg"), t, erreur ? "erreur" : "");
+  // messages des acheteurs : dans la salle ouverte et dans « Organisations et comptes » (paramètres)
+  const acqMsg = (t, erreur = false) => { for (const id of ["dr-acq-msg", "dr-acq-msg2"]) ecrire($(id), t, erreur ? "erreur" : ""); };
   const lire = async (table, colonnes, filtre) => {
     try {
       let r = sb.from(table).select(colonnes);
@@ -1744,9 +1786,11 @@
     if (!acq.comptes.length) uc.appendChild(el("li", "dr-vide", "Aucun compte invité."));
     const choixSalle = $("dr-acq-salle"), avant = choixSalle.value;
     choixSalle.textContent = "";
-    for (const s of acq.salles) { const o = el("option", null, `${s.code} (${s.nom_de_code})`); o.value = s.id; choixSalle.appendChild(o); }
+    for (const s of acq.salles) { const o = el("option", null, nomSalle(s)); o.value = s.id; choixSalle.appendChild(o); }
     if (acq.salles.length) choixSalle.value = acq.salles.some(s => s.id === avant) ? avant : acq.salles[0].id;
-    optionsOrgs($("dr-acq-inv-org"), null);
+    const dl = $("dr-inv-orgs");
+    dl.textContent = "";
+    for (const o of acq.orgs) { const x = el("option"); x.value = o.nom; dl.appendChild(x); }
     optionsOrgs($("dr-acq-c-org"), "Sans organisation pour l'instant");
     $("dr-acquereurs").hidden = false;
     await chargerSalleAcquereurs();
@@ -1755,14 +1799,16 @@
   async function chargerSalleAcquereurs() {
     const salle = $("dr-acq-salle").value, ul = $("dr-acq-parts"), droits = $("dr-acq-droits");
     ul.textContent = ""; droits.textContent = "";
+    acq.parts = [];
     if (!salle) { ul.appendChild(el("li", "dr-vide", "Aucune salle.")); return; }
     const [parts, dossiers, lus] = await Promise.all([
       lire("dr_participation", COL_PART, r => r.eq("salle_id", salle)),
       lire("dr_element", COL_DOSSIER, r => r.eq("salle_id", salle).eq("type", "dossier").is("retire_le", null)),
       lire("dr_droit", COL_DROIT, r => r.eq("salle_id", salle))]);
+    if ($("dr-acq-salle").value !== salle) return;   // une autre salle a été choisie entre-temps
     if (parts.error || dossiers.error || lus.error) { acqMsg(`Lecture impossible : ${messageBase(parts.error || dossiers.error || lus.error)}.`, true); return; }
     const nomOrg = id => (acq.orgs.find(o => o.id === id) || {}).nom || "organisation inconnue";
-    const participants = parts.data || [];
+    const participants = acq.parts = parts.data || [];
     for (const p of participants) {
       const li = el("li", null, `${nomOrg(p.organisation_id)} · ${p.statut === "active" ? "active" : "suspendue"} · jusqu'au ${jourDe(p.fin)}`);
       const choix = el("select");
@@ -1778,7 +1824,8 @@
         `${p.statut === "active" ? "Suspendre" : "Reprendre"} ${nomOrg(p.organisation_id)}`));
       ul.appendChild(li);
     }
-    if (!participants.length) ul.appendChild(el("li", "dr-vide", "Aucune organisation invitée dans cette salle."));
+    if (!participants.length) ul.appendChild(el("li", "dr-vide", "Aucun acheteur invité : « Inviter un acheteur »."));
+    if (vue.salle === salle) majVueSalle();
     // droits : un dossier de premier niveau par ligne, une organisation invitée par colonne
     const premiers = (dossiers.data || []).filter(d => d.dossier_id === d.id).sort((a, b) => TRI.compare(a.nom, b.nom));
     if (!premiers.length) { droits.appendChild(el("p", "dr-vide", "Aucun dossier de premier niveau.")); return; }
@@ -1827,45 +1874,44 @@
 
   // compte d'un acquéreur : fonction serveur « comptes » (seule à tenir la clé d'administration de Supabase), avec le
   // jeton du membre ; la base contrôle (jamais un membre de l'équipe, adresse, date de fin d'un an au plus)
-  async function creerCompte(ev) {
-    ev.preventDefault();
-    const email = $("dr-acq-c-email").value.trim(), fin = $("dr-acq-c-fin").value;
-    if (!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(email)) { acqMsg("Adresse email ?", true); return; }
-    if (!dateValide(fin)) { acqMsg("Date de fin de l'accès ?", true); return; }
+  // appel de la fonction serveur « comptes » : {ok, cree} ou {ok: false, erreur}
+  async function appelComptes(corpsEnvoye) {
     let jeton = P.session.access_token;
     try { const {data} = await sb.auth.getSession(); if (data && data.session) jeton = data.session.access_token; } catch {}
-    $("dr-acq-c-go").disabled = true;
     let rep, corps = null;
     try {
       rep = await fetch(`${conf.url}/functions/v1/comptes`, {
         method: "POST", redirect: "error", credentials: "omit", cache: "no-store",
         headers: {"Authorization": `Bearer ${jeton}`, "apikey": conf.cle, "Content-Type": "application/json"},
-        body: JSON.stringify({email, nom: $("dr-acq-c-nom").value.trim() || null, societe: $("dr-acq-c-societe").value.trim() || null,
-                              fin, organisation: $("dr-acq-c-org").value || null}),
+        body: JSON.stringify(corpsEnvoye),
       });
       corps = await rep.json().catch(() => null);
     } catch {
-      $("dr-acq-c-go").disabled = false;
-      acqMsg("Pas de réponse du serveur : fonction « comptes » pas encore installée, ou connexion coupée.", true);
-      return;
+      return {ok: false, erreur: "pas de réponse du serveur (fonction « comptes » pas encore installée, ou connexion coupée)"};
     }
-    $("dr-acq-c-go").disabled = false;
     if (!rep.ok || !corps || !corps.user_id) {
-      acqMsg(`Compte non créé : ${corps && typeof corps.erreur === "string" ? corps.erreur.slice(0, 300) : `code ${rep.status}`}.`, true);
+      return {ok: false, erreur: corps && typeof corps.erreur === "string" ? corps.erreur.slice(0, 300) : `code ${rep.status}`};
+    }
+    return {ok: true, cree: !!corps.cree};
+  }
+
+  async function creerCompte(ev) {
+    ev.preventDefault();
+    const email = $("dr-acq-c-email").value.trim(), fin = $("dr-acq-c-fin").value;
+    if (!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(email)) { acqMsg("Adresse email ?", true); return; }
+    if (!dateValide(fin)) { acqMsg("Date de fin de l'accès ?", true); return; }
+    $("dr-acq-c-go").disabled = true;
+    const r = await appelComptes({email, nom: $("dr-acq-c-nom").value.trim() || null, societe: $("dr-acq-c-societe").value.trim() || null,
+                                  fin, organisation: $("dr-acq-c-org").value || null});
+    $("dr-acq-c-go").disabled = false;
+    if (!r.ok) {
+      acqMsg(r.erreur.startsWith("pas de réponse") ? "Pas de réponse du serveur : fonction « comptes » pas encore installée, ou connexion coupée."
+        : `Compte non créé : ${r.erreur}.`, true);
       return;
     }
     for (const id of ["dr-acq-c-email", "dr-acq-c-nom", "dr-acq-c-societe", "dr-acq-c-fin"]) $(id).value = "";
-    acqMsg(`${email} : compte ${corps.cree ? "créé" : "mis à jour"}.`);
+    acqMsg(`${email} : compte ${r.cree ? "créé" : "mis à jour"}.`);
     await chargerAcquereurs();
-  }
-
-  async function inviterOrganisation(ev) {
-    ev.preventDefault();
-    const salle = $("dr-acq-salle").value, org = $("dr-acq-inv-org").value, fin = $("dr-acq-inv-fin").value;
-    if (!salle || !org) { acqMsg("Choisissez une salle et une organisation.", true); return; }
-    if (!dateValide(fin)) { acqMsg("Date de fin de l'accès ?", true); return; }
-    await action("dr_inviter", {p_salle: salle, p_organisation: org, p_fin: `${fin}T23:59:59`, p_etape: Number($("dr-acq-inv-etape").value)},
-      "Organisation invitée.");
   }
 
   // ------------------------------------------------------------------ « Acheteurs » (équipe, sql/09_marche.sql)
@@ -2027,7 +2073,7 @@
     const {error} = await appel("dr_regler_participation", {p_participation: participationId, p_reglages: {etape: v}});
     choix.disabled = false;
     if (error) { choix.value = String(p.etape); aePMsg(messageBase(error), true); return; }
-    const texte = `${o.nom} · ${p.code} : étape ${v} (${ETAPES_ACHETEUR[v]}).`;
+    const texte = `${o.nom} · ${p.nom_de_code || p.code} : étape ${v} (${ETAPES_ACHETEUR[v]}).`;
     await chargerAcquereurs();
     await chargerAcheteurs();
     await ouvrirAcheteur(o.organisation_id, false);
@@ -2035,25 +2081,20 @@
     rendreFocus($("dr-ae"), {cle: "ae-etape:" + p.salle_id});
   }
 
-  // « Inviter sur un autre projet » : le formulaire d'invitation de « Acquéreurs », prérempli (organisation, une salle
-  // où elle n'est pas encore) ; la fin de l'accès et l'étape restent à choisir, l'invitation part par « Inviter »
+  // « Inviter sur un autre projet » : ouvre une salle où l'organisation n'est pas encore, étape Acheteurs, avec le
+  // formulaire d'invitation prérempli (société) ; la fin de l'accès et l'étape restent à choisir
   async function inviterAutreProjet() {
     const o = orgChoisie();
     if (!o) return;
     const deja = new Set(ae.projets.map(p => p.salle_id));
-    const libres = acq.salles.filter(s => !deja.has(s.id));
+    const libres = acq.salles.filter(s => !deja.has(s.id) && etat.salleDe.has(s.id));
     if (!libres.length) { aePMsg(`${o.nom} est déjà invitée dans toutes les salles.`); return; }
-    const salle = $("dr-acq-salle");
-    if (!salle.value || deja.has(salle.value)) {
-      if (etat.salleDe.has(libres[0].id)) { $("dr-salle").value = libres[0].id; majEtatSalle(); $("dr").classList.add("dr-une-salle"); }
-      salle.value = libres[0].id;
-      await chargerSalleAcquereurs();
-    }
-    $("dr-acq-inv-org").value = o.organisation_id;
-    acqMsg(`Invitation de ${o.nom} : vérifiez la salle, choisissez la fin de l'accès et l'étape, puis « Inviter ».`);
-    aePMsg(`Formulaire d'invitation prérempli pour ${o.nom}, dans « Comptes, invitations et droits », plus bas.`);
-    $("dr-acq-form-inviter").scrollIntoView({block: "center"});
-    $("dr-acq-inv-fin").focus();
+    await ouvrirSalle(libres[0].id, "acheteurs");
+    $("dr-inv-form").hidden = false;
+    $("dr-inv-ouvrir").setAttribute("aria-expanded", "true");
+    $("dr-inv-societe").value = o.nom;
+    acqMsg(`Invitation de ${o.nom} dans ${nomSalle(etat.salleDe.get(libres[0].id))} : choisissez ce qu'il voit et jusqu'à quand, puis « Inviter ».`);
+    $("dr-inv-fin").focus();
   }
 
   // ---------------- aperçu « Voir comme cet acheteur » (lecture seule)
@@ -2134,7 +2175,7 @@
     ae.apercuFiche = l.cle;
     $("dr-ae-a-grille").hidden = true;
     $("dr-ae-a-fiche").hidden = false;
-    $("dr-ae-a-f-titre").textContent = `${l.nom_de_code} (${l.code})`;
+    $("dr-ae-a-f-titre").textContent = l.nom_de_code || l.code;
     // ce qui sépare l'aperçu de sa vraie page : salle en préparation, clause pas encore acceptée (il ne voit alors que
     // la clause, pas cette liste)
     $("dr-ae-a-f-prepa").textContent = [l.salle_statut === "preparation" ? prepaDite(l, true) : "",
@@ -2189,16 +2230,17 @@
     const {data, error} = await appel("dr_vitrine_depuis_salle", {p_salle: s.id});
     if (b) b.disabled = false;
     if (error || !data) {
-      arbreMsg(`Fiche marketplace de la salle ${s.code} : ${error ? messageBase(error) : "pas de réponse de la base"}.`, true);
+      arbreMsg(`Fiche marketplace de la salle ${nomSalle(s)} : ${error ? messageBase(error) : "pas de réponse de la base"}.`, true);
       return;
     }
     vit.choisie = data;
     await chargerVitrineEquipe();
     const f = vit.fiches.find(x => x.id === data) || null;
     remplirFormulaire(f);
-    arbreMsg(`Salle ${s.code} : fiche marketplace « ${f ? f.nom_de_code : s.nom_de_code} » ouverte dans « Vitrine » ` +
+    arbreMsg(`Salle ${nomSalle(s)} : fiche marketplace « ${f ? f.nom_de_code : s.nom_de_code} » ouverte dans « Vitrine » ` +
       (f && f.statut !== "brouillon" ? `(${STATUTS_FICHE[f.statut] || f.statut}).` : "(brouillon, invisible des acheteurs)."));
-    ouvrirOnglet("vitrine");
+    vue.retourVitrine = vue.salle ? "salle" : "accueil";
+    montrerVue("vitrine");
     $("dr-vit").scrollIntoView({block: "start"});
     $("dr-vit-nom").focus();
   }
@@ -2229,7 +2271,7 @@
       li.appendChild(el("span", "dr-vit-nom", f.nom_de_code));
       const liee = f.salle_id ? etat.salleDe.get(f.salle_id) : null;
       li.appendChild(el("span", "dr-vit-infos", `${NOMBRE.format(Number(f.puissance_mwc))} MWc · ${f.zone}` +
-                                                  (liee ? ` · salle ${liee.code}` : "") +
+                                                  (liee ? ` · salle ${nomSalle(liee)}` : "") +
                                                   (f.demandes_en_attente ? ` · ${f.demandes_en_attente} demande(s)` : "")));
       li.appendChild(bouton("Ouvrir", () => choisirFiche(f.id), "btn small", `Ouvrir la fiche ${f.nom_de_code}`));
       ul.appendChild(li);
@@ -2542,16 +2584,17 @@
     if (!qs.length) { ol.appendChild(el("li", "dr-vide", "Aucune question.")); return; }
     for (const q of qs) {
       const li = el("li", null, q.question);
-      li.appendChild(el("span", "dr-tb-meta", [date(q.le), q.salle_code, q.organisation || "organisation inconnue",
+      li.appendChild(el("span", "dr-tb-meta", [date(q.le), nomParCode(q.salle_code), q.organisation || "organisation inconnue",
         (RESULTATS[q.resultat] || q.resultat).toLowerCase(),
         q.etape_requise != null ? `réponse à l'étape ${q.etape_requise}` : ""].filter(Boolean).join(" · ")));
       ol.appendChild(li);
     }
   }
   async function chargerTableau() {
-    const choix = $("dr-tb-salle");
+    const choix = $("dr-tb-salle"), demande = choix.value;
     tbMsg("Lecture…");
-    const {data, error} = await appel("dr_tableau", {p_salle: choix.value || null});
+    const {data, error} = await appel("dr_tableau", {p_salle: demande || null});
+    if (choix.value !== demande) return;   // une autre salle a été choisie entre-temps : sa propre lecture l'affichera
     if (error) {
       tbMsg(["PGRST202", "42883"].includes(error.code)
         ? "Tableau de bord pas encore installé dans la base (sql/07_tableau.sql : python etl/droits.py --installer)."
@@ -2560,13 +2603,14 @@
       return;
     }
     const t = tb.donnees = data || {};
+    if (!demande) tb.global = t;
     tbMsg("");
     // périmètre : liste des salles gardée (lue avec « toutes les salles »)
     if (!choix.value && Array.isArray(t.salles)) {
       const avant = choix.value;
       choix.textContent = "";
       const tout = el("option", null, "Toutes les salles"); tout.value = ""; choix.appendChild(tout);
-      for (const s of t.salles) { const o = el("option", null, `${s.code} · ${s.nom_de_code}`); o.value = s.salle_id; choix.appendChild(o); }
+      for (const s of t.salles) { const o = el("option", null, s.nom_de_code || s.code); o.value = s.salle_id; choix.appendChild(o); }
       choix.value = avant;
     }
     const c = t.chiffres || {};
@@ -2595,7 +2639,7 @@
     const orgs = Array.isArray(t.organisations) ? t.organisations : [];
     tableauLignes($("dr-tb-orgs"), [["Organisation"], ["Salle"], ["Étape", 1], ["Statut"], ["Ouvertures", 1], ["Téléch.", 1],
                                      ["Documents", 1], ["Questions", 1], ["Recherches", 1], ["Dernière activité"]],
-      orgs.map(o => [o.organisation, o.salle_code, String(o.etape), o.statut === "active" ? "active" : "suspendue",
+      orgs.map(o => [o.organisation, nomParCode(o.salle_code), String(o.etape), o.statut === "active" ? "active" : "suspendue",
                      NOMBRE.format(o.ouvertures), NOMBRE.format(o.telechargements), NOMBRE.format(o.documents),
                      NOMBRE.format(o.questions), NOMBRE.format(o.recherches), o.derniere_activite ? date(o.derniere_activite) : "aucune"]));
     afficherQuestions();
@@ -2605,195 +2649,362 @@
     for (const x of themes) th.appendChild(el("li", null, `${x.mot} · ${NOMBRE.format(x.n)}`));
     if (!themes.length) th.appendChild(el("li", "dr-vide", "Aucun mot pour le moment."));
     $("dr-tableau").hidden = false;
+    majVueSalle();
   }
 
-  // ------------------------------------------------------------------ navigation (refonte de l'écran, lot 1, 25/11/2026)
-  // Six onglets (Documents, Acheteurs, Interroger, Vitrine, Statistiques, Réglages) et une salle choisie une fois en haut
-  // de page : elle règle les cartes qui avaient chacune leur choix de salle (recherche, assistant, invitations, tableau de
-  // bord), dont les sélecteurs se cachent alors ; « Toutes les salles » les rend visibles. Onglet et salle sont gardés
-  // pour l'onglet du navigateur (sessionStorage : deux réglages d'affichage, aucune donnée).
-  const ONGLETS = ["documents", "acheteurs", "interroger", "vitrine", "statistiques", "reglages"];
+  // ------------------------------------------------------------------ écran simplifié (25/11/2026, après le lot 1)
+  // Trois gestes de l'équipe sur un deal : mettre les documents, ouvrir à un acheteur, voir ce qu'il regarde.
+  // Vues : accueil (liste des salles, par leur nom de code), une salle en trois étapes (Documents, Acheteurs, Suivi),
+  // vitrine, paramètres (synchronisation, organisations et comptes, assistant, texte). Les cartes d'avant sont gardées,
+  // rangées dans ces vues. Vue et salle ouvertes sont gardées pour l'onglet du navigateur (sessionStorage : deux
+  // réglages d'affichage, aucune donnée).
+  const VUES = ["accueil", "salle", "vitrine", "parametres", "activite"];
+  const ETAPES_SALLE = ["documents", "acheteurs", "suivi"];
   const memoire = (() => { try { const s = window.sessionStorage; s.length; return s; } catch { return null; } })();
   const memoriser = (k, v) => { try { if (memoire) memoire.setItem(k, v); } catch { /* stockage refusé : sans effet */ } };
   const relu = k => { try { return memoire ? memoire.getItem(k) : null; } catch { return null; } };
-  let salleVoulue = relu("dr:salle");
-
-  function ouvrirOnglet(nom, focus = false) {
-    if (!ONGLETS.includes(nom)) nom = "documents";
-    for (const n of ONGLETS) {
-      const o = $("dr-o-" + n), actif = n === nom;
-      o.setAttribute("aria-selected", String(actif));
-      o.tabIndex = actif ? 0 : -1;
-      if (actif) o.classList.add("actif"); else o.classList.remove("actif");
-      $("dr-p-" + n).hidden = !actif;
-    }
-    memoriser("dr:onglet", nom);
-    if (focus) $("dr-o-" + nom).focus();
-  }
+  const vue = {nom: "accueil", salle: null, etape: "documents", retourVitrine: "accueil"};
+  const nomSalle = s => s ? s.nom_de_code || s.code : "";
+  const nomParCode = code => nomSalle(etat.salles.find(s => s.code === code)) || code || "";
 
   const STATUT_PASTILLE = {preparation: "En préparation", ouverte: "Ouverte", close: "Close"};
-  const STATUT_EXPLIQUE = {preparation: "pas encore visible des acheteurs", ouverte: "visible des acheteurs invités",
-                           close: "plus visible des acheteurs"};
-  const STATUTS_PLURIEL = {preparation: "en préparation", ouverte: "ouvertes", close: "closes"};
+  const STATUT_EXPLIQUE = {preparation: "Pas encore visible des acheteurs.", ouverte: "Visible des acheteurs invités.",
+                           close: "Fermée : plus visible des acheteurs."};
 
-  function remplirSalleGlobale() {
-    const choix = $("dr-salle"), avant = salleVoulue != null ? salleVoulue : choix.value;
-    choix.textContent = "";
-    const tout = el("option", null, "Toutes les salles");
-    tout.value = "";
-    choix.appendChild(tout);
-    for (const s of [...etat.salles].sort((a, b) => TRI.compare(a.code, b.code))) {
-      const o = el("option", null, `${s.code} · ${s.nom_de_code}`);
-      o.value = s.id;
-      choix.appendChild(o);
-    }
-    // une seule salle : choisie d'office (sauf si « Toutes les salles » a été choisi)
-    choix.value = etat.salleDe.has(avant) ? avant : salleVoulue === "" || etat.salles.length !== 1 ? "" : etat.salles[0].id;
-    majEtatSalle();
+  // focus : true pour le titre de la vue (changement demandé au clavier ou à la souris), ou l'élément à focaliser
+  const TITRES_VUES = {accueil: "dr-accueil-titre", salle: "dr-s-nom", vitrine: "dr-vit-titre", parametres: "dr-param-titre",
+                       activite: "dr-tb-titre"};
+  function montrerVue(nom, focus = false) {
+    if (!VUES.includes(nom)) nom = "accueil";
+    vue.nom = nom;
+    for (const v of VUES) $("dr-v-" + v).hidden = v !== nom;
+    memoriser("dr:vue", nom === "activite" ? "accueil" : nom);
+    if (typeof window.scrollTo === "function") window.scrollTo(0, 0);
+    if (focus) (focus === true ? $(TITRES_VUES[nom]) : focus).focus();
   }
 
-  // bandeau de la salle choisie : statut expliqué, documents publiés et à publier, étape suivante
-  function majEtatSalle() {
-    const zone = $("dr-salle-etat"), s = etat.salleDe.get($("dr-salle").value);
-    zone.textContent = "";
-    if (!s) {
-      const n = etat.salles.length;
-      if (!n) {
-        zone.appendChild(el("p", "dr-guide", "Aucune salle pour l'instant : dans « Documents », « Créer une salle ici » sur " +
-          "le dossier SharePoint de l'opération."));
-        return;
-      }
-      const parStatut = Object.keys(STATUTS).map(k => [k, etat.salles.filter(x => x.statut === k).length]).filter(([, c]) => c);
-      zone.appendChild(el("p", null, `${compte(n, "salle")} : ` +
-        parStatut.map(([k, c]) => `${NOMBRE.format(c)} ${c > 1 ? STATUTS_PLURIEL[k] : STATUTS[k]}`).join(", ") + "."));
-      return;
+  // le tableau de bord est montré dans l'étape Suivi de la salle ouverte, ou seul pour toutes les salles
+  function placerTableau(ou) {
+    const cible = ou === "activite" ? $("dr-v-activite") : $("dr-p-suivi");
+    const t = $("dr-tableau");
+    if (t.parentNode !== cible) {
+      if (ou === "activite") cible.appendChild(t); else cible.insertBefore(t, cible.children[0] || null);
     }
-    const ligne = el("p", "dr-salle-ligne");
-    ligne.append(el("b", null, s.code), ` ${s.nom_de_code} `, el("span", "dr-pastille " + s.statut, STATUT_PASTILLE[s.statut] || s.statut),
-      ` ${STATUT_EXPLIQUE[s.statut] || ""} · publication ${s.publication === "auto" ? "automatique" : "manuelle"}`);
-    zone.appendChild(ligne);
-    let publies = null;
-    if (s.bibliotheque_id === etat.choisie && etat.elements.length) {
-      const f = etat.elements.filter(e => e.type === "fichier" && e.salle_id === s.id);
-      publies = f.filter(e => e.version_publiee_id).length;
-      const aPublier = f.filter(publiable).length;
-      zone.appendChild(el("p", "dr-salle-chiffres", [compte(f.length, "fichier"), compte(publies, "publié", "publiés"),
-        compte(aPublier, "à publier", "à publier")].join(" · ")));
-    }
-    const guide = s.statut === "preparation"
-      ? publies === 0 ? "Étape suivante : publier les documents (onglet Documents)."
-        : "Étapes suivantes : inviter les acheteurs (onglet Acheteurs), vérifier avec « Voir comme cet acheteur », puis " +
-          "passer la salle en « ouverte » (Réglages de la salle)."
-      : s.statut === "ouverte" ? "Suivre l'activité des acheteurs : onglet Statistiques." : "";
-    if (guide) zone.appendChild(el("p", "dr-guide", guide));
-    const boutons = el("div", "dr-boutons");
-    boutons.append(bouton("Voir ses documents", () => allerAuxDocuments(s), "btn small", `Voir les documents de la salle ${s.code}`,
-                          "bandeau-docs:" + s.id),
-                   bouton("Réglages de la salle", () => allerAuxDocuments(s, true), "btn small", `Réglages de la salle ${s.code}`,
-                          "bandeau-reglages:" + s.id));
-    zone.appendChild(boutons);
+  }
+  async function ouvrirActivite() {
+    vue.salle = null;
+    memoriser("dr:salle", "");
+    placerTableau("activite");
+    montrerVue("activite", true);
+    if ($("dr-tb-salle").value) { $("dr-tb-salle").value = ""; await chargerTableau(); }
   }
 
-  async function allerAuxDocuments(s, reglages = false) {
-    ouvrirOnglet("documents");
+  // après la création d'une salle : les listes de salles des cartes sont relues
+  async function rafraichirListesSalles() {
+    await chargerAcquereurs();
+    await chargerTexte();
+    const choix = $("dr-tb-salle"), avant = choix.value;
+    choix.value = "";
+    await chargerTableau();
+    if (avant && choix.value === "") { choix.value = avant; await chargerTableau(); }
+  }
+
+  // fichiers d'une salle (bibliothèque affichée seulement) : tous, publiés, à publier
+  function fichiersSalle(s) {
+    if (!s || s.bibliotheque_id !== etat.choisie || !etat.elements.length) return null;
+    const f = etat.elements.filter(e => e.type === "fichier" && e.salle_id === s.id);
+    return {tous: f.length, publies: f.filter(e => e.version_publiee_id).length, aPublier: f.filter(publiable).length};
+  }
+  // acheteurs et activité d'une salle, lus dans le tableau de bord de toutes les salles
+  function activiteSalle(s) {
+    const orgs = ((tb.global && tb.global.organisations) || []).filter(o => o.salle_code === s.code);
+    const derniere = orgs.map(o => o.derniere_activite).filter(Boolean).sort().pop();
+    return {acheteurs: orgs.length, derniere};
+  }
+
+  function afficherAccueil() {
+    const ul = $("dr-salles-liste");
+    const actif = document.activeElement, cleFocus = actif && ul.contains(actif) ? actif.dataset.cle : null;
+    ul.textContent = "";
+    ecrire($("dr-accueil-msg"), etat.erreurLecture, etat.erreurLecture ? "calme" : "");
+    const salles = [...etat.salles].sort((a, b) => TRI.compare(nomSalle(a), nomSalle(b)));
+    if (!salles.length && etat.erreurLecture) return;
+    if (!salles.length) {
+      const li = el("li", "dr-vide-guide");
+      li.appendChild(el("p", null, etat.biblios.length
+        ? "Aucune salle pour l'instant. « Nouvelle salle » : choisissez le dossier SharePoint de l'opération."
+        : "Aucune salle pour l'instant. Commencez par relier le site SharePoint des data rooms (Paramètres)."));
+      ul.appendChild(li);
+    }
+    for (const s of salles) {
+      const li = el("li", "dr-salle-ligne");
+      const txt = el("div", "dr-salle-texte");
+      txt.appendChild(el("span", "dr-salle-nom", nomSalle(s)));
+      const f = fichiersSalle(s), a = activiteSalle(s), infos = [];
+      if (f) infos.push(f.aPublier ? `${compte(f.aPublier, "document")} à publier` : compte(f.publies, "document publié", "documents publiés"));
+      infos.push(a.acheteurs ? compte(a.acheteurs, "acheteur") : "aucun acheteur");
+      if (a.derniere) infos.push(`vu le ${jourDe(a.derniere)}`);
+      txt.appendChild(el("span", "dr-salle-infos", infos.join(" · ")));
+      li.appendChild(txt);
+      li.appendChild(el("span", "dr-pastille " + s.statut, STATUT_PASTILLE[s.statut] || s.statut));
+      const b = bouton("Ouvrir", () => ouvrirSalle(s.id), "btn small", `Ouvrir la salle ${nomSalle(s)}`, "ouvrir-salle:" + s.id);
+      li.appendChild(b);
+      ul.appendChild(li);
+      if (cleFocus && b.dataset.cle === cleFocus) b.focus();
+    }
+  }
+
+  // la carte Documents (arborescence) est montrée dans la salle ouverte, ou dans « Nouvelle salle » (toute la bibliothèque)
+  function placerDocuments(ou) {
+    const cible = ou === "nouvelle" ? $("dr-nouvelle-zone") : $("dr-p-documents");
+    if ($("dr-docs").parentNode !== cible) cible.appendChild($("dr-docs"));
+  }
+
+  function basculerNouvelle() {
+    const zone = $("dr-nouvelle-zone"), b = $("dr-nouvelle-salle"), ouvrir = zone.hidden;
+    zone.hidden = !ouvrir;
+    b.setAttribute("aria-expanded", String(ouvrir));
+    if (ouvrir) { vue.salle = null; placerDocuments("nouvelle"); afficherArbre(); }
+  }
+
+  async function ouvrirSalle(id, etape = "documents") {
+    const s = etat.salleDe.get(id);
+    if (!s) return;
+    vue.salle = id;
+    memoriser("dr:salle", id);
+    $("dr-nouvelle-zone").hidden = true;
+    $("dr-nouvelle-salle").setAttribute("aria-expanded", "false");
+    etat.reglages = null;
+    $("dr-s-reglages-zone").textContent = "";
+    $("dr-inv-form").hidden = true;
+    $("dr-inv-ouvrir").setAttribute("aria-expanded", "false");
+    ecrire($("dr-inv-msg"), "", "erreur");
+    ecrire($("dr-acq-msg"), "");
+    ecrire($("dr-s-msg"), "");
+    placerDocuments("salle");
+    placerTableau("salle");
+    montrerVue("salle");
+    ouvrirEtape(etape);
+    majVueSalle();
+    $("dr-s-nom").focus();
     if (s.bibliotheque_id !== etat.choisie) {
       etat.choisie = s.bibliotheque_id;
       oublierArbre();
       etat.elements = [];
       await recharger();
-    }
-    if (reglages) {
-      const b = [...$("dr-arbre").querySelectorAll("button")].find(x => x.dataset.cle === "reglages:" + s.id);
-      if (b && b.getAttribute("aria-expanded") !== "true") b.click(); else if (b) b.focus();
-      return;
-    }
-    const racine = etat.parItem.get(s.racine_item_id);
-    if (racine) montrer(racine);
-  }
-
-  // la salle du haut de page règle les choix de salle des cartes ; une carte qui ne connaît pas la salle (pas encore
-  // indexée, tableau pas installé…) garde son propre choix, montré (classe dr-ecart)
-  async function appliquerSalle() {
-    const id = $("dr-salle").value, travaux = [];
-    if (id) $("dr").classList.add("dr-une-salle"); else $("dr").classList.remove("dr-une-salle");
+    } else afficherArbre();
+    const travaux = [];
     const connue = sel => [...$(sel).querySelectorAll("option")].some(o => o.value === id);
-    const ecart = (sel, oui) => {
-      const cibles = [$(sel), ...[...$(sel).parentNode.querySelectorAll("label")].filter(l => l.htmlFor === sel)];
-      if (sel === "dr-tb-salle") cibles.push($(sel).parentNode);
-      for (const c of cibles) if (oui) c.classList.add("dr-ecart"); else c.classList.remove("dr-ecart");
-    };
-    for (const sel of ["dr-c-salle", "dr-a-salle", "dr-acq-salle", "dr-tb-salle"]) ecart(sel, !!id && !connue(sel));
-    if (!id) {
-      if ($("dr-tb-salle").value) { $("dr-tb-salle").value = ""; travaux.push(chargerTableau()); }
-      await Promise.all(travaux);
-      return;
+    // salle encore inconnue d'une carte (créée depuis le chargement) : sa liste est relue d'abord ; jamais les données
+    // d'une autre salle sous l'en-tête de celle-ci
+    if (!connue("dr-acq-salle")) await chargerAcquereurs();
+    if (!connue("dr-tb-salle")) {
+      const o = el("option", null, nomSalle(s));
+      o.value = id;
+      $("dr-tb-salle").appendChild(o);
+    }
+    if (vue.salle !== id) return;   // une autre salle a été ouverte entre-temps
+    if (!connue("dr-acq-salle")) {
+      $("dr-acq-salle").value = "";
+      acq.parts = [];
+      $("dr-acq-parts").textContent = "";
+      $("dr-acq-parts").appendChild(el("li", "dr-vide", "Acheteurs de cette salle pas encore lisibles : « Recharger » dans Paramètres."));
+      $("dr-acq-droits").textContent = "";
     }
     if (connue("dr-c-salle")) $("dr-c-salle").value = id;
     if (connue("dr-a-salle") && $("dr-a-salle").value !== id) { $("dr-a-salle").value = id; contexteEquipe(); }
-    if (connue("dr-acq-salle") && $("dr-acq-salle").value !== id) { $("dr-acq-salle").value = id; travaux.push(chargerSalleAcquereurs()); }
-    if (connue("dr-tb-salle") && $("dr-tb-salle").value !== id) { $("dr-tb-salle").value = id; travaux.push(chargerTableau()); }
+    if (connue("dr-acq-salle")) { $("dr-acq-salle").value = id; travaux.push(chargerSalleAcquereurs()); }
+    if (connue("dr-tb-salle")) { $("dr-tb-salle").value = id; travaux.push(chargerTableau()); }
     await Promise.all(travaux);
+    majVueSalle();
   }
 
-  // index de la salle choisie (ou de toutes les salles de la bibliothèque affichée) en CSV pour Excel : point-virgule,
-  // BOM UTF-8 ; numéro écrit ="1.2" (sinon Excel en fait une date) ; une cellule qui commencerait comme une formule
-  // (= + - @) est précédée d'une apostrophe
-  function exporterIndex() {
-    const id = $("dr-salle").value, choisie = etat.salleDe.get(id);
-    if (choisie && choisie.bibliotheque_id !== etat.choisie) {
-      arbreMsg(`La salle ${choisie.code} est dans une autre bibliothèque : « Voir ses documents » dans le bandeau, puis exporter.`, true);
+  async function fermerSalle() {
+    const quittee = vue.salle;
+    vue.salle = null;
+    memoriser("dr:salle", "");
+    etat.reglages = null;
+    montrerVue("accueil");
+    afficherArbre();
+    afficherAccueil();
+    // le focus revient sur « Ouvrir » de la salle quittée
+    const b = [...$("dr-salles-liste").querySelectorAll("button")].find(x => x.dataset.cle === "ouvrir-salle:" + quittee);
+    (b || $("dr-accueil-titre")).focus();
+    if ($("dr-tb-salle").value) { $("dr-tb-salle").value = ""; await chargerTableau(); }
+  }
+
+  function ouvrirEtape(nom, focus = false) {
+    if (!ETAPES_SALLE.includes(nom)) nom = "documents";
+    vue.etape = nom;
+    ecrire($("dr-s-msg"), "");
+    for (const n of ETAPES_SALLE) {
+      const o = $("dr-e-" + n), actif = n === nom;
+      o.setAttribute("aria-selected", String(actif));
+      o.tabIndex = actif ? 0 : -1;
+      if (actif) o.classList.add("actif"); else o.classList.remove("actif");
+      $("dr-p-" + n).hidden = !actif;
+    }
+    if (focus) $("dr-e-" + nom).focus();
+  }
+
+  // en-tête de la salle ouverte et compteurs des trois étapes ; liste de l'accueil à jour
+  function majVueSalle() {
+    afficherAccueil();
+    const s = etat.salleDe.get(vue.salle);
+    if (!s) { $("dr-s-publier").hidden = true; if (vue.nom === "salle") montrerVue("accueil"); return; }
+    $("dr-s-nom").textContent = nomSalle(s);
+    const p = $("dr-s-statut");
+    p.className = "dr-pastille " + s.statut;
+    p.textContent = STATUT_PASTILLE[s.statut] || s.statut;
+    const f = fichiersSalle(s), n = (acq.parts || []).length;
+    const ouvertures = $("dr-tb-salle").value === s.id && tb.donnees && tb.donnees.chiffres ? Number(tb.donnees.chiffres.ouvertures) || 0 : null;
+    let suite = "";
+    if (s.statut === "preparation") {
+      suite = f && f.publies === 0 ? "Prochaine étape : publier les documents."
+        : !n ? "Prochaine étape : inviter un acheteur."
+        : "Prochaine étape : vérifier avec « Voir comme cet acheteur » (Suivi), puis ouvrir la salle (Réglages).";
+    }
+    $("dr-s-etat").textContent = [STATUT_EXPLIQUE[s.statut] || "", suite].filter(Boolean).join(" ");
+    $("dr-e-documents-n").textContent = f ? (f.aPublier ? `${NOMBRE.format(f.aPublier)} à publier` : compte(f.publies, "publié", "publiés")) : "";
+    $("dr-e-acheteurs-n").textContent = n ? compte(n, "invité", "invités") : "aucun invité";
+    $("dr-e-suivi-n").textContent = ouvertures == null ? "" : ouvertures ? compte(ouvertures, "ouverture") : "rien encore";
+    $("dr-s-publier").hidden = !f || !f.aPublier;
+    if (!etat.reglages) { $("dr-s-reglages-zone").textContent = ""; $("dr-s-reglages").setAttribute("aria-expanded", "false"); }
+  }
+
+  function basculerReglages() {
+    const s = etat.salleDe.get(vue.salle), zone = $("dr-s-reglages-zone"), b = $("dr-s-reglages");
+    if (!s) return;
+    if (zone.querySelector("form")) {
+      etat.reglages = null;
+      zone.textContent = "";
+      b.setAttribute("aria-expanded", "false");
       return;
     }
-    const salles = [...etat.sallesIci.values()].filter(s => !id || s.id === id).sort((a, b) => TRI.compare(a.code, b.code));
-    if (!salles.length) { arbreMsg("Aucune salle dans cette bibliothèque : rien à exporter.", true); return; }
+    ouvrirReglages(s, zone, b);
+  }
+
+  function toutPublier() {
+    const s = etat.salleDe.get(vue.salle), racine = s && etat.parItem.get(s.racine_item_id);
+    const b = racine && [...$("dr-arbre").querySelectorAll("button")].find(x => x.dataset.cle === "publier:" + racine.id);
+    if (b) b.click(); else arbreMsg("Dossier de la salle pas encore lu : « Recharger ».", true);
+  }
+
+  // invitation en un seul formulaire : la société (créée si elle n'existe pas), le compte du contact s'il est donné
+  // (fonction serveur « comptes »), puis l'invitation dans la salle ouverte (dr_inviter) ; chaque étape est contrôlée
+  // par la base, comme avec les formulaires séparés des paramètres
+  async function inviterAcheteur(ev) {
+    ev.preventDefault();
+    const s = etat.salleDe.get(vue.salle), go = $("dr-inv-go");
+    const dire = (t, erreur = true) => ecrire($("dr-inv-msg"), t, erreur ? "erreur" : "");
+    const societe = $("dr-inv-societe").value.trim(), email = $("dr-inv-email").value.trim(), fin = $("dr-inv-fin").value;
+    const etape = Number($("dr-inv-etape").value);
+    if (!s) return dire("Ouvrez d'abord une salle.");
+    if (!societe) return dire("Société de l'acheteur ?");
+    if (email && !/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(email)) return dire("Adresse email ?");
+    if (!dateValide(fin)) return dire("Jusqu'à quand l'accès est-il ouvert ?");
+    dire("");
+    go.disabled = true;
+    try {
+      const existante = acq.orgs.find(o => (o.nom || "").trim().toLowerCase() === societe.toLowerCase());
+      let org = existante ? existante.id : null;
+      if (!org) {
+        const {data, error} = await appel("dr_creer_organisation", {p_nom: societe, p_categorie: $("dr-inv-cat").value});
+        if (error || !data) return dire(error ? messageBase(error) : "Société non créée : pas de réponse de la base.");
+        org = data;
+        acq.orgs.push({id: data, nom: societe, categorie: $("dr-inv-cat").value});   // un nouvel essai la retrouve
+      }
+      const creee = !existante ? `Société ${societe} créée ; ` : "";
+      if (email) {
+        const r = await appelComptes({email, nom: $("dr-inv-nom").value.trim() || null, societe, fin, organisation: org});
+        if (!r.ok) return dire(`${creee}compte du contact non créé : ${r.erreur}. Corrigez puis « Inviter » de nouveau.`);
+      }
+      // dr_inviter met aussi à jour une invitation existante (fin, étape, accès réactivé)
+      const deja = $("dr-acq-salle").value === s.id && (acq.parts || []).some(p => p.organisation_id === org);
+      const {error} = await appel("dr_inviter", {p_salle: s.id, p_organisation: org, p_fin: `${fin}T23:59:59`, p_etape: etape});
+      if (error) return dire(`${creee}${creee ? "invitation refusée : " : ""}${messageBase(error)}`);
+      const voit = ([...$("dr-inv-etape").querySelectorAll("option")].find(o => o.value === String(etape)) || {}).textContent || "";
+      for (const id of ["dr-inv-societe", "dr-inv-email", "dr-inv-nom", "dr-inv-fin"]) $(id).value = "";
+      $("dr-inv-form").hidden = true;
+      $("dr-inv-ouvrir").setAttribute("aria-expanded", "false");
+      acqMsg((deja ? `Accès de ${societe} mis à jour dans ${nomSalle(s)} : ${voit.toLowerCase()}, jusqu'au ${jour(fin)}`
+                   : `${societe} invitée dans ${nomSalle(s)} : ${voit.toLowerCase()}, jusqu'au ${jour(fin)}`) +
+        (email ? ` ; ${email} se connecte avec un code reçu par email.` : "."));
+      await chargerAcquereurs();
+      await rafraichirAcheteurs();
+      majVueSalle();
+      $("dr-inv-ouvrir").focus();
+    } finally {
+      go.disabled = false;
+    }
+  }
+
+  // index de la salle ouverte en CSV pour Excel : point-virgule, BOM UTF-8 ; numéro écrit ="1.2" (sinon Excel en fait
+  // une date) ; une cellule qui commencerait comme une formule (= + - @) est précédée d'une apostrophe
+  function exporterIndex() {
+    const s = etat.salleDe.get(vue.salle);
+    const salles = s ? [s] : [...etat.sallesIci.values()].sort((a, b) => TRI.compare(nomSalle(a), nomSalle(b)));
+    if (!salles.length || (s && s.bibliotheque_id !== etat.choisie)) { arbreMsg("Rien à exporter pour l'instant.", true); return; }
     const lignes = [["Salle", "Index", "Type", "Nom dans SharePoint", "Nom vu des acheteurs", "État", "Étape", "Taille (octets)"]];
-    for (const s of salles) {
+    for (const x of salles) {
       const parcourir = (item, n) => {
         for (const e of etat.enfants.get(item) || []) {
           const fichier = e.type === "fichier";
-          lignes.push([s.code, {formule: etat.numeros.get(e.id) || ""}, fichier ? "fichier" : "dossier", e.nom, e.publie_nom || "",
+          lignes.push([nomSalle(x), {formule: etat.numeros.get(e.id) || ""}, fichier ? "fichier" : "dossier", e.nom, e.publie_nom || "",
                        fichier ? etatFichier(e).texte : "", e.etape == null ? "" : e.etape, e.taille == null ? "" : e.taille]);
           if (!fichier && n < 64) parcourir(e.item_id, n + 1);
         }
       };
-      parcourir(s.racine_item_id, 0);
+      parcourir(x.racine_item_id, 0);
     }
     const cellule = v => {
       if (v && typeof v === "object") return v.formule ? `="${v.formule}"` : "";
-      let x = String(v);
-      if (/^[=+\-@\t\r]/.test(x)) x = "'" + x;
-      return /[";\n\r]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x;
+      let c = String(v);
+      if (/^[=+\-@\t\r]/.test(c)) c = "'" + c;
+      return /[";\n\r]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c;
     };
     const texte = "﻿" + lignes.map(l => l.map(cellule).join(";")).join("\r\n");
-    P.telecharger(`index-${id ? salles[0].code : "salles"}-${new Date().toISOString().slice(0, 10)}.csv`,
-                  new Blob([texte], {type: "text/csv;charset=utf-8"}));
+    const nom = (s ? nomSalle(s) : "salles").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "") || "salle";
+    P.telecharger(`index-${nom}-${new Date().toISOString().slice(0, 10)}.csv`, new Blob([texte], {type: "text/csv;charset=utf-8"}));
     arbreMsg(`Index exporté : ${compte(lignes.length - 1, "ligne")}.`);
   }
 
   // ------------------------------------------------------------------ démarrage
-  $("dr-pilote").hidden = $("dr-onglets").hidden = $("dr-docs").hidden = false;
-  for (const n of ONGLETS) $("dr-o-" + n).addEventListener("click", () => ouvrirOnglet(n));
-  $("dr-onglets").addEventListener("keydown", ev => {
-    const i = ONGLETS.findIndex(n => $("dr-o-" + n).getAttribute("aria-selected") === "true");
-    const j = {ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: ONGLETS.length - 1}[ev.key];
+  for (const n of ETAPES_SALLE) $("dr-e-" + n).addEventListener("click", () => ouvrirEtape(n));
+  $("dr-etapes").addEventListener("keydown", ev => {
+    const i = ETAPES_SALLE.indexOf(vue.etape);
+    const j = {ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: ETAPES_SALLE.length - 1}[ev.key];
     if (j == null) return;
     ev.preventDefault();
-    ouvrirOnglet(ONGLETS[(j + ONGLETS.length) % ONGLETS.length], true);
+    ouvrirEtape(ETAPES_SALLE[(j + ETAPES_SALLE.length) % ETAPES_SALLE.length], true);
   });
-  $("dr-salle").addEventListener("change", async () => {
-    salleVoulue = $("dr-salle").value;
-    memoriser("dr:salle", salleVoulue);
-    majEtatSalle();
-    await appliquerSalle();
+  $("dr-s-retour").addEventListener("click", () => fermerSalle());
+  $("dr-param-retour").addEventListener("click", () => montrerVue(vue.salle ? "salle" : "accueil", true));
+  $("dr-vit-retour").addEventListener("click", () => montrerVue(vue.retourVitrine, true));
+  $("dr-vers-parametres").addEventListener("click", () => montrerVue("parametres", true));
+  $("dr-vers-vitrine").addEventListener("click", () => { vue.retourVitrine = "parametres"; montrerVue("vitrine", true); });
+  $("dr-vers-activite").addEventListener("click", () => ouvrirActivite());
+  $("dr-activite-retour").addEventListener("click", () => { placerTableau("salle"); montrerVue("accueil", true); });
+  $("dr-nouvelle-salle").addEventListener("click", basculerNouvelle);
+  $("dr-s-reglages").addEventListener("click", basculerReglages);
+  $("dr-s-publier").addEventListener("click", toutPublier);
+  $("dr-s-fiche").addEventListener("click", ev => { const s = etat.salleDe.get(vue.salle); if (s) ficheDepuisSalle(s, ev.currentTarget); });
+  $("dr-inv-ouvrir").addEventListener("click", () => {
+    const f = $("dr-inv-form"), ouvrir = f.hidden;
+    f.hidden = !ouvrir;
+    $("dr-inv-ouvrir").setAttribute("aria-expanded", String(ouvrir));
+    if (ouvrir) $("dr-inv-societe").focus();
   });
+  $("dr-inv-form").addEventListener("submit", inviterAcheteur);
   $("dr-docs-recharger").addEventListener("click", () => recharger());
   $("dr-docs-export").addEventListener("click", exporterIndex);
   $("dr-docs-vers-reglages").addEventListener("click", () => {
-    ouvrirOnglet("reglages");
+    montrerVue("parametres");
     $("dr-declarer").open = true;
     $("dr-b-adresse").focus();
   });
-  ouvrirOnglet(relu("dr:onglet") || "documents");
+  $("dr-presentation").hidden = $("dr-docs").hidden = false;
+  montrerVue("accueil");
   $("dr-synchro").hidden = false;
   $("dr-recharger").addEventListener("click", () => recharger());
   $("dr-form-biblio").addEventListener("submit", declarer);
@@ -2827,7 +3038,6 @@
   });
   $("dr-acq-salle").addEventListener("change", () => chargerSalleAcquereurs());
   $("dr-acq-form-org").addEventListener("submit", creerOrganisation);
-  $("dr-acq-form-inviter").addEventListener("submit", inviterOrganisation);
   $("dr-acq-form-compte").addEventListener("submit", creerCompte);
   $("dr-tb-recharger").addEventListener("click", () => chargerTableau());
   $("dr-vit-recharger").addEventListener("click", () => chargerVitrineEquipe());
@@ -2844,5 +3054,7 @@
   await chargerAcheteurs();
   await chargerVitrineEquipe();
   await chargerTableau();
-  await appliquerSalle();
+  const salleGardee = relu("dr:salle"), vueGardee = relu("dr:vue");
+  if (salleGardee && etat.salleDe.has(salleGardee)) await ouvrirSalle(salleGardee);
+  else if (vueGardee === "parametres") montrerVue("parametres");
 })();

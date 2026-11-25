@@ -1,4 +1,4 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=92b9ba0dcf"><link rel="stylesheet" href="modules/dataroom/visionneuse.css?v=f102ea9cc4"></head><body>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src https://sdljbmsiiheoltlixlrr.supabase.co wss://sdljbmsiiheoltlixlrr.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Data Room Access · Almavision</title><link rel="stylesheet" href="vendor/fonts.css"><link rel="stylesheet" href="plateforme/coquille.css?v=40b97beda9"><link rel="stylesheet" href="modules/dataroom/dataroom.css?v=3fdb010182"><link rel="stylesheet" href="modules/dataroom/visionneuse.css?v=f102ea9cc4"></head><body>
 <script type="application/json" id="plateforme-config">{"url": "https://sdljbmsiiheoltlixlrr.supabase.co", "cle": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkbGpibXNpaWhlb2x0bGl4bHJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1MjQ0MDUsImV4cCI6MjEwNzEwMDQwNX0.rtelLOAYD-Blu_I2px-7hEmhJ0wQItG-YcQh0QqVWlM", "module": "dataroom", "modules": [{"id": "prospection", "nom": "Prospection Projet", "page": "prospection.html", "ordre": 10, "description": "Sociétés et projets photovoltaïques à prospecter : recherche Corpo et Projets, suivi de l'équipe, tâches, carte.", "statut": "en service", "double_auth": false}, {"id": "dataroom", "nom": "Data Room Access", "page": "dataroom.html", "ordre": 20, "description": "Data rooms personnalisables pour les opérations, fichiers dans le SharePoint d'Almavision.", "statut": "en co-construction", "double_auth": true, "page_invites": "acheteur.html"}, {"id": "valorisations", "nom": "Valorisations", "page": "valorisations.html", "ordre": 30, "description": "Valorisation de portefeuilles photovoltaïques : documents, hypothèses Bas / Central / Haut, modèle Excel rempli et note PDF.", "statut": "en développement", "double_auth": true}]}</script>
 <header class="cq-entete" id="cq-entete"></header>
 <div id="connexion" class="cnx" hidden>
@@ -63,164 +63,312 @@
 </div>
 <main class="cq-page" id="dr" hidden>
   <h1>Data Room Access</h1>
-  <div id="dr-presentation" hidden>
-  <p class="cq-intro">Une salle par opération : les fichiers restent dans SharePoint, la plateforme les ouvre aux
-    acheteurs dossier par dossier et note chaque consultation. Choisissez la salle, puis l'onglet.</p>
-  <details class="dr-historique">
-    <summary>Historique du module (plan de départ et avancement au 20/11/2026)</summary>
-  <div class="dr-grille">
-    <section class="cq-carte">
-      <h2>Ce que le module fera</h2>
-      <ul>
-        <li>Une salle par opération (centrale, portefeuille, société, projet en développement), à partir d'un modèle
-          d'arborescence que l'on adapte.</li>
-        <li>Les fichiers restent dans SharePoint ; ils ne sont jamais partagés directement avec un acquéreur.</li>
-        <li>Un accès par étape du processus de vente (teaser et mémo, offre indicative, offre ferme et due diligence,
-          confirmatoire) : chaque acquéreur ne voit que les documents de l'étape qu'il a atteinte.</li>
-        <li>Des groupes d'acquéreurs cloisonnés et, pour chaque dossier, deux niveaux : consulter seulement, ou consulter
-          et télécharger.</li>
-        <li>Une publication explicite : un nouveau document n'est visible qu'après validation par l'équipe.</li>
-        <li>Un journal nominatif (qui a consulté ou téléchargé quoi, et quand) et une révocation immédiate.</li>
-        <li>Un assistant qui répond aux questions des acquéreurs à partir des seuls documents qui leur sont ouverts, avec
-          la référence de chaque page citée, et un tableau de bord de ce qu'ils consultent et cherchent.</li>
-        <li>Ensuite : questions-réponses par groupe d'acquéreurs, puis dépôt de documents par le vendeur.</li>
-      </ul>
-    </section>
-    <section class="cq-carte">
-      <h2>Où on en est</h2>
-      <ol class="dr-etapes">
-        <li class="fait">Plateforme à modules en place</li>
-        <li class="fait">Choix faits ensemble : site SharePoint dédié, droits par dossier, toute l'équipe gère les salles,
-          PDF, Office et images jusqu'à 250 Mo</li>
-        <li class="fait">Socle des droits et séparation stricte entre l'équipe et les invités</li>
-        <li class="fait">Plan de la première version validé (assistant compris, étapes du processus de vente)</li>
-        <li class="fait">Site SharePoint « Data rooms » et application Microsoft en lecture seule sur ce seul site
-          (20/11/2026)</li>
-        <li class="en-cours">Synchronisation avec SharePoint : base, fonction serveur et écran de l'équipe écrits et
-          testés ; mise en service à faire (pas à pas : supabase/functions/README.md)</li>
-        <li class="en-cours">Lecture du texte des documents et recherche de l'équipe : écrites et testées ; mise en service
-          après la synchronisation</li>
-        <li class="en-cours">Assistant essayé par l'équipe « comme un acquéreur à l'étape N » : écrit et testé ; mise en
-          service avec la clé de l'API Claude déjà fournie (configuration vérifiée d'abord)</li>
-        <li class="en-cours">Acquéreurs : organisations, invitations, étapes, droits par dossier et écran de l'acquéreur
-          (recherche, assistant) écrits et testés ; ouverture après l'installation des règles d'accès</li>
-        <li class="en-cours">Consultation des documents (visionneuse avec filigrane, lecture par morceaux, téléchargement
-          contrôlé) : écrite et testée ; mise en service après la synchronisation</li>
-        <li class="en-cours">Tableau de bord de l'équipe (documents vus et jamais ouverts, activité par acquéreur,
-          questions sans réponse, thèmes) : écrit et testé ; mise en service avec le reste</li>
-        <li>Ouverture à un premier acquéreur pilote</li>
-      </ol>
-    </section>
-  </div>
-  </details>
-  </div>
 
-  <div class="dr-pilote" id="dr-pilote" hidden>
-    <div class="dr-salle-choix">
-      <label for="dr-salle">Salle</label>
-      <select id="dr-salle"><option value="">Toutes les salles</option></select>
+  <section class="dr-vue" id="dr-v-accueil" hidden aria-labelledby="dr-accueil-titre">
+    <div class="dr-tete">
+      <h2 id="dr-accueil-titre" tabindex="-1">Data rooms</h2>
+      <div class="dr-boutons">
+        <button class="btn small" type="button" id="dr-vers-parametres">Paramètres</button>
+        <button class="btn primary small" type="button" id="dr-nouvelle-salle" aria-expanded="false">Nouvelle salle</button>
+      </div>
     </div>
-    <div class="dr-salle-etat" id="dr-salle-etat" aria-live="polite"></div>
-  </div>
-  <nav class="dr-onglets" id="dr-onglets" role="tablist" aria-label="Sections de la Data Room" hidden>
-    <button type="button" role="tab" id="dr-o-documents" aria-controls="dr-p-documents" data-onglet="documents">Documents</button>
-    <button type="button" role="tab" id="dr-o-acheteurs" aria-controls="dr-p-acheteurs" data-onglet="acheteurs">Acheteurs</button>
-    <button type="button" role="tab" id="dr-o-interroger" aria-controls="dr-p-interroger" data-onglet="interroger">Interroger</button>
-    <button type="button" role="tab" id="dr-o-vitrine" aria-controls="dr-p-vitrine" data-onglet="vitrine">Vitrine</button>
-    <button type="button" role="tab" id="dr-o-statistiques" aria-controls="dr-p-statistiques" data-onglet="statistiques">Statistiques</button>
-    <button type="button" role="tab" id="dr-o-reglages" aria-controls="dr-p-reglages" data-onglet="reglages">Réglages</button>
-  </nav>
+    <p class="dr-msg" id="dr-accueil-msg" role="status" aria-live="polite"></p>
+    <ul class="dr-salles-liste" id="dr-salles-liste"></ul>
+    <button class="dr-lien" type="button" id="dr-vers-activite">Activité de toutes les salles</button>
+  <div class="dr-nouvelle" id="dr-nouvelle-zone" hidden>
+      <p class="dr-guide-texte">Choisissez le dossier SharePoint de l'opération, puis « Créer une salle ici ».</p>
+    </div>
+  </section>
 
-  <div class="dr-panneau" role="tabpanel" id="dr-p-documents" aria-labelledby="dr-o-documents" tabindex="-1">
-    <section class="cq-carte dr-docs" id="dr-docs" hidden aria-labelledby="dr-docs-titre">
-      <div class="dr-tete">
-        <h2 id="dr-docs-titre">Documents</h2>
-        <div class="dr-boutons">
-          <label class="dr-choix" id="dr-choix-biblio" hidden>Bibliothèque <select id="dr-biblio"></select></label>
-          <button class="btn small" type="button" id="dr-docs-export">Exporter l'index (CSV)</button>
-          <button class="btn small" type="button" id="dr-docs-recharger">Recharger</button>
-        </div>
+  <section class="dr-vue" id="dr-v-salle" hidden aria-labelledby="dr-s-nom">
+    <button class="dr-retour" type="button" id="dr-s-retour">← Data rooms</button>
+    <div class="dr-tete">
+      <div class="dr-s-titre">
+        <h2 id="dr-s-nom" tabindex="-1"></h2>
+        <span class="dr-pastille" id="dr-s-statut"></span>
       </div>
-      <div class="dr-vide-guide" id="dr-docs-vide" hidden>
-        <p id="dr-docs-vide-texte">Aucune bibliothèque SharePoint déclarée : la plateforme ne connaît encore aucun document.</p>
-        <button class="btn primary small" type="button" id="dr-docs-vers-reglages">Déclarer la bibliothèque (Réglages)</button>
+      <div class="dr-boutons">
+        <button class="btn small" type="button" id="dr-s-fiche">Fiche marketplace</button>
+        <button class="btn small" type="button" id="dr-s-reglages" aria-expanded="false">Réglages</button>
       </div>
-      <div class="dr-arbre-zone" id="dr-arbre-zone" hidden>
-        <p class="dr-aide">Publiez un fichier pour l'ouvrir aux acheteurs ; les droits se donnent par dossier de premier niveau.</p>
-        <details class="dr-plus"><summary>En savoir plus</summary>
-          <p>Une salle est un dossier du SharePoint ; ses dossiers de premier niveau portent les droits des
-            acquéreurs. Un fichier se publie dans sa version du moment : l'acquéreur voit cette version et le nom qu'il avait
-            à la publication, jusqu'à la publication suivante. Un fichier déplacé hors de son dossier ou supprimé est dépublié
-            d'office. Les numéros (1, 1.2, 1.2.3) suivent l'ordre des dossiers dans la salle.</p>
-        </details>
-        <p class="dr-msg" id="dr-arbre-msg" role="status"></p>
-        <div class="dr-arbre" id="dr-arbre"></div>
-      </div>
-    </section>
-  </div>
-
-  <div class="dr-panneau" role="tabpanel" id="dr-p-acheteurs" aria-labelledby="dr-o-acheteurs" tabindex="-1">
-    <section class="cq-carte dr-ae" id="dr-ae" hidden aria-labelledby="dr-ae-titre">
-      <div class="dr-tete">
-        <h2 id="dr-ae-titre">Acheteurs</h2>
-        <button class="btn small" type="button" id="dr-ae-recharger">Recharger</button>
-      </div>
-      <p class="dr-aide">Une ligne par acheteur : ouvrez-la pour régler ses accès, ou « Voir comme cet acheteur ».</p>
-      <details class="dr-plus"><summary>En savoir plus</summary>
-        <p>Une ligne par organisation acheteuse. Ouvrez-la pour voir ses projets, et seulement ceux-là : étape,
-        accès, clause, droits par dossier et documents ouverts. « Voir comme cet acheteur » montre, en lecture seule, ce que
-        l'organisation voit sur sa page (salles en préparation comprises, signalées comme pas encore visibles).</p>
-      </details>
-      <p class="dr-msg" id="dr-ae-msg" role="status" aria-live="polite"></p>
-      <ul class="dr-ae-liste" id="dr-ae-liste"></ul>
-
-      <section class="dr-ae-panneau" id="dr-ae-panneau" hidden aria-labelledby="dr-ae-p-titre">
+    </div>
+    <p class="dr-s-etat" id="dr-s-etat" aria-live="polite"></p>
+  <p class="dr-msg" id="dr-s-msg" role="status" aria-live="polite"></p>
+    <div id="dr-s-reglages-zone"></div>
+    <nav class="dr-etapes-salle" id="dr-etapes" role="tablist" aria-label="Étapes de la salle">
+      <button type="button" role="tab" id="dr-e-documents" aria-controls="dr-p-documents" data-etape="documents"><b>1 · Documents</b><span id="dr-e-documents-n"></span></button>
+      <button type="button" role="tab" id="dr-e-acheteurs" aria-controls="dr-p-acheteurs" data-etape="acheteurs"><b>2 · Acheteurs</b><span id="dr-e-acheteurs-n"></span></button>
+      <button type="button" role="tab" id="dr-e-suivi" aria-controls="dr-p-suivi" data-etape="suivi"><b>3 · Suivi</b><span id="dr-e-suivi-n"></span></button>
+    </nav>
+    <div class="dr-panneau" role="tabpanel" id="dr-p-documents" aria-labelledby="dr-e-documents" tabindex="-1">
+      <section class="cq-carte dr-docs" id="dr-docs" hidden aria-labelledby="dr-docs-titre">
         <div class="dr-tete">
-          <h3 id="dr-ae-p-titre" tabindex="-1"></h3>
+          <h2 id="dr-docs-titre">Documents</h2>
           <div class="dr-boutons">
-            <button class="btn primary small" type="button" id="dr-ae-voir">Voir comme cet acheteur</button>
-            <button class="btn small" type="button" id="dr-ae-inviter">Inviter sur un autre projet</button>
-            <button class="btn small" type="button" id="dr-ae-fermer">Fermer</button>
+            <label class="dr-choix" id="dr-choix-biblio" hidden>Bibliothèque <select id="dr-biblio"></select></label>
+            <button class="btn primary small" type="button" id="dr-s-publier">Tout publier</button>
+            <button class="btn small" type="button" id="dr-docs-export">Exporter l'index</button>
+            <button class="btn small" type="button" id="dr-docs-recharger">Recharger</button>
           </div>
         </div>
-        <p class="dr-msg" id="dr-ae-p-msg" role="status" aria-live="polite"></p>
-        <ul class="dr-ae-projets" id="dr-ae-projets"></ul>
+        <div class="dr-vide-guide" id="dr-docs-vide" hidden>
+          <p id="dr-docs-vide-texte">Aucune bibliothèque SharePoint déclarée : la plateforme ne connaît encore aucun document.</p>
+          <button class="btn primary small" type="button" id="dr-docs-vers-reglages">Déclarer la bibliothèque (Réglages)</button>
+        </div>
+        <div class="dr-arbre-zone" id="dr-arbre-zone" hidden>
+          <p class="dr-msg" id="dr-arbre-msg" role="status"></p>
+          <div class="dr-arbre" id="dr-arbre"></div>
+        </div>
+      </section>
+    </div>
+    <div class="dr-panneau" role="tabpanel" id="dr-p-acheteurs" aria-labelledby="dr-e-acheteurs" tabindex="-1" hidden>
+      <section class="cq-carte dr-invites" aria-labelledby="dr-invites-titre">
+        <div class="dr-tete">
+          <h2 id="dr-invites-titre">Acheteurs invités</h2>
+          <button class="btn primary small" type="button" id="dr-inv-ouvrir" aria-expanded="false">Inviter un acheteur</button>
+        </div>
+        <p class="dr-msg" id="dr-acq-msg" role="status" aria-live="polite"></p>
+        <form class="dr-form dr-inv-form" id="dr-inv-form" autocomplete="off" novalidate hidden>
+          <label for="dr-inv-societe">Société</label>
+          <input id="dr-inv-societe" maxlength="200" list="dr-inv-orgs" placeholder="Fonds Alpha">
+          <datalist id="dr-inv-orgs"></datalist>
+          <label for="dr-inv-cat">Type (nouvelle société)</label>
+          <select id="dr-inv-cat">
+            <option value="fonds">Fonds</option><option value="ipp">IPP</option>
+            <option value="industriel">Industriel</option><option value="conseil">Conseil</option>
+            <option value="autre">Autre</option>
+          </select>
+          <label for="dr-inv-email">Email du contact (facultatif)</label>
+          <input id="dr-inv-email" type="email" maxlength="254" placeholder="prenom.nom@fonds.com">
+          <label for="dr-inv-nom">Nom du contact</label>
+          <input id="dr-inv-nom" maxlength="200">
+          <label for="dr-inv-etape">Ce qu'il voit</label>
+          <select id="dr-inv-etape">
+            <option value="0">Teaser et mémo</option><option value="1">Offre indicative</option>
+            <option value="2">Offre ferme et due diligence</option><option value="3">Confirmatoire</option>
+          </select>
+          <label for="dr-inv-fin">Accès jusqu'au</label>
+          <input id="dr-inv-fin" type="date">
+          <div class="dr-boutons"><button class="btn primary small" type="submit" id="dr-inv-go">Inviter</button></div>
+          <p class="dr-msg erreur" id="dr-inv-msg" role="alert"></p>
+        </form>
+        <select id="dr-acq-salle" hidden aria-hidden="true" tabindex="-1"></select>
+        <ul class="dr-acq-liste" id="dr-acq-parts"></ul>
+        <details class="dr-avances">
+          <summary>Accès avancés : droits par dossier, dossiers réservés</summary>
+          <div class="dr-acq-droits" id="dr-acq-droits"></div>
+        </details>
+      </section>
+    </div>
+    <div class="dr-panneau" role="tabpanel" id="dr-p-suivi" aria-labelledby="dr-e-suivi" tabindex="-1" hidden>
+      <section class="cq-carte dr-tableau" id="dr-tableau" hidden aria-labelledby="dr-tb-titre">
+        <div class="dr-tete">
+          <h2 id="dr-tb-titre" tabindex="-1">Tableau de bord</h2>
+          <button class="btn small" type="button" id="dr-tb-recharger">Recharger</button>
+        </div>
+        <p class="dr-aide">Ce que les acheteurs ouvrent, téléchargent, cherchent et demandent à l'assistant.</p>
+        <div class="dr-form dr-tb-choix dr-par-salle">
+          <label for="dr-tb-salle">Périmètre</label>
+          <select id="dr-tb-salle"><option value="">Toutes les salles</option></select>
+        </div>
+        <p class="dr-msg" id="dr-tb-msg" role="status" aria-live="polite"></p>
+        <dl class="dr-tb-chiffres" id="dr-tb-chiffres"></dl>
+        <h3>Documents les plus vus</h3>
+        <div class="dr-tb-defile"><table class="dr-tb-table" id="dr-tb-vus"></table></div>
+        <h3 id="dr-tb-jamais-titre">Documents jamais ouverts</h3>
+        <ul class="dr-tb-liste" id="dr-tb-jamais"></ul>
+        <h3>Activité par organisation</h3>
+        <div class="dr-tb-defile"><table class="dr-tb-table" id="dr-tb-orgs"></table></div>
+        <div class="dr-tete">
+          <h3>Questions à l'assistant</h3>
+          <label class="dr-case" for="dr-tb-sans"><input type="checkbox" id="dr-tb-sans"> Sans réponse seulement</label>
+        </div>
+        <ol class="dr-tb-questions" id="dr-tb-questions"></ol>
+        <h3>Thèmes (mots des questions et des recherches)</h3>
+        <ul class="dr-tb-themes" id="dr-tb-themes"></ul>
       </section>
 
-      <section class="dr-ae-apercu" id="dr-ae-apercu" hidden aria-labelledby="dr-ae-a-bandeau">
-        <div class="dr-ae-bandeau">
-          <p id="dr-ae-a-bandeau" tabindex="-1"></p>
-          <button class="btn small" type="button" id="dr-ae-a-fermer">Fermer l'aperçu</button>
+      <section class="cq-carte dr-ae" id="dr-ae" hidden aria-labelledby="dr-ae-titre">
+        <div class="dr-tete">
+          <h2 id="dr-ae-titre">Acheteurs</h2>
+          <button class="btn small" type="button" id="dr-ae-recharger">Recharger</button>
         </div>
-        <p class="dr-aide">Lecture seule : rien ne s'ouvre, rien n'est demandé à Claude ni noté au journal de l'acheteur.</p>
-        <p class="dr-msg" id="dr-ae-a-msg" role="status" aria-live="polite"></p>
-        <ul class="dr-v-liste" id="dr-ae-a-grille"></ul>
-        <div class="dr-ae-a-fiche" id="dr-ae-a-fiche" hidden>
-          <button class="btn small" type="button" id="dr-ae-a-retour">← Tous ses projets</button>
-          <h4 id="dr-ae-a-f-titre" tabindex="-1"></h4>
-          <p class="dr-avert" id="dr-ae-a-f-prepa"></p>
-          <p class="dr-ach-op-infos" id="dr-ae-a-f-infos"></p>
-          <p class="dr-v-resume" id="dr-ae-a-f-resume"></p>
-          <p class="dr-msg" id="dr-ae-a-f-msg" role="status" aria-live="polite"></p>
-          <div id="dr-ae-a-f-docs"></div>
-        </div>
+        <p class="dr-aide">Une ligne par acheteur : ouvrez-la pour régler ses accès, ou « Voir comme cet acheteur ».</p>
+        <p class="dr-msg" id="dr-ae-msg" role="status" aria-live="polite"></p>
+        <ul class="dr-ae-liste" id="dr-ae-liste"></ul>
+
+        <section class="dr-ae-panneau" id="dr-ae-panneau" hidden aria-labelledby="dr-ae-p-titre">
+          <div class="dr-tete">
+            <h3 id="dr-ae-p-titre" tabindex="-1"></h3>
+            <div class="dr-boutons">
+              <button class="btn primary small" type="button" id="dr-ae-voir">Voir comme cet acheteur</button>
+              <button class="btn small" type="button" id="dr-ae-inviter">Inviter sur un autre projet</button>
+              <button class="btn small" type="button" id="dr-ae-fermer">Fermer</button>
+            </div>
+          </div>
+          <p class="dr-msg" id="dr-ae-p-msg" role="status" aria-live="polite"></p>
+          <ul class="dr-ae-projets" id="dr-ae-projets"></ul>
+        </section>
+
+        <section class="dr-ae-apercu" id="dr-ae-apercu" hidden aria-labelledby="dr-ae-a-bandeau">
+          <div class="dr-ae-bandeau">
+            <p id="dr-ae-a-bandeau" tabindex="-1"></p>
+            <button class="btn small" type="button" id="dr-ae-a-fermer">Fermer l'aperçu</button>
+          </div>
+          <p class="dr-aide">Lecture seule : rien ne s'ouvre, rien n'est demandé à Claude ni noté au journal de l'acheteur.</p>
+          <p class="dr-msg" id="dr-ae-a-msg" role="status" aria-live="polite"></p>
+          <ul class="dr-v-liste" id="dr-ae-a-grille"></ul>
+          <div class="dr-ae-a-fiche" id="dr-ae-a-fiche" hidden>
+            <button class="btn small" type="button" id="dr-ae-a-retour">← Tous ses projets</button>
+            <h4 id="dr-ae-a-f-titre" tabindex="-1"></h4>
+            <p class="dr-avert" id="dr-ae-a-f-prepa"></p>
+            <p class="dr-ach-op-infos" id="dr-ae-a-f-infos"></p>
+            <p class="dr-v-resume" id="dr-ae-a-f-resume"></p>
+            <p class="dr-msg" id="dr-ae-a-f-msg" role="status" aria-live="polite"></p>
+            <div id="dr-ae-a-f-docs"></div>
+          </div>
+        </section>
       </section>
+    </div>
+  </section>
+
+  <section class="dr-vue" id="dr-v-activite" hidden aria-label="Activité de toutes les salles">
+    <button class="dr-retour" type="button" id="dr-activite-retour">← Data rooms</button>
+  </section>
+
+  <section class="dr-vue" id="dr-v-vitrine" hidden aria-label="Vitrine">
+    <button class="dr-retour" type="button" id="dr-vit-retour">← Retour</button>
+    <section class="cq-carte dr-vit" id="dr-vit" hidden aria-labelledby="dr-vit-titre">
+      <div class="dr-tete">
+        <h2 id="dr-vit-titre" tabindex="-1">Vitrine (Marketplace)</h2>
+        <button class="btn small" type="button" id="dr-vit-recharger">Recharger</button>
+      </div>
+      <p class="dr-aide">Fiches non confidentielles montrées à tous les acheteurs connectés : brouillon, aperçu, puis publication.</p>
+      <details class="dr-plus"><summary>En savoir plus</summary>
+        <p>Fiches NON CONFIDENTIELLES montrées à tous les acquéreurs connectés, même sans invitation : nom de
+        code, technologie, stade, puissance, région, année, résumé, points clés, une illustration et, s'il y en a, des photos
+        du projet (vues seulement des acquéreurs connectés ; jamais une image tirée d'un document). Jamais de nom de vendeur ou de société de projet, d'adresse ou de coordonnées, de
+        chemin SharePoint ni de lien vers un fichier. Une fiche se prépare en brouillon, se prévisualise, puis se publie
+        seulement avec la validation de la diffusion. Une demande d'accès n'ouvre rien : inviter reste dans « Acquéreurs ».</p>
+      </details>
+      <p class="dr-msg" id="dr-vit-msg" role="status"></p>
+      <div class="dr-vit-grille">
+        <div>
+          <h3>Fiches</h3>
+          <ul class="dr-vit-fiches" id="dr-vit-fiches"></ul>
+        </div>
+        <form class="dr-form" id="dr-vit-form" autocomplete="off" novalidate>
+          <h3 id="dr-vit-form-titre">Nouvelle fiche (brouillon)</h3>
+          <label for="dr-vit-nom">Nom de code</label><input id="dr-vit-nom" maxlength="80" required>
+          <label for="dr-vit-techno">Technologie</label><select id="dr-vit-techno"><option value="pv_sol">Photovoltaïque au sol</option><option value="pv_toiture">Photovoltaïque en toiture</option><option value="pv_ombriere">Ombrières</option><option value="agrivoltaisme">Agrivoltaïsme</option><option value="portefeuille_pv">Portefeuille photovoltaïque</option><option value="eolien">Éolien</option><option value="stockage">Stockage</option><option value="hybride">Hybride</option></select>
+          <label for="dr-vit-stade">Stade</label><select id="dr-vit-stade"><option value="developpement">Développement</option><option value="pret_a_construire">Prêt à construire</option><option value="construction">Construction</option><option value="exploitation">En exploitation</option></select>
+          <label for="dr-vit-puissance">Puissance (MWc)</label><input id="dr-vit-puissance" type="number" min="0.1" step="0.1" inputmode="decimal">
+          <label for="dr-vit-zone">Zone (région)</label><select id="dr-vit-zone"><option value="Auvergne-Rhône-Alpes">Auvergne-Rhône-Alpes</option><option value="Bourgogne-Franche-Comté">Bourgogne-Franche-Comté</option><option value="Bretagne">Bretagne</option><option value="Centre-Val de Loire">Centre-Val de Loire</option><option value="Corse">Corse</option><option value="Grand Est">Grand Est</option><option value="Hauts-de-France">Hauts-de-France</option><option value="Île-de-France">Île-de-France</option><option value="Normandie">Normandie</option><option value="Nouvelle-Aquitaine">Nouvelle-Aquitaine</option><option value="Occitanie">Occitanie</option><option value="Pays de la Loire">Pays de la Loire</option><option value="Provence-Alpes-Côte d'Azur">Provence-Alpes-Côte d'Azur</option><option value="Outre-mer">Outre-mer</option><option value="Plusieurs régions">Plusieurs régions</option></select>
+          <label for="dr-vit-annee">Année de mise en service (facultatif)</label><input id="dr-vit-annee" type="number" min="2000" max="2040">
+          <label for="dr-vit-resume">Résumé (600 caractères au plus)</label><textarea id="dr-vit-resume" rows="4" maxlength="600"></textarea>
+          <label for="dr-vit-points">Points clés (un par ligne, 5 au plus)</label><textarea id="dr-vit-points" rows="4"></textarea>
+          <label for="dr-vit-illustration">Illustration</label><select id="dr-vit-illustration"><option value="sol">Centrale au sol</option><option value="toiture">Toitures</option><option value="ombriere">Ombrières</option><option value="agrivoltaisme">Agrivoltaïsme</option><option value="eolien">Éolien</option><option value="stockage">Stockage</option></select>
+          <label for="dr-vit-note">Note interne (jamais montrée aux acquéreurs)</label><textarea id="dr-vit-note" rows="2" maxlength="2000"></textarea>
+          <div class="dr-boutons"><button class="btn primary small" type="submit" id="dr-vit-enregistrer">Enregistrer le brouillon</button>
+            <button class="btn small" type="button" id="dr-vit-nouvelle">Nouvelle fiche</button></div>
+          <p class="dr-msg" id="dr-vit-form-msg" role="status"></p>
+        </form>
+      </div>
+      <section class="dr-vit-photos" id="dr-vit-photos" hidden aria-labelledby="dr-vit-photos-titre">
+        <h3 id="dr-vit-photos-titre">Photos</h3>
+        <p class="dr-aide">Vraies photos du projet, montrées aux seuls acquéreurs connectés (jamais en accès public) : la
+          première remplace l'illustration sur la carte de la marketplace, toutes sont sur la fiche. JPEG, PNG ou WebP,
+          12 par fiche ; chaque photo est redessinée avant l'envoi (2400 px et 5 Mo au plus) : ses métadonnées, dont la
+          position GPS de la prise de vue, ne partent pas. Ni personne reconnaissable, ni plaque, ni panneau ou nom de société : relisez-les
+          avant de publier. Ajout et réglage sur un brouillon seulement ; retrait à tout moment.</p>
+        <ul class="dr-vit-photos-liste" id="dr-vit-photos-liste" aria-label="Photos de la fiche"></ul>
+        <form class="dr-vit-photo-ajout" id="dr-vit-photo-form" autocomplete="off" novalidate>
+          <label for="dr-vit-photo-fichier">Photo à ajouter<input type="file" id="dr-vit-photo-fichier"
+            accept="image/jpeg,image/png,image/webp"></label>
+          <label for="dr-vit-photo-legende">Légende (120 caractères au plus)<input type="text" id="dr-vit-photo-legende"
+            maxlength="120" spellcheck="true"></label>
+          <button class="btn primary small" type="submit" id="dr-vit-photo-ajouter">Ajouter la photo</button>
+        </form>
+        <p class="dr-msg" id="dr-vit-photos-msg" role="status" aria-live="polite"></p>
+      </section>
+      <div class="dr-vit-apercu" id="dr-vit-apercu" hidden>
+        <h3>Aperçu : ce que verra un acquéreur</h3>
+        <div id="dr-vit-apercu-carte"></div>
+        <label class="dr-case" for="dr-vit-valider"><input type="checkbox" id="dr-vit-valider"> Je valide la diffusion de
+          ces informations à tous les acquéreurs connectés : aucune donnée confidentielle, aucun nom de vendeur ou de
+          société, aucun lieu précis.</label>
+        <div class="dr-boutons" id="dr-vit-actions"></div>
+      </div>
+      <h3>Demandes d'accès</h3>
+      <ul class="dr-vit-demandes" id="dr-vit-demandes"></ul>
+    </section>
+  </section>
+
+  <section class="dr-vue" id="dr-v-parametres" hidden aria-labelledby="dr-param-titre">
+    <button class="dr-retour" type="button" id="dr-param-retour">← Data rooms</button>
+    <h2 id="dr-param-titre" tabindex="-1">Paramètres</h2>
+    <p class="dr-aide">Réglages techniques, rarement utiles : connexion à SharePoint, comptes, essais de l'assistant, marketplace.</p>
+    <section class="cq-carte dr-synchro" id="dr-synchro" hidden aria-labelledby="dr-synchro-titre">
+      <div class="dr-tete">
+        <h2 id="dr-synchro-titre">Synchronisation avec SharePoint</h2>
+        <button class="btn small" type="button" id="dr-recharger">Recharger</button>
+      </div>
+      <p class="dr-aide">Les bibliothèques SharePoint suivies : « Synchroniser maintenant » relit leurs dossiers et fichiers.</p>
+      <details class="dr-plus"><summary>En savoir plus</summary>
+        <p>La plateforme lit les sites SharePoint des data rooms déclarés ci-dessous (une carte par
+        bibliothèque), à la demande : bouton « Synchroniser maintenant » de chaque carte. Elle garde un index des dossiers, des fichiers et de leurs versions, jamais les fichiers eux-mêmes. Un document n'est
+        visible d'un acquéreur qu'une fois publié par l'équipe, ou d'office dans une salle en publication automatique. La
+        date d'expiration du secret Microsoft se note sur la carte de la bibliothèque : l'écran prévient 30 jours avant.</p>
+      </details>
+      <p class="dr-msg" id="dr-msg" role="status"></p>
+      <p class="dr-lecteur" id="dr-annonce" role="status" aria-live="polite"></p>
+      <div class="dr-biblios" id="dr-biblios"><p class="dr-vide">Lecture des bibliothèques…</p></div>
+
+      <details class="dr-declarer" id="dr-declarer">
+        <summary>Déclarer la bibliothèque</summary>
+        <form class="dr-form" id="dr-form-biblio" autocomplete="off" novalidate>
+          <p class="dr-aide">Une seule fois par bibliothèque. Collez l'adresse du site SharePoint puis « Trouver » :
+            les deux identifiants sont lus par l'application Microsoft de la plateforme (lecture seule, rien n'est
+            déclaré avant « Déclarer »). Si Microsoft refuse, l'application n'a pas la lecture de ce site. À défaut, ils
+            sont affichés à la fin de <code>python etl/graph_verif.py</code>.</p>
+          <label for="dr-b-adresse">Adresse du site SharePoint</label>
+          <div class="dr-trouver">
+            <input id="dr-b-adresse" maxlength="400" spellcheck="false" placeholder="https://…/sites/…">
+            <button class="btn small" type="button" id="dr-b-trouver">Trouver</button>
+          </div>
+          <label for="dr-b-nom">Nom</label>
+          <input id="dr-b-nom" maxlength="200" value="Data rooms" required>
+          <label for="dr-b-site">Identifiant du site</label>
+          <input id="dr-b-site" maxlength="300" spellcheck="false" required>
+          <label for="dr-b-drive">Identifiant de la bibliothèque</label>
+          <input id="dr-b-drive" maxlength="200" spellcheck="false" required>
+          <div class="dr-boutons"><button class="btn primary small" type="submit" id="dr-b-go">Déclarer</button></div>
+          <p class="dr-msg erreur" id="dr-b-msg" role="alert"></p>
+        </form>
+      </details>
+
+      <details class="dr-declarer" id="dr-portee" hidden>
+        <summary>Portée de lecture de l'application Microsoft</summary>
+        <form class="dr-form" id="dr-form-portee" autocomplete="off" novalidate>
+          <p class="dr-aide">Collez les adresses des sites SharePoint des data rooms (une par ligne, 60 au plus), puis
+            « Vérifier la lecture » : pour chacun, l'application Microsoft de la plateforme dit si elle le lit déjà et quelles
+            bibliothèques il contient. Lecture seule : rien n'est déclaré ni synchronisé, aucun document n'est lu.</p>
+          <label for="dr-p-adresses">Adresses des sites</label>
+          <textarea id="dr-p-adresses" rows="5" maxlength="24000" spellcheck="false"></textarea>
+          <div class="dr-boutons"><button class="btn small" type="submit" id="dr-p-go">Vérifier la lecture</button></div>
+          <p class="dr-msg" id="dr-p-msg" role="status"></p>
+          <ul class="dr-portee" id="dr-p-liste"></ul>
+        </form>
+      </details>
+
     </section>
 
     <section class="cq-carte dr-acquereurs" id="dr-acquereurs" hidden aria-labelledby="dr-acq-titre">
       <div class="dr-tete">
-        <h2 id="dr-acq-titre">Comptes, invitations et droits</h2>
+        <h2 id="dr-acq-titre">Organisations et comptes</h2>
         <button class="btn small" type="button" id="dr-acq-recharger">Recharger</button>
       </div>
-      <p class="dr-aide">Créer les organisations et leurs comptes, inviter dans la salle, régler les droits par dossier.</p>
-      <details class="dr-plus"><summary>En savoir plus</summary>
-        <p>Une organisation (fonds, IPP, industriel, conseil) regroupe les comptes d'un même acquéreur ; elle est
-        invitée dans une salle jusqu'à une date de fin, à une étape du processus (0 teaser et mémo, 1 offre indicative,
-        2 offre ferme et due diligence, 3 confirmatoire). Elle voit les documents publiés des dossiers dont l'étape est
-        atteinte, sauf les dossiers réservés à d'autres ; les fichiers qui ne sont ni des PDF ni des images demandent le
-        niveau « télécharger ». Chaque changement est journalisé.</p>
-      </details>
-      <p class="dr-msg" id="dr-acq-msg" role="status"></p>
+      <p class="dr-msg" id="dr-acq-msg2" role="status"></p>
       <div class="dr-acq-grille">
         <div>
           <h3>Organisations</h3>
@@ -258,28 +406,8 @@
           </form>
         </div>
       </div>
-      <h3>Invitations dans une salle</h3>
-      <label class="dr-par-salle" for="dr-acq-salle">Salle</label>
-      <select class="dr-par-salle" id="dr-acq-salle"></select>
-      <ul class="dr-acq-liste" id="dr-acq-parts"></ul>
-      <form class="dr-form dr-acq-inviter" id="dr-acq-form-inviter" autocomplete="off" novalidate>
-        <label for="dr-acq-inv-org">Organisation à inviter</label>
-        <select id="dr-acq-inv-org"></select>
-        <label for="dr-acq-inv-fin">Fin de l'accès</label>
-        <input id="dr-acq-inv-fin" type="date">
-        <label for="dr-acq-inv-etape">Étape de départ</label>
-        <select id="dr-acq-inv-etape">
-          <option value="0">0 · Teaser et mémo</option><option value="1">1 · Offre indicative</option>
-          <option value="2">2 · Offre ferme et due diligence</option><option value="3">3 · Confirmatoire</option>
-        </select>
-        <div class="dr-boutons"><button class="btn small" type="submit" id="dr-acq-inv-go">Inviter</button></div>
-      </form>
-      <h3>Droits par dossier</h3>
-      <div class="dr-acq-droits" id="dr-acq-droits"></div>
     </section>
-  </div>
 
-  <div class="dr-panneau" role="tabpanel" id="dr-p-interroger" aria-labelledby="dr-o-interroger" tabindex="-1">
     <section class="cq-carte dr-assistant" id="dr-assistant" hidden aria-labelledby="dr-assistant-titre">
       <div class="dr-tete">
         <h2 id="dr-assistant-titre">Interroger un projet avec Claude</h2>
@@ -345,164 +473,63 @@
       <p class="dr-msg" id="dr-c-msg" role="status" aria-live="polite"></p>
       <ol class="dr-resultats" id="dr-resultats"></ol>
     </section>
-  </div>
 
-  <div class="dr-panneau" role="tabpanel" id="dr-p-vitrine" aria-labelledby="dr-o-vitrine" tabindex="-1">
-    <section class="cq-carte dr-vit" id="dr-vit" hidden aria-labelledby="dr-vit-titre">
-      <div class="dr-tete">
-        <h2 id="dr-vit-titre">Vitrine (Marketplace)</h2>
-        <button class="btn small" type="button" id="dr-vit-recharger">Recharger</button>
-      </div>
-      <p class="dr-aide">Fiches non confidentielles montrées à tous les acheteurs connectés : brouillon, aperçu, puis publication.</p>
-      <details class="dr-plus"><summary>En savoir plus</summary>
-        <p>Fiches NON CONFIDENTIELLES montrées à tous les acquéreurs connectés, même sans invitation : nom de
-        code, technologie, stade, puissance, région, année, résumé, points clés, une illustration et, s'il y en a, des photos
-        du projet (vues seulement des acquéreurs connectés ; jamais une image tirée d'un document). Jamais de nom de vendeur ou de société de projet, d'adresse ou de coordonnées, de
-        chemin SharePoint ni de lien vers un fichier. Une fiche se prépare en brouillon, se prévisualise, puis se publie
-        seulement avec la validation de la diffusion. Une demande d'accès n'ouvre rien : inviter reste dans « Acquéreurs ».</p>
-      </details>
-      <p class="dr-msg" id="dr-vit-msg" role="status"></p>
-      <div class="dr-vit-grille">
-        <div>
-          <h3>Fiches</h3>
-          <ul class="dr-vit-fiches" id="dr-vit-fiches"></ul>
-        </div>
-        <form class="dr-form" id="dr-vit-form" autocomplete="off" novalidate>
-          <h3 id="dr-vit-form-titre">Nouvelle fiche (brouillon)</h3>
-          <label for="dr-vit-nom">Nom de code</label><input id="dr-vit-nom" maxlength="80" required>
-          <label for="dr-vit-techno">Technologie</label><select id="dr-vit-techno"><option value="pv_sol">Photovoltaïque au sol</option><option value="pv_toiture">Photovoltaïque en toiture</option><option value="pv_ombriere">Ombrières</option><option value="agrivoltaisme">Agrivoltaïsme</option><option value="portefeuille_pv">Portefeuille photovoltaïque</option><option value="eolien">Éolien</option><option value="stockage">Stockage</option><option value="hybride">Hybride</option></select>
-          <label for="dr-vit-stade">Stade</label><select id="dr-vit-stade"><option value="developpement">Développement</option><option value="pret_a_construire">Prêt à construire</option><option value="construction">Construction</option><option value="exploitation">En exploitation</option></select>
-          <label for="dr-vit-puissance">Puissance (MWc)</label><input id="dr-vit-puissance" type="number" min="0.1" step="0.1" inputmode="decimal">
-          <label for="dr-vit-zone">Zone (région)</label><select id="dr-vit-zone"><option value="Auvergne-Rhône-Alpes">Auvergne-Rhône-Alpes</option><option value="Bourgogne-Franche-Comté">Bourgogne-Franche-Comté</option><option value="Bretagne">Bretagne</option><option value="Centre-Val de Loire">Centre-Val de Loire</option><option value="Corse">Corse</option><option value="Grand Est">Grand Est</option><option value="Hauts-de-France">Hauts-de-France</option><option value="Île-de-France">Île-de-France</option><option value="Normandie">Normandie</option><option value="Nouvelle-Aquitaine">Nouvelle-Aquitaine</option><option value="Occitanie">Occitanie</option><option value="Pays de la Loire">Pays de la Loire</option><option value="Provence-Alpes-Côte d'Azur">Provence-Alpes-Côte d'Azur</option><option value="Outre-mer">Outre-mer</option><option value="Plusieurs régions">Plusieurs régions</option></select>
-          <label for="dr-vit-annee">Année de mise en service (facultatif)</label><input id="dr-vit-annee" type="number" min="2000" max="2040">
-          <label for="dr-vit-resume">Résumé (600 caractères au plus)</label><textarea id="dr-vit-resume" rows="4" maxlength="600"></textarea>
-          <label for="dr-vit-points">Points clés (un par ligne, 5 au plus)</label><textarea id="dr-vit-points" rows="4"></textarea>
-          <label for="dr-vit-illustration">Illustration</label><select id="dr-vit-illustration"><option value="sol">Centrale au sol</option><option value="toiture">Toitures</option><option value="ombriere">Ombrières</option><option value="agrivoltaisme">Agrivoltaïsme</option><option value="eolien">Éolien</option><option value="stockage">Stockage</option></select>
-          <label for="dr-vit-note">Note interne (jamais montrée aux acquéreurs)</label><textarea id="dr-vit-note" rows="2" maxlength="2000"></textarea>
-          <div class="dr-boutons"><button class="btn primary small" type="submit" id="dr-vit-enregistrer">Enregistrer le brouillon</button>
-            <button class="btn small" type="button" id="dr-vit-nouvelle">Nouvelle fiche</button></div>
-          <p class="dr-msg" id="dr-vit-form-msg" role="status"></p>
-        </form>
-      </div>
-      <section class="dr-vit-photos" id="dr-vit-photos" hidden aria-labelledby="dr-vit-photos-titre">
-        <h3 id="dr-vit-photos-titre">Photos</h3>
-        <p class="dr-aide">Vraies photos du projet, montrées aux seuls acquéreurs connectés (jamais en accès public) : la
-          première remplace l'illustration sur la carte de la marketplace, toutes sont sur la fiche. JPEG, PNG ou WebP,
-          12 par fiche ; chaque photo est redessinée avant l'envoi (2400 px et 5 Mo au plus) : ses métadonnées, dont la
-          position GPS de la prise de vue, ne partent pas. Ni personne reconnaissable, ni plaque, ni panneau ou nom de société : relisez-les
-          avant de publier. Ajout et réglage sur un brouillon seulement ; retrait à tout moment.</p>
-        <ul class="dr-vit-photos-liste" id="dr-vit-photos-liste" aria-label="Photos de la fiche"></ul>
-        <form class="dr-vit-photo-ajout" id="dr-vit-photo-form" autocomplete="off" novalidate>
-          <label for="dr-vit-photo-fichier">Photo à ajouter<input type="file" id="dr-vit-photo-fichier"
-            accept="image/jpeg,image/png,image/webp"></label>
-          <label for="dr-vit-photo-legende">Légende (120 caractères au plus)<input type="text" id="dr-vit-photo-legende"
-            maxlength="120" spellcheck="true"></label>
-          <button class="btn primary small" type="submit" id="dr-vit-photo-ajouter">Ajouter la photo</button>
-        </form>
-        <p class="dr-msg" id="dr-vit-photos-msg" role="status" aria-live="polite"></p>
+    <section class="cq-carte dr-param-vitrine" aria-labelledby="dr-param-vit-titre">
+      <div class="dr-tete"><h2 id="dr-param-vit-titre">Marketplace</h2>
+        <button class="btn small" type="button" id="dr-vers-vitrine">Ouvrir la vitrine</button></div>
+      <p class="dr-aide">Toutes les fiches, et les demandes d'accès des acheteurs.</p>
+    </section>
+
+    <div id="dr-presentation" hidden>
+    <details class="dr-historique">
+      <summary>Historique du module (plan de départ et avancement au 20/11/2026)</summary>
+    <div class="dr-grille">
+      <section class="cq-carte">
+        <h2>Ce que le module fera</h2>
+        <ul>
+          <li>Une salle par opération (centrale, portefeuille, société, projet en développement), à partir d'un modèle
+            d'arborescence que l'on adapte.</li>
+          <li>Les fichiers restent dans SharePoint ; ils ne sont jamais partagés directement avec un acquéreur.</li>
+          <li>Un accès par étape du processus de vente (teaser et mémo, offre indicative, offre ferme et due diligence,
+            confirmatoire) : chaque acquéreur ne voit que les documents de l'étape qu'il a atteinte.</li>
+          <li>Des groupes d'acquéreurs cloisonnés et, pour chaque dossier, deux niveaux : consulter seulement, ou consulter
+            et télécharger.</li>
+          <li>Une publication explicite : un nouveau document n'est visible qu'après validation par l'équipe.</li>
+          <li>Un journal nominatif (qui a consulté ou téléchargé quoi, et quand) et une révocation immédiate.</li>
+          <li>Un assistant qui répond aux questions des acquéreurs à partir des seuls documents qui leur sont ouverts, avec
+            la référence de chaque page citée, et un tableau de bord de ce qu'ils consultent et cherchent.</li>
+          <li>Ensuite : questions-réponses par groupe d'acquéreurs, puis dépôt de documents par le vendeur.</li>
+        </ul>
       </section>
-      <div class="dr-vit-apercu" id="dr-vit-apercu" hidden>
-        <h3>Aperçu : ce que verra un acquéreur</h3>
-        <div id="dr-vit-apercu-carte"></div>
-        <label class="dr-case" for="dr-vit-valider"><input type="checkbox" id="dr-vit-valider"> Je valide la diffusion de
-          ces informations à tous les acquéreurs connectés : aucune donnée confidentielle, aucun nom de vendeur ou de
-          société, aucun lieu précis.</label>
-        <div class="dr-boutons" id="dr-vit-actions"></div>
-      </div>
-      <h3>Demandes d'accès</h3>
-      <ul class="dr-vit-demandes" id="dr-vit-demandes"></ul>
-    </section>
-  </div>
-
-  <div class="dr-panneau" role="tabpanel" id="dr-p-statistiques" aria-labelledby="dr-o-statistiques" tabindex="-1">
-    <section class="cq-carte dr-tableau" id="dr-tableau" hidden aria-labelledby="dr-tb-titre">
-      <div class="dr-tete">
-        <h2 id="dr-tb-titre">Tableau de bord</h2>
-        <button class="btn small" type="button" id="dr-tb-recharger">Recharger</button>
-      </div>
-      <p class="dr-aide">Ce que les acheteurs ouvrent, téléchargent, cherchent et demandent à l'assistant.</p>
-      <details class="dr-plus"><summary>En savoir plus</summary>
-        <p>Ce que les acquéreurs consultent, téléchargent, cherchent et demandent à l'assistant. Les aperçus de
-        l'équipe et ses essais « comme un acquéreur » ne sont pas comptés.</p>
-      </details>
-      <div class="dr-form dr-tb-choix dr-par-salle">
-        <label for="dr-tb-salle">Périmètre</label>
-        <select id="dr-tb-salle"><option value="">Toutes les salles</option></select>
-      </div>
-      <p class="dr-msg" id="dr-tb-msg" role="status" aria-live="polite"></p>
-      <dl class="dr-tb-chiffres" id="dr-tb-chiffres"></dl>
-      <h3>Documents les plus vus</h3>
-      <div class="dr-tb-defile"><table class="dr-tb-table" id="dr-tb-vus"></table></div>
-      <h3 id="dr-tb-jamais-titre">Documents jamais ouverts</h3>
-      <ul class="dr-tb-liste" id="dr-tb-jamais"></ul>
-      <h3>Activité par organisation</h3>
-      <div class="dr-tb-defile"><table class="dr-tb-table" id="dr-tb-orgs"></table></div>
-      <div class="dr-tete">
-        <h3>Questions à l'assistant</h3>
-        <label class="dr-case" for="dr-tb-sans"><input type="checkbox" id="dr-tb-sans"> Sans réponse seulement</label>
-      </div>
-      <ol class="dr-tb-questions" id="dr-tb-questions"></ol>
-      <h3>Thèmes (mots des questions et des recherches)</h3>
-      <ul class="dr-tb-themes" id="dr-tb-themes"></ul>
-    </section>
-  </div>
-
-  <div class="dr-panneau" role="tabpanel" id="dr-p-reglages" aria-labelledby="dr-o-reglages" tabindex="-1">
-    <section class="cq-carte dr-synchro" id="dr-synchro" hidden aria-labelledby="dr-synchro-titre">
-      <div class="dr-tete">
-        <h2 id="dr-synchro-titre">Synchronisation avec SharePoint</h2>
-        <button class="btn small" type="button" id="dr-recharger">Recharger</button>
-      </div>
-      <p class="dr-aide">Les bibliothèques SharePoint suivies : « Synchroniser maintenant » relit leurs dossiers et fichiers.</p>
-      <details class="dr-plus"><summary>En savoir plus</summary>
-        <p>La plateforme lit les sites SharePoint des data rooms déclarés ci-dessous (une carte par
-        bibliothèque), à la demande : bouton « Synchroniser maintenant » de chaque carte. Elle garde un index des dossiers, des fichiers et de leurs versions, jamais les fichiers eux-mêmes. Un document n'est
-        visible d'un acquéreur qu'une fois publié par l'équipe, ou d'office dans une salle en publication automatique. La
-        date d'expiration du secret Microsoft se note sur la carte de la bibliothèque : l'écran prévient 30 jours avant.</p>
-      </details>
-      <p class="dr-msg" id="dr-msg" role="status"></p>
-      <p class="dr-lecteur" id="dr-annonce" role="status" aria-live="polite"></p>
-      <div class="dr-biblios" id="dr-biblios"><p class="dr-vide">Lecture des bibliothèques…</p></div>
-
-      <details class="dr-declarer" id="dr-declarer">
-        <summary>Déclarer la bibliothèque</summary>
-        <form class="dr-form" id="dr-form-biblio" autocomplete="off" novalidate>
-          <p class="dr-aide">Une seule fois par bibliothèque. Collez l'adresse du site SharePoint puis « Trouver » :
-            les deux identifiants sont lus par l'application Microsoft de la plateforme (lecture seule, rien n'est
-            déclaré avant « Déclarer »). Si Microsoft refuse, l'application n'a pas la lecture de ce site. À défaut, ils
-            sont affichés à la fin de <code>python etl/graph_verif.py</code>.</p>
-          <label for="dr-b-adresse">Adresse du site SharePoint</label>
-          <div class="dr-trouver">
-            <input id="dr-b-adresse" maxlength="400" spellcheck="false" placeholder="https://…/sites/…">
-            <button class="btn small" type="button" id="dr-b-trouver">Trouver</button>
-          </div>
-          <label for="dr-b-nom">Nom</label>
-          <input id="dr-b-nom" maxlength="200" value="Data rooms" required>
-          <label for="dr-b-site">Identifiant du site</label>
-          <input id="dr-b-site" maxlength="300" spellcheck="false" required>
-          <label for="dr-b-drive">Identifiant de la bibliothèque</label>
-          <input id="dr-b-drive" maxlength="200" spellcheck="false" required>
-          <div class="dr-boutons"><button class="btn primary small" type="submit" id="dr-b-go">Déclarer</button></div>
-          <p class="dr-msg erreur" id="dr-b-msg" role="alert"></p>
-        </form>
-      </details>
-
-      <details class="dr-declarer" id="dr-portee" hidden>
-        <summary>Portée de lecture de l'application Microsoft</summary>
-        <form class="dr-form" id="dr-form-portee" autocomplete="off" novalidate>
-          <p class="dr-aide">Collez les adresses des sites SharePoint des data rooms (une par ligne, 60 au plus), puis
-            « Vérifier la lecture » : pour chacun, l'application Microsoft de la plateforme dit si elle le lit déjà et quelles
-            bibliothèques il contient. Lecture seule : rien n'est déclaré ni synchronisé, aucun document n'est lu.</p>
-          <label for="dr-p-adresses">Adresses des sites</label>
-          <textarea id="dr-p-adresses" rows="5" maxlength="24000" spellcheck="false"></textarea>
-          <div class="dr-boutons"><button class="btn small" type="submit" id="dr-p-go">Vérifier la lecture</button></div>
-          <p class="dr-msg" id="dr-p-msg" role="status"></p>
-          <ul class="dr-portee" id="dr-p-liste"></ul>
-        </form>
-      </details>
-
-    </section>
-  </div>
+      <section class="cq-carte">
+        <h2>Où on en est</h2>
+        <ol class="dr-etapes">
+          <li class="fait">Plateforme à modules en place</li>
+          <li class="fait">Choix faits ensemble : site SharePoint dédié, droits par dossier, toute l'équipe gère les salles,
+            PDF, Office et images jusqu'à 250 Mo</li>
+          <li class="fait">Socle des droits et séparation stricte entre l'équipe et les invités</li>
+          <li class="fait">Plan de la première version validé (assistant compris, étapes du processus de vente)</li>
+          <li class="fait">Site SharePoint « Data rooms » et application Microsoft en lecture seule sur ce seul site
+            (20/11/2026)</li>
+          <li class="en-cours">Synchronisation avec SharePoint : base, fonction serveur et écran de l'équipe écrits et
+            testés ; mise en service à faire (pas à pas : supabase/functions/README.md)</li>
+          <li class="en-cours">Lecture du texte des documents et recherche de l'équipe : écrites et testées ; mise en service
+            après la synchronisation</li>
+          <li class="en-cours">Assistant essayé par l'équipe « comme un acquéreur à l'étape N » : écrit et testé ; mise en
+            service avec la clé de l'API Claude déjà fournie (configuration vérifiée d'abord)</li>
+          <li class="en-cours">Acquéreurs : organisations, invitations, étapes, droits par dossier et écran de l'acquéreur
+            (recherche, assistant) écrits et testés ; ouverture après l'installation des règles d'accès</li>
+          <li class="en-cours">Consultation des documents (visionneuse avec filigrane, lecture par morceaux, téléchargement
+            contrôlé) : écrite et testée ; mise en service après la synchronisation</li>
+          <li class="en-cours">Tableau de bord de l'équipe (documents vus et jamais ouverts, activité par acquéreur,
+            questions sans réponse, thèmes) : écrit et testé ; mise en service avec le reste</li>
+          <li>Ouverture à un premier acquéreur pilote</li>
+        </ol>
+      </section>
+    </div>
+    </details>
+    </div>
+  </section>
 
   <!-- visionneuse (lot b) : pages dessinées dans un canevas, filigrane compris ; rien n'est gardé sur l'appareil -->
   <div class="dr-vis" id="dr-vis" hidden role="dialog" aria-modal="true" aria-labelledby="dr-vis-titre">
@@ -521,5 +548,5 @@
 </main>
 <script src="plateforme/coquille.js?v=cff860c8a7"></script>
 <script src="modules/dataroom/visionneuse.js?v=9398eae7f4"></script>
-<script src="modules/dataroom/dataroom.js?v=8efd6332ae"></script>
+<script src="modules/dataroom/dataroom.js?v=b977b08714"></script>
 </body></html>
